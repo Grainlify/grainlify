@@ -64,6 +64,8 @@ export function MaintainersPage({ onNavigate }: MaintainersPageProps) {
   // Expose refresh function for child components
   const refreshAll = () => {
     loadProjects();
+    // Trigger a custom event that child components can listen to
+    window.dispatchEvent(new CustomEvent('repositories-refreshed'));
   };
 
   const loadProjects = async () => {

@@ -92,15 +92,30 @@ export function DashboardTab({ selectedProjects, onRefresh }: DashboardTabProps)
     }
   };
 
-  // Refresh data periodically
+  // Refresh data when page becomes visible (user switches back to tab)
+  // And when repositories are refreshed (new repo added)
   useEffect(() => {
-    if (onRefresh) {
-      const interval = setInterval(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && selectedProjects.length > 0) {
         loadData();
-      }, 30000); // Refresh every 30 seconds
-      return () => clearInterval(interval);
-    }
-  }, [onRefresh, selectedProjects]);
+      }
+    };
+
+    const handleRepositoriesRefreshed = () => {
+      // Refresh dashboard data when repositories are added/updated
+      if (selectedProjects.length > 0) {
+        loadData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('repositories-refreshed', handleRepositoriesRefreshed);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('repositories-refreshed', handleRepositoriesRefreshed);
+    };
+  }, [selectedProjects]);
 
   // Calculate stats from real data
   const stats: StatCard[] = useMemo(() => {
@@ -272,103 +287,6 @@ export function DashboardTab({ selectedProjects, onRefresh }: DashboardTabProps)
       };
     });
   }, [issues, prs]);
-  // Stats data
-  const stats: StatCard[] = [
-    {
-      id: 1,
-      title: 'Repository Views',
-      subtitle: 'Last 7 days',
-      value: 0,
-      change: -100,
-      icon: Eye,
-    },
-    {
-      id: 2,
-      title: 'Issue Views',
-      subtitle: 'Last 7 days',
-      value: 0,
-      change: -100,
-      icon: FileText,
-    },
-    {
-      id: 3,
-      title: 'Issue Applications',
-      subtitle: 'Last 7 days',
-      value: 0,
-      change: 0,
-      icon: FileText,
-    },
-    {
-      id: 4,
-      title: 'Pull Requests Opened',
-      subtitle: 'Last 7 days',
-      value: 1,
-      change: 100,
-      icon: GitPullRequest,
-    },
-    {
-      id: 5,
-      title: 'Pull Requests Merged',
-      subtitle: 'Last 7 days',
-      value: 1,
-      change: 100,
-      icon: GitMerge,
-    },
-  ];
-
-  // Last activity data
-  const activities: Activity[] = [
-    {
-      id: 1,
-      type: 'pr',
-      number: 734,
-      title: 'Fix React Server Components CVE vulnerabilities',
-      label: null,
-      timeAgo: '2 days ago',
-    },
-    {
-      id: 2,
-      type: 'issue',
-      number: 77,
-      title: 'Add Invoice Expiration and Auto-Processing',
-      label: '1 new applicant',
-      timeAgo: '3 months ago',
-    },
-    {
-      id: 3,
-      type: 'pr',
-      number: 120,
-      title: 'Clean Up Cargo Build Warnings #50',
-      label: null,
-      timeAgo: '3 months ago',
-    },
-    {
-      id: 4,
-      type: 'pr',
-      number: 119,
-      title: 'Add Investor KYC and Verification System',
-      label: null,
-      timeAgo: '3 months ago',
-    },
-    {
-      id: 5,
-      type: 'issue',
-      number: 158,
-      title: 'Feat: Add Comprehensive Error Recovery and Circuit Breaker Patterns (#110)',
-      label: null,
-      timeAgo: '5 months ago',
-    },
-  ];
-
-  // Applications history chart data
-  const chartData: ChartDataPoint[] = [
-    { month: 'May', applications: 12, merged: 0 },
-    { month: 'Jun', applications: 18, merged: 0 },
-    { month: 'Jul', applications: 45, merged: 0 },
-    { month: 'Aug', applications: 32, merged: 0 },
-    { month: 'Sep', applications: 38, merged: 8 },
-    { month: 'Oct', applications: 28, merged: 12 },
-  ];
 
   return (
     <>

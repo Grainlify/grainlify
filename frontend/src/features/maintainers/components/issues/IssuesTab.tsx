@@ -105,16 +105,31 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh }: IssuesTab
     }
   };
 
-  // Refresh issues when selectedProjects change or onRefresh is called
+  // Refresh issues when selectedProjects change
+  // Also refresh when page becomes visible (user switches back to tab)
+  // And when repositories are refreshed (new repo added)
   useEffect(() => {
-    if (onRefresh) {
-      // Refresh every 30 seconds
-      const interval = setInterval(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && selectedProjects.length > 0) {
         loadIssues();
-      }, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [onRefresh, selectedProjects]);
+      }
+    };
+
+    const handleRepositoriesRefreshed = () => {
+      // Refresh issues when repositories are added/updated
+      if (selectedProjects.length > 0) {
+        loadIssues();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('repositories-refreshed', handleRepositoriesRefreshed);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('repositories-refreshed', handleRepositoriesRefreshed);
+    };
+  }, [selectedProjects]);
 
   const handleProfileClick = () => {
     setSelectedIssue(null);

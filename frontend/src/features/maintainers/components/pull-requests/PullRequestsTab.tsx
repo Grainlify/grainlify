@@ -91,7 +91,30 @@ export function PullRequestsTab({ selectedProjects, onRefresh }: PullRequestsTab
   };
 
   // Refresh PRs when selectedProjects change
-  // Note: onRefresh is available but we refresh based on selectedProjects changes
+  // Also refresh when page becomes visible (user switches back to tab)
+  // And when repositories are refreshed (new repo added)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && selectedProjects.length > 0) {
+        loadPRs();
+      }
+    };
+
+    const handleRepositoriesRefreshed = () => {
+      // Refresh PRs when repositories are added/updated
+      if (selectedProjects.length > 0) {
+        loadPRs();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('repositories-refreshed', handleRepositoriesRefreshed);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('repositories-refreshed', handleRepositoriesRefreshed);
+    };
+  }, [selectedProjects]);
 
   // Filter PRs based on search and filter
   const filteredPRs = prs.filter(pr => {
