@@ -69,7 +69,6 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh }: IssuesTab
   const [isLoadingIssues, setIsLoadingIssues] = useState(true);
   const [issuesError, setIssuesError] = useState<string | null>(null);
   const [showInitialLoading, setShowInitialLoading] = useState(true);
-  const [showInitialLoading, setShowInitialLoading] = useState(true);
 
   // Helper function to format time ago (memoized)
   const formatTimeAgo = useCallback((dateString: string | null): string => {
