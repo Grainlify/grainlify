@@ -124,8 +124,10 @@ export function ProjectDetailPage({ onBack, onIssueClick, projectId: propProject
   };
 
   const issueTabs = useMemo(() => {
+    // Only count open issues
+    const openIssues = issues.filter((it) => it.state === 'open');
     const counts = new Map<string, number>();
-    for (const it of issues) {
+    for (const it of openIssues) {
       const labels = Array.isArray(it.labels) ? it.labels : [];
       for (const l of labels) {
         const name = labelName(l);
@@ -137,12 +139,16 @@ export function ProjectDetailPage({ onBack, onIssueClick, projectId: propProject
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6)
       .map(([name, count]) => ({ id: name, label: name, count }));
-    return [{ id: 'all', label: 'All issues', count: issues.length }, ...top];
+    return [{ id: 'all', label: 'All issues', count: openIssues.length }, ...top];
   }, [issues]);
 
   const filteredIssues = useMemo(() => {
-    if (activeIssueTab === 'all') return issues;
-    return issues.filter((it) => (Array.isArray(it.labels) ? it.labels : []).some((l) => labelName(l) === activeIssueTab));
+    // First filter to only open issues
+    const openIssues = issues.filter((it) => it.state === 'open');
+    
+    // Then apply label filter if not 'all'
+    if (activeIssueTab === 'all') return openIssues;
+    return openIssues.filter((it) => (Array.isArray(it.labels) ? it.labels : []).some((l) => labelName(l) === activeIssueTab));
   }, [issues, activeIssueTab]);
 
   const timeAgo = (iso?: string | null) => {
@@ -170,29 +176,103 @@ export function ProjectDetailPage({ onBack, onIssueClick, projectId: propProject
   }, [issues, prs]);
   
   const recentPRs = useMemo(() => {
-    const allPRs = prs.map((p) => ({
-      type: 'pr' as const,
-      id: p.github_pr_id,
-      number: p.number,
-      title: p.title,
-      date: timeAgo(p.updated_at || p.last_seen_at),
-    }));
+    const allPRs = prs.map((p) => {
+      // Determine PR status: merged takes priority, then state
+      let status: 'merged' | 'open' | 'closed' = 'open';
+      if (p.merged) {
+        status = 'merged';
+      } else if (p.state === 'open') {
+        status = 'open';
+      } else {
+        status = 'closed';
+      }
+      
+      // Use the most appropriate GitHub timestamp
+      // Priority: merged_at > closed_at > created_at > updated_at > last_seen_at
+      let dateStr: string | null = null;
+      if (p.merged && p.merged_at) {
+        dateStr = p.merged_at;
+      } else if (p.state === 'closed' && p.closed_at) {
+        dateStr = p.closed_at;
+      } else if (p.state === 'open' && p.created_at) {
+        dateStr = p.created_at;
+      } else if (p.updated_at) {
+        dateStr = p.updated_at;
+      } else {
+        dateStr = p.last_seen_at;
+      }
+      
+      return {
+        type: 'pr' as const,
+        id: p.github_pr_id,
+        number: p.number,
+        title: p.title,
+        date: timeAgo(dateStr),
+        status: status,
+        url: p.url,
+      };
+    });
 
-    const allIssues = issues.map((issue) => ({
-      type: 'issue' as const,
-      id: issue.github_issue_id,
-      number: issue.number,
-      title: issue.title,
-      date: timeAgo(issue.updated_at || issue.last_seen_at),
-    }));
+    const allIssues = issues.map((issue) => {
+      // For issues, use updated_at (GitHub timestamp) with last_seen_at as fallback
+      const dateStr = issue.updated_at || issue.last_seen_at;
+      
+      return {
+        type: 'issue' as const,
+        id: issue.github_issue_id,
+        number: issue.number,
+        title: issue.title,
+        date: timeAgo(dateStr),
+        status: issue.state === 'open' ? 'open' : 'closed' as 'open' | 'closed',
+        url: issue.url,
+      };
+    });
 
     const combined = [...allPRs, ...allIssues].sort((a, b) => {
-      const dateA = a.type === 'pr' 
-        ? prs.find(p => p.github_pr_id === a.id)?.updated_at || prs.find(p => p.github_pr_id === a.id)?.last_seen_at || ''
-        : issues.find(i => i.github_issue_id === a.id)?.updated_at || issues.find(i => i.github_issue_id === a.id)?.last_seen_at || '';
-      const dateB = b.type === 'pr'
-        ? prs.find(p => p.github_pr_id === b.id)?.updated_at || prs.find(p => p.github_pr_id === b.id)?.last_seen_at || ''
-        : issues.find(i => i.github_issue_id === b.id)?.updated_at || issues.find(i => i.github_issue_id === b.id)?.last_seen_at || '';
+      // Get the most appropriate date for sorting
+      let dateA = '';
+      let dateB = '';
+      
+      if (a.type === 'pr') {
+        const pr = prs.find(p => p.github_pr_id === a.id);
+        if (pr) {
+          if (pr.merged && pr.merged_at) {
+            dateA = pr.merged_at;
+          } else if (pr.state === 'closed' && pr.closed_at) {
+            dateA = pr.closed_at;
+          } else if (pr.state === 'open' && pr.created_at) {
+            dateA = pr.created_at;
+          } else {
+            dateA = pr.updated_at || pr.last_seen_at || '';
+          }
+        }
+      } else {
+        const issue = issues.find(i => i.github_issue_id === a.id);
+        if (issue) {
+          dateA = issue.updated_at || issue.last_seen_at || '';
+        }
+      }
+      
+      if (b.type === 'pr') {
+        const pr = prs.find(p => p.github_pr_id === b.id);
+        if (pr) {
+          if (pr.merged && pr.merged_at) {
+            dateB = pr.merged_at;
+          } else if (pr.state === 'closed' && pr.closed_at) {
+            dateB = pr.closed_at;
+          } else if (pr.state === 'open' && pr.created_at) {
+            dateB = pr.created_at;
+          } else {
+            dateB = pr.updated_at || pr.last_seen_at || '';
+          }
+        }
+      } else {
+        const issue = issues.find(i => i.github_issue_id === b.id);
+        if (issue) {
+          dateB = issue.updated_at || issue.last_seen_at || '';
+        }
+      }
+      
       return new Date(dateB).getTime() - new Date(dateA).getTime();
     });
 
@@ -219,9 +299,9 @@ export function ProjectDetailPage({ onBack, onIssueClick, projectId: propProject
   };
 
   return (
-    <div className="flex gap-6 h-full">
+    <div className="flex gap-6 h-[calc(100vh-120px)] max-h-[calc(100vh-120px)]">
       {/* Left Sidebar */}
-      <div className="w-[280px] flex-shrink-0 space-y-6">
+      <div className="w-[280px] flex-shrink-0 overflow-y-auto overflow-x-hidden space-y-6 scrollbar-hide">
         {/* Project Logo */}
         <div className={`backdrop-blur-[40px] rounded-[24px] border p-6 transition-colors ${
           theme === 'dark'
@@ -493,7 +573,7 @@ export function ProjectDetailPage({ onBack, onIssueClick, projectId: propProject
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 space-y-6 overflow-y-auto">
+      <div className="flex-1 space-y-6 overflow-y-auto scrollbar-hide">
         {/* Back Button */}
         {(onBack || onClose) && (
           <button
@@ -805,11 +885,23 @@ export function ProjectDetailPage({ onBack, onIssueClick, projectId: propProject
                         theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
                       }`}>By {issue.author_login}</span>
                     </div>
-                    <span className={`px-2 py-1 rounded-[6px] text-[11px] font-bold backdrop-blur-[20px] border border-white/20 transition-colors ${
-                      theme === 'dark' ? 'bg-white/[0.1] text-[#d4d4d4]' : 'bg-white/[0.1] text-[#4a3f2f]'
+                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-[6px] backdrop-blur-[20px] border border-white/20 transition-colors ${
+                      theme === 'dark' ? 'bg-white/[0.1]' : 'bg-white/[0.1]'
                     }`}>
-                      📦 {repoName}
-                    </span>
+                      <img 
+                        src={projectAvatar} 
+                        alt={repoName}
+                        className="w-4 h-4 rounded-full border border-[#c9983a]/30 object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://github.com/github.png?size=40';
+                        }}
+                      />
+                      <span className={`text-[11px] font-bold transition-colors ${
+                        theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#4a3f2f]'
+                      }`}>
+                        {repoName}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -867,43 +959,94 @@ export function ProjectDetailPage({ onBack, onIssueClick, projectId: propProject
               </>
             ) : (
               <>
-                {displayedActivity.map((activity, idx) => (
-              <div
-                key={idx}
-                className={`flex items-center justify-between p-4 rounded-[12px] backdrop-blur-[20px] border border-white/20 hover:bg-white/[0.15] transition-all ${
-                  theme === 'dark' ? 'bg-white/[0.05]' : 'bg-white/[0.05]'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  {activity.type === 'issue' ? (
-                    // Issue Icon - Same as maintainers
-                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#c9983a]/50 to-[#d4af37]/40 flex items-center justify-center border border-[#c9983a]/40 flex-shrink-0">
-                      <Circle className="w-2.5 h-2.5 text-white fill-white" strokeWidth={0} />
+                {displayedActivity.map((activity, idx) => {
+                  // Determine colors based on type and status
+                  let iconBgColor = '';
+                  let iconColor = '';
+                  let badgeBgColor = '';
+                  let badgeBorderColor = '';
+                  
+                  if (activity.type === 'pr') {
+                    if (activity.status === 'merged') {
+                      // Merged PR: Purple
+                      iconBgColor = 'bg-[#8b5cf6]/50';
+                      iconColor = 'text-[#8b5cf6]';
+                      badgeBgColor = 'bg-[#8b5cf6]/50';
+                      badgeBorderColor = 'border-[#8b5cf6]/40';
+                    } else if (activity.status === 'open') {
+                      // Open PR: Green
+                      iconBgColor = 'bg-[#22c55e]/50';
+                      iconColor = 'text-[#22c55e]';
+                      badgeBgColor = 'bg-[#22c55e]/50';
+                      badgeBorderColor = 'border-[#22c55e]/40';
+                    } else {
+                      // Closed PR: Gray/Red
+                      iconBgColor = theme === 'dark' ? 'bg-white/[0.15]' : 'bg-white/[0.2]';
+                      iconColor = theme === 'dark' ? 'text-[#b8a898]' : 'text-[#7a6b5a]';
+                      badgeBgColor = theme === 'dark' ? 'bg-white/[0.15]' : 'bg-white/[0.2]';
+                      badgeBorderColor = theme === 'dark' ? 'border-white/20' : 'border-white/30';
+                    }
+                  } else {
+                    // Issue
+                    if (activity.status === 'open') {
+                      // Open Issue: Golden/Yellow
+                      iconBgColor = 'bg-gradient-to-br from-[#c9983a]/50 to-[#d4af37]/40';
+                      iconColor = 'text-white';
+                      badgeBgColor = 'bg-gradient-to-br from-[#c9983a]/50 to-[#d4af37]/40';
+                      badgeBorderColor = 'border-[#c9983a]/40';
+                    } else {
+                      // Closed Issue: Gray
+                      iconBgColor = theme === 'dark' ? 'bg-white/[0.15]' : 'bg-white/[0.2]';
+                      iconColor = theme === 'dark' ? 'text-[#b8a898]' : 'text-[#7a6b5a]';
+                      badgeBgColor = theme === 'dark' ? 'bg-white/[0.15]' : 'bg-white/[0.2]';
+                      badgeBorderColor = theme === 'dark' ? 'border-white/20' : 'border-white/30';
+                    }
+                  }
+                  
+                  const handleClick = () => {
+                    if (activity.url) {
+                      window.open(activity.url, '_blank', 'noopener,noreferrer');
+                    }
+                  };
+                  
+                  return (
+                    <div
+                      key={idx}
+                      onClick={handleClick}
+                      className={`flex items-center justify-between p-4 rounded-[12px] backdrop-blur-[20px] border border-white/20 hover:bg-white/[0.15] transition-all cursor-pointer ${
+                        theme === 'dark' ? 'bg-white/[0.05]' : 'bg-white/[0.05]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {activity.type === 'issue' ? (
+                          // Issue Icon
+                          <div className={`w-5 h-5 rounded-full ${iconBgColor} flex items-center justify-center border ${badgeBorderColor} flex-shrink-0`}>
+                            <Circle className={`w-2.5 h-2.5 ${iconColor} ${activity.status === 'open' ? 'fill-white' : 'fill-current'}`} strokeWidth={0} />
+                          </div>
+                        ) : (
+                          // PR Icon
+                          <div className={`w-5 h-5 rounded-full ${iconBgColor} flex items-center justify-center border ${badgeBorderColor} flex-shrink-0`}>
+                            <GitPullRequest className={`w-3 h-3 ${iconColor}`} strokeWidth={2.5} />
+                          </div>
+                        )}
+                        <div className={`px-2 py-1 rounded-[6px] ${badgeBgColor} border ${badgeBorderColor}`}>
+                          <span className={`text-[11px] font-bold ${
+                            activity.status === 'open' && activity.type === 'issue' ? 'text-white' :
+                            activity.status === 'merged' ? 'text-white' :
+                            activity.status === 'open' && activity.type === 'pr' ? 'text-white' :
+                            theme === 'dark' ? 'text-[#b8a898]' : 'text-[#7a6b5a]'
+                          }`}>#{activity.number}</span>
+                        </div>
+                        <span className={`text-[14px] font-semibold transition-colors ${
+                          theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
+                        }`}>{activity.title}</span>
+                      </div>
+                      <span className={`text-[13px] transition-colors ${
+                        theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
+                      }`}>{activity.date}</span>
                     </div>
-                  ) : (
-                    // PR Icon
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center border flex-shrink-0 ${
-                      theme === 'dark'
-                        ? 'bg-[#c9983a]/50 border-[#c9983a]/40'
-                        : 'bg-[#c9983a]/50 border-[#c9983a]/40'
-                    }`}>
-                      <GitPullRequest className="w-3 h-3 text-white" strokeWidth={2.5} />
-                    </div>
-                  )}
-                  <div className="px-2 py-1 rounded-[6px] bg-gradient-to-br from-[#c9983a]/50 to-[#d4af37]/40 border border-[#c9983a]/40">
-                    <span className={`text-[11px] font-bold ${
-                      theme === 'dark' ? 'text-white' : 'text-white'
-                    }`}>#{activity.number}</span>
-                  </div>
-                  <span className={`text-[14px] font-semibold transition-colors ${
-                    theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-                  }`}>{activity.title}</span>
-                </div>
-                <span className={`text-[13px] transition-colors ${
-                  theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                }`}>{activity.date}</span>
-              </div>
-                ))}
+                  );
+                })}
                 {!showAllActivity && recentPRs.length > 5 && (
                   <button
                     onClick={() => setShowAllActivity(true)}

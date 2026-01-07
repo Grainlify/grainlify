@@ -155,11 +155,27 @@ export function DiscoverPage() {
       setIsLoadingProjects(true);
       try {
         const response = await getRecommendedProjects(8);
-        if (!response || !response.projects || !Array.isArray(response.projects)) {
-          throw new Error('Invalid response format from server');
+        console.log('DiscoverPage: Recommended projects response', response);
+        
+        // Handle response - check if it exists and has projects array
+        if (!response) {
+          console.warn('DiscoverPage: No response received');
+          setProjects([]);
+          setIsLoadingProjects(false);
+          return;
         }
         
-        const mappedProjects = response.projects.map((p) => {
+        // Handle both { projects: [...] } and direct array response
+        const projectsArray = response.projects || (Array.isArray(response) ? response : []);
+        
+        if (!Array.isArray(projectsArray)) {
+          console.error('DiscoverPage: Invalid response format - projects is not an array', response);
+          setProjects([]);
+          setIsLoadingProjects(false);
+          return;
+        }
+        
+        const mappedProjects = projectsArray.map((p) => {
           const repoName = p.github_full_name.split('/')[1] || p.github_full_name;
           return {
             id: p.id,
@@ -174,13 +190,13 @@ export function DiscoverPage() {
           };
         });
         
+        console.log('DiscoverPage: Mapped projects', mappedProjects);
         setProjects(mappedProjects);
         setIsLoadingProjects(false);
       } catch (err) {
         console.error('Failed to fetch recommended projects:', err);
-        // Keep loading state true to show skeleton forever when backend is down
         setProjects([]);
-        // Don't set isLoadingProjects to false - keep showing skeleton
+        setIsLoadingProjects(false); // Always set to false, even on error, to show empty state
       }
     };
 
