@@ -99,6 +99,33 @@ func (h *EcosystemsAdminHandler) Create() fiber.Handler {
 		if name == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "name_required"})
 		}
+        description := strings.TrimSpace(req.Description)
+		        if description == "" {
+				            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+							                "error": "Description cannot be empty",
+											            })
+														        }
+
+																        websiteURL := strings.TrimSpace(req.WebsiteURL)
+																		        if websiteURL == "" {
+																				            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+																							                "error": "A valid Website URL is required",
+																											            })
+																														        }
+
+		description = strings.TrimSpace(req.Description)
+		        if description == "" {
+				            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+							                "error": "Description cannot be empty",
+											            })
+														        }
+
+																        if strings.TrimSpace(req.WebsiteURL) == "" {
+																		            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+																					                "error": "A valid Website URL is required",
+																									            })
+																												        }
+	
 		// Auto-generate slug from name (users never see/type slug)
 		slug := normalizeSlug(name)
 		if slug == "" {
