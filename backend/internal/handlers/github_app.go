@@ -71,10 +71,23 @@ VALUES ($1, $2, 'github_app_install', $3)
 
 		installURL := "https://github.com/apps/" + appSlug + "/installations/new"
 		if state != "" {
+			// IMPORTANT:
+			// Some GitHub App install callbacks don't reliably include the `state` query param.
+			// To guarantee we can map installation -> user, embed state in `redirect_url`.
 			u, err := url.Parse(installURL)
 			if err == nil {
 				q := u.Query()
+				// keep state too (harmless if GitHub returns it)
 				q.Set("state", state)
+				// redirect back to our callback with state baked in
+				cb := strings.TrimSuffix(h.cfg.PublicBaseURL, "/") + "/auth/github/app/install/callback"
+				cbURL, cbErr := url.Parse(cb)
+				if cbErr == nil {
+					cbQ := cbURL.Query()
+					cbQ.Set("state", state)
+					cbURL.RawQuery = cbQ.Encode()
+					q.Set("redirect_url", cbURL.String())
+				}
 				u.RawQuery = q.Encode()
 				installURL = u.String()
 			}
