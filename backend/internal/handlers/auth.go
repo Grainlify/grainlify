@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -37,6 +38,13 @@ func (h *AuthHandler) Nonce() fiber.Handler {
 		if err := c.BodyParser(&req); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid_json"})
 		}
+
+		req.Address = strings.TrimSpace(req.Address)
+		if req.Address == "" {
+		    return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			        "error": "wallet address cannot be empty",
+					    })
+						}
 
 		wType, err := auth.NormalizeWalletType(req.WalletType)
 		if err != nil {
@@ -81,6 +89,12 @@ func (h *AuthHandler) Verify() fiber.Handler {
 		if err := c.BodyParser(&req); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid_json"})
 		}
+		req.Address = strings.TrimSpace(req.Address)
+		    if req.Address == "" {
+			        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					            "error": "wallet address is required",
+								        })
+										    }
 
 		wType, err := auth.NormalizeWalletType(req.WalletType)
 		if err != nil {
