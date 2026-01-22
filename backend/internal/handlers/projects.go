@@ -63,6 +63,27 @@ func (h *ProjectsHandler) Create() fiber.Handler {
 		if ecosystemName == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ecosystem_required", "message": "Ecosystem name is required"})
 		}
+		        // Check if Language exists AND is not just empty spaces
+				        if req.Language == nil || strings.TrimSpace(*req.Language) == "" {
+						            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+									                "error": "Project language is required",
+													            })
+																        }
+							        // Category Check (Pointer Safety)
+									        if req.Category == nil || strings.TrimSpace(*req.Category) == "" {
+											            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+														                "error": "Project category is required",
+																		            })
+																					        }
+				        // Tags Check (Ensuring the list is not empty)
+						        if len(req.Tags) == 0 {
+								            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+											                "error": "At least one project tag is required",
+															            })
+																		        }
+																																							
+
+																		
 
 		var ecosystemID uuid.UUID
 		// Search by name (case-insensitive, trimmed) - must be active
