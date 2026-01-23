@@ -6,6 +6,7 @@ import { LandingPage } from "../features/landing";
 import { SignInPage, SignUpPage, AuthCallbackPage } from "../features/auth";
 import { Dashboard } from "../features/dashboard";
 import { ProfilePage } from "../features/dashboard/pages/ProfilePage";
+import { Toaster } from "sonner";
 
 function ProtectedRoute({ children }: { children: React.ReactElement }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -50,6 +51,17 @@ export default function App() {
               }
             />
           </Routes>
+          <Toaster 
+            position="top-right" 
+            expand={false} 
+            richColors={false} // We are doing custom glassmorphism styling
+            toastOptions={{
+              unstyled: true, // This allows us to use our own Tailwind classes entirely
+              classNames: {
+                toast: 'w-full',
+              },
+            }}
+          />
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
