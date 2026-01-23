@@ -1821,8 +1821,7 @@ export function ProfilePage({
                           let IconComponent = Circle;
                           const isIssue = item.type === 'issue';
                           const isClosed = isIssue && item.state === 'closed';
-                           console.log(item);
-                           console.log(isIssue);
+                          
                           const iconBgColor = isIssue
                             ? isClosed
                               ? 'bg-gray-400/40'
