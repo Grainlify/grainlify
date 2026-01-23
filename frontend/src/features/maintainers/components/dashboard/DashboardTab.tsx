@@ -38,7 +38,8 @@ export function DashboardTab({ selectedProjects, onRefresh }: DashboardTabProps)
       if (selectedProjects.length === 0) {
         setIssues([]);
         setPrs([]);
-        setIsLoading(false);
+        // Don't set isLoading to false when there are no projects
+        // This keeps the loading skeleton visible
         return;
       }
 
