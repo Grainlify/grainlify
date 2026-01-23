@@ -3,6 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { useTheme } from "../../../shared/contexts/ThemeContext";
 import { getEcosystems } from "../../../shared/api/client";
 import { FilterType } from "../types";
+import { useIsMobile } from "../../../app/components/ui/use-mobile";
 
 interface FiltersSectionProps {
   activeFilter: FilterType;
@@ -29,6 +30,7 @@ export function FiltersSection({
   isLoaded,
 }: FiltersSectionProps) {
   const { theme } = useTheme();
+  const isMobile = useIsMobile();
 
   const [ecosystems, setEcosystems] = useState<EcosystemOption[]>([
     { label: "All Ecosystems", value: "all" },
@@ -64,37 +66,39 @@ export function FiltersSection({
 
   return (
     <div
-      className={`backdrop-blur-[40px] bg-white/[0.12] rounded-[20px] border border-white/20 shadow-[0_4px_16px_rgba(0,0,0,0.06)] p-5 transition-all duration-700 delay-900 relative z-50 ${
+      className={`backdrop-blur-[40px] bg-white/[0.12] rounded-[20px] border border-white/20 shadow-[0_4px_16px_rgba(0,0,0,0.06)] p-4 md:p-5 transition-all duration-700 delay-900 relative z-50 ${
         isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
       }`}
     >
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        {(["overall", "rewards", "contributions"] as FilterType[]).map(
-          (filter) => (
-            <button
-              key={filter}
-              onClick={() => onFilterChange(filter)}
-              className={`px-5 py-2.5 rounded-[12px] font-semibold text-[14px] transition-all duration-300 hover:scale-105 ${
-                activeFilter === filter
-                  ? "bg-gradient-to-br from-[#c9983a] to-[#a67c2e] text-white shadow-[0_4px_16px_rgba(201,152,58,0.35)] border border-white/10 animate-pulse-subtle"
-                  : `backdrop-blur-[30px] bg-white/[0.15] border border-white/25 hover:bg-white/[0.2] ${
-                      theme === "dark" ? "text-[#d4d4d4]" : "text-[#6b5d4d]"
-                    }`
-              }`}
-            >
-              {filter === "overall"
-                ? "Overall Leaderboard"
-                : filter === "rewards"
-                  ? "Total Rewards"
-                  : "Total Contributions"}
-            </button>
-          ),
-        )}
+      <div className={`flex ${isMobile ? 'flex-col' : 'items-center justify-between'} gap-3 md:gap-4`}>
+        <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} gap-2 md:gap-0 ${isMobile ? 'w-full' : ''}`}>
+          {(["overall", "rewards", "contributions"] as FilterType[]).map(
+            (filter) => (
+              <button
+                key={filter}
+                onClick={() => onFilterChange(filter)}
+                className={`${isMobile ? 'w-full' : 'px-5'} py-3 md:py-2.5 rounded-[12px] font-semibold text-[14px] transition-all duration-300 hover:scale-105 active:scale-95 min-h-[44px] ${
+                  activeFilter === filter
+                    ? "bg-gradient-to-br from-[#c9983a] to-[#a67c2e] text-white shadow-[0_4px_16px_rgba(201,152,58,0.35)] border border-white/10 animate-pulse-subtle"
+                    : `backdrop-blur-[30px] bg-white/[0.15] border border-white/25 hover:bg-white/[0.2] ${
+                        theme === "dark" ? "text-[#d4d4d4]" : "text-[#6b5d4d]"
+                      }`
+                }`}
+              >
+                {filter === "overall"
+                  ? "Overall Leaderboard"
+                  : filter === "rewards"
+                    ? "Total Rewards"
+                    : "Total Contributions"}
+              </button>
+            ),
+          )}
+        </div>
 
-        <div className="relative z-[100]">
+        <div className={`relative z-[100] ${isMobile ? 'w-full' : ''}`}>
           <button
             onClick={onToggleDropdown}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25 hover:bg-white/[0.2] hover:scale-105 transition-all duration-300"
+            className={`flex items-center justify-between gap-2 ${isMobile ? 'w-full px-4' : 'px-4'} py-3 md:py-2.5 rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25 hover:bg-white/[0.2] active:scale-95 transition-all duration-300 min-h-[44px]`}
           >
             <span
               className={`text-[13px] font-semibold transition-colors ${
@@ -104,13 +108,13 @@ export function FiltersSection({
               {selectedEcosystem.label}
             </span>
             <ChevronDown
-              className={`w-4 h-4 transition-transform duration-300 ${showDropdown ? "rotate-180" : ""} ${
+              className={`w-4 h-4 transition-transform duration-300 flex-shrink-0 ${showDropdown ? "rotate-180" : ""} ${
                 theme === "dark" ? "text-[#d4d4d4]" : "text-[#7a6b5a]"
               }`}
             />
           </button>
           {showDropdown && (
-            <div className="absolute right-0 mt-2 w-[200px] backdrop-blur-[40px] bg-white/[0.18] border-2 border-white/30 rounded-[12px] shadow-[0_8px_32px_rgba(0,0,0,0.15)] overflow-hidden z-[100] animate-dropdown-in">
+            <div className={`absolute ${isMobile ? 'left-0 right-0' : 'right-0'} mt-2 ${isMobile ? 'w-full' : 'w-[200px]'} backdrop-blur-[40px] bg-white/[0.18] border-2 border-white/30 rounded-[12px] shadow-[0_8px_32px_rgba(0,0,0,0.15)] overflow-hidden z-[100] animate-dropdown-in max-h-[300px] overflow-y-auto`}>
               {loading ? (
                 <div className="px-4 py-3 flex justify-center">
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -123,10 +127,10 @@ export function FiltersSection({
                       onEcosystemChange({ label: eco.label, value: eco.value });
                       onToggleDropdown();
                     }}
-                    className={`w-full px-4 py-3 text-left text-[13px] font-medium transition-all ${
+                    className={`w-full px-4 py-3.5 md:py-3 text-left text-[13px] font-medium transition-all min-h-[44px] ${
                       index === 0
-                        ? `bg-white/[0.15] font-bold hover:bg-white/[0.25]`
-                        : "hover:bg-white/[0.2]"
+                        ? `bg-white/[0.15] font-bold hover:bg-white/[0.25] active:bg-white/[0.3]`
+                        : "hover:bg-white/[0.2] active:bg-white/[0.25]"
                     } ${theme === "dark" ? "text-[#f5f5f5]" : "text-[#2d2820]"}`}
                   >
                     {eco.label}

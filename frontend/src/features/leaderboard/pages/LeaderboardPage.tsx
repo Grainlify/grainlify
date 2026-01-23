@@ -247,11 +247,11 @@ export function LeaderboardPage() {
                 }}
               />
               {hasMore && (
-                <div className="flex justify-center mt-6">
+                <div className="flex justify-center mt-6 px-4">
                   <button
                     onClick={loadMore}
                     disabled={isLoadingMore}
-                    className={`px-6 py-3 rounded-[14px] bg-gradient-to-br from-[#c9983a] to-[#a67c2e] text-white font-semibold text-[14px] shadow-[0_6px_24px_rgba(162,121,44,0.4)] hover:shadow-[0_8px_28px_rgba(162,121,44,0.5)] transition-all border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
+                    className={`px-6 py-3 rounded-[14px] bg-gradient-to-br from-[#c9983a] to-[#a67c2e] text-white font-semibold text-[14px] shadow-[0_6px_24px_rgba(162,121,44,0.4)] hover:shadow-[0_8px_28px_rgba(162,121,44,0.5)] active:scale-95 transition-all border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-h-[44px]`}
                   >
                     {isLoadingMore ? (
                       <>
