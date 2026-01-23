@@ -32,51 +32,6 @@ export function LeaderboardPage() {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [ecosystems, setEcosystems] = useState<string[]>(['All Ecosystems']);
-  const [isLoadingEcosystems, setIsLoadingEcosystems] = useState(true);
-
-  // Fetch ecosystems from API
-  useEffect(() => {
-    const fetchEcosystems = async () => {
-      setIsLoadingEcosystems(true);
-      try {
-        const response = await getEcosystems();
-        // Handle different response structures
-        let ecosystemsArray: any[] = [];
-        
-        if (response && Array.isArray(response)) {
-          ecosystemsArray = response;
-        } else if (response && response.ecosystems && Array.isArray(response.ecosystems)) {
-          ecosystemsArray = response.ecosystems;
-        } else if (response && typeof response === 'object') {
-          // Try to find any array property
-          const keys = Object.keys(response);
-          for (const key of keys) {
-            if (Array.isArray((response as any)[key])) {
-              ecosystemsArray = (response as any)[key];
-              break;
-            }
-          }
-        }
-        
-        // Filter only active ecosystems and map to string array
-        const activeEcosystems = ecosystemsArray
-          .filter((eco: any) => eco.status === 'active')
-          .map((eco: any) => eco.name);
-        
-        // Add "All Ecosystems" at the beginning
-        setEcosystems(['All Ecosystems', ...activeEcosystems]);
-      } catch (err) {
-        console.error('LeaderboardPage: Failed to fetch ecosystems:', err);
-        // Fallback to just "All Ecosystems" on error
-        setEcosystems(['All Ecosystems']);
-      } finally {
-        setIsLoadingEcosystems(false);
-      }
-    };
-
-    fetchEcosystems();
-  }, []);
 
   // Fetch leaderboard data
   useEffect(() => {
@@ -272,8 +227,6 @@ export function LeaderboardPage() {
           setShowEcosystemDropdown(!showEcosystemDropdown)
         }
         isLoaded={isLoaded}
-        ecosystems={ecosystems}
-        isLoadingEcosystems={isLoadingEcosystems}
       />
 
       {/* Leaderboard Table - Contributors */}
