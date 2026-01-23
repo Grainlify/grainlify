@@ -76,6 +76,11 @@ export function ProfileTab() {
     location?: string;
     website?: string;
     bio?: string;
+    telegram?: string;
+    linkedin?: string;
+    whatsapp?: string;
+    twitter?: string;
+    discord?: string;
   }>({});
 
   /* -------------------- Validation helpers -------------------- */
@@ -115,13 +120,7 @@ export function ProfileTab() {
     value.length > MAX_BIO_LENGTH ? "Bio cannot exceed 500 characters" : "";
 
   // Validation state
-  const [errors, setErrors] = useState<{
-    telegram?: string;
-    linkedin?: string;
-    whatsapp?: string;
-    twitter?: string;
-    discord?: string;
-  }>({});
+
 
   const validateHandle = (platform: string, value: string): string | undefined => {
     if (!value) return undefined;
@@ -292,12 +291,12 @@ export function ProfileTab() {
         setCurrentUser((prev) =>
           prev
             ? {
-                ...prev,
-                github: {
-                  ...prev.github,
-                  ...response.github,
-                },
-              }
+              ...prev,
+              github: {
+                ...prev.github,
+                ...response.github,
+              },
+            }
             : null,
         );
         alert("GitHub profile synced successfully!");
@@ -430,23 +429,20 @@ export function ProfileTab() {
     <div className="space-y-6">
       {/* Profile Header */}
       <div
-        className={`backdrop-blur-[40px] rounded-[24px] border shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 transition-colors ${
-          theme === "dark"
-            ? "bg-[#2d2820]/[0.4] border-white/10"
-            : "bg-white/[0.12] border-white/20"
-        }`}
+        className={`backdrop-blur-[40px] rounded-[24px] border shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 transition-colors ${theme === "dark"
+          ? "bg-[#2d2820]/[0.4] border-white/10"
+          : "bg-white/[0.12] border-white/20"
+          }`}
       >
         <h2
-          className={`text-[28px] font-bold mb-2 transition-colors ${
-            theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
-          }`}
+          className={`text-[28px] font-bold mb-2 transition-colors ${theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
+            }`}
         >
           Profile
         </h2>
         <p
-          className={`text-[14px] transition-colors ${
-            theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
-          }`}
+          className={`text-[14px] transition-colors ${theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
+            }`}
         >
           You can edit all your information here.
         </p>
@@ -454,39 +450,34 @@ export function ProfileTab() {
 
       {/* GitHub Account Section */}
       <div
-        className={`backdrop-blur-[40px] rounded-[24px] border shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 transition-colors ${
-          theme === "dark"
-            ? "bg-[#2d2820]/[0.4] border-white/10"
-            : "bg-white/[0.12] border-white/20"
-        }`}
+        className={`backdrop-blur-[40px] rounded-[24px] border shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 transition-colors ${theme === "dark"
+          ? "bg-[#2d2820]/[0.4] border-white/10"
+          : "bg-white/[0.12] border-white/20"
+          }`}
       >
         <h3
-          className={`text-[20px] font-bold mb-2 transition-colors ${
-            theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
-          }`}
+          className={`text-[20px] font-bold mb-2 transition-colors ${theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
+            }`}
         >
           GitHub account
         </h3>
         <p
-          className={`text-[14px] mb-6 transition-colors ${
-            theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
-          }`}
+          className={`text-[14px] mb-6 transition-colors ${theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
+            }`}
         >
           To change your username or email, edit your account on Github, then
           resync your account.
         </p>
 
         <div
-          className={`flex items-center justify-between p-4 rounded-[16px] backdrop-blur-[30px] border transition-colors ${
-            theme === "dark"
-              ? "bg-[#3d342c]/[0.4] border-white/15"
-              : "bg-white/[0.15] border-white/25"
-          }`}
+          className={`flex items-center justify-between p-4 rounded-[16px] backdrop-blur-[30px] border transition-colors ${theme === "dark"
+            ? "bg-[#3d342c]/[0.4] border-white/15"
+            : "bg-white/[0.15] border-white/25"
+            }`}
         >
           <span
-            className={`text-[15px] font-medium transition-colors ${
-              theme === "dark" ? "text-[#d4c5b0]" : "text-[#2d2820]"
-            }`}
+            className={`text-[15px] font-medium transition-colors ${theme === "dark" ? "text-[#d4c5b0]" : "text-[#2d2820]"
+              }`}
           >
             {isLoading ? (
               <span className="inline-block w-32 h-4 bg-white/10 rounded animate-pulse" />
@@ -500,11 +491,10 @@ export function ProfileTab() {
             <button
               onClick={handleResync}
               disabled={isResyncing || !currentUser?.github}
-              className={`px-5 py-2.5 rounded-[12px] backdrop-blur-[30px] border font-medium text-[14px] hover:bg-white/[0.25] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                theme === "dark"
-                  ? "bg-[#3d342c]/[0.5] border-white/20 text-[#d4c5b0]"
-                  : "bg-white/[0.2] border-white/30 text-[#2d2820]"
-              }`}
+              className={`px-5 py-2.5 rounded-[12px] backdrop-blur-[30px] border font-medium text-[14px] hover:bg-white/[0.25] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${theme === "dark"
+                ? "bg-[#3d342c]/[0.5] border-white/20 text-[#d4c5b0]"
+                : "bg-white/[0.2] border-white/30 text-[#2d2820]"
+                }`}
             >
               <Github className="w-4 h-4" />
               {isResyncing ? "Syncing..." : "Resync"}
@@ -521,23 +511,20 @@ export function ProfileTab() {
 
       {/* Profile Picture */}
       <div
-        className={`backdrop-blur-[40px] rounded-[24px] border shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 transition-colors ${
-          theme === "dark"
-            ? "bg-[#2d2820]/[0.4] border-white/10"
-            : "bg-white/[0.12] border-white/20"
-        }`}
+        className={`backdrop-blur-[40px] rounded-[24px] border shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 transition-colors ${theme === "dark"
+          ? "bg-[#2d2820]/[0.4] border-white/10"
+          : "bg-white/[0.12] border-white/20"
+          }`}
       >
         <h3
-          className={`text-[16px] font-bold mb-1 transition-colors ${
-            theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
-          }`}
+          className={`text-[16px] font-bold mb-1 transition-colors ${theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
+            }`}
         >
           Profile Picture
         </h3>
         <p
-          className={`text-[13px] mb-5 transition-colors ${
-            theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
-          }`}
+          className={`text-[13px] mb-5 transition-colors ${theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
+            }`}
         >
           SVG, PNG, JPG or GIF
         </p>
@@ -565,11 +552,10 @@ export function ProfileTab() {
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className={`px-5 py-2.5 rounded-[12px] backdrop-blur-[30px] border font-medium text-[14px] hover:bg-white/[0.2] transition-all flex items-center gap-2 ${
-              theme === "dark"
-                ? "bg-[#3d342c]/[0.4] border-white/15 text-[#d4c5b0]"
-                : "bg-white/[0.15] border-white/25 text-[#2d2820]"
-            }`}
+            className={`px-5 py-2.5 rounded-[12px] backdrop-blur-[30px] border font-medium text-[14px] hover:bg-white/[0.2] transition-all flex items-center gap-2 ${theme === "dark"
+              ? "bg-[#3d342c]/[0.4] border-white/15 text-[#d4c5b0]"
+              : "bg-white/[0.15] border-white/25 text-[#2d2820]"
+              }`}
           >
             <Upload className="w-4 h-4" />
             Update
@@ -588,19 +574,17 @@ export function ProfileTab() {
 
       {/* Personal Information */}
       <div
-        className={`backdrop-blur-[40px] rounded-[24px] border shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 transition-colors ${
-          theme === "dark"
-            ? "bg-[#2d2820]/[0.4] border-white/10"
-            : "bg-white/[0.12] border-white/20"
-        }`}
+        className={`backdrop-blur-[40px] rounded-[24px] border shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 transition-colors ${theme === "dark"
+          ? "bg-[#2d2820]/[0.4] border-white/10"
+          : "bg-white/[0.12] border-white/20"
+          }`}
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* First Name */}
           <div>
             <label
-              className={`block text-[14px] font-semibold mb-2 transition-colors ${
-                theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
-              }`}
+              className={`block text-[14px] font-semibold mb-2 transition-colors ${theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
+                }`}
             >
               First Name
             </label>
@@ -615,11 +599,10 @@ export function ProfileTab() {
                   firstName: validateFirstName(e.target.value),
                 }));
               }}
-              className={`w-full px-4 py-3 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${
-                theme === "dark"
-                  ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
-                  : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
-              }`}
+              className={`w-full px-4 py-3 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${theme === "dark"
+                ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
+                : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
+                }`}
             />
             {errors.firstName && (
               <p className="mt-1 text-xs text-red-500">{errors.firstName}</p>
@@ -629,9 +612,8 @@ export function ProfileTab() {
           {/* Last Name */}
           <div>
             <label
-              className={`block text-[14px] font-semibold mb-2 transition-colors ${
-                theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
-              }`}
+              className={`block text-[14px] font-semibold mb-2 transition-colors ${theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
+                }`}
             >
               Last Name
             </label>
@@ -646,11 +628,10 @@ export function ProfileTab() {
                   lastName: validateLastName(e.target.value),
                 }));
               }}
-              className={`w-full px-4 py-3 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${
-                theme === "dark"
-                  ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
-                  : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
-              }`}
+              className={`w-full px-4 py-3 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${theme === "dark"
+                ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
+                : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
+                }`}
             />
             {errors.lastName && (
               <p className="mt-1 text-xs text-red-500">{errors.lastName}</p>
@@ -660,9 +641,8 @@ export function ProfileTab() {
           {/* Location */}
           <div>
             <label
-              className={`block text-[14px] font-semibold mb-2 transition-colors ${
-                theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
-              }`}
+              className={`block text-[14px] font-semibold mb-2 transition-colors ${theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
+                }`}
             >
               Location
             </label>
@@ -677,11 +657,10 @@ export function ProfileTab() {
                   location: validateLocation(e.target.value),
                 }));
               }}
-              className={`w-full px-4 py-3 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${
-                theme === "dark"
-                  ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
-                  : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
-              }`}
+              className={`w-full px-4 py-3 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${theme === "dark"
+                ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
+                : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
+                }`}
             />
             {errors.location && (
               <p className="mt-1 text-xs text-red-500">{errors.location}</p>
@@ -691,9 +670,8 @@ export function ProfileTab() {
           {/* Website */}
           <div>
             <label
-              className={`block text-[14px] font-semibold mb-2 transition-colors ${
-                theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
-              }`}
+              className={`block text-[14px] font-semibold mb-2 transition-colors ${theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
+                }`}
             >
               Website
             </label>
@@ -708,11 +686,10 @@ export function ProfileTab() {
                   website: validateWebsite(e.target.value),
                 }));
               }}
-              className={`w-full px-4 py-3 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${
-                theme === "dark"
-                  ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
-                  : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
-              }`}
+              className={`w-full px-4 py-3 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${theme === "dark"
+                ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
+                : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
+                }`}
             />
             {errors.website && (
               <p className="mt-1 text-xs text-red-500">{errors.website}</p>
@@ -723,9 +700,8 @@ export function ProfileTab() {
         {/* Bio */}
         <div className="mt-6">
           <label
-            className={`block text-[14px] font-semibold mb-2 transition-colors ${
-              theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
-            }`}
+            className={`block text-[14px] font-semibold mb-2 transition-colors ${theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
+              }`}
           >
             Bio
           </label>
@@ -737,11 +713,10 @@ export function ProfileTab() {
               setBio(e.target.value);
               setErrors((p) => ({ ...p, bio: validateBio(e.target.value) }));
             }}
-            className={`w-full px-4 py-3 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] resize-none ${
-              theme === "dark"
-                ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
-                : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
-            }`}
+            className={`w-full px-4 py-3 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] resize-none ${theme === "dark"
+              ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
+              : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
+              }`}
           />
           <div className="flex justify-between items-start mt-1">
             <div className="flex-1">
@@ -750,13 +725,12 @@ export function ProfileTab() {
               )}
             </div>
             <span
-              className={`text-xs ml-4 ${
-                bio.length > 500
-                  ? "text-red-400"
-                  : theme === "dark"
-                    ? "text-[#b8a898]"
-                    : "text-[#7a6b5a]"
-              }`}
+              className={`text-xs ml-4 ${bio.length > 500
+                ? "text-red-400"
+                : theme === "dark"
+                  ? "text-[#b8a898]"
+                  : "text-[#7a6b5a]"
+                }`}
             >
               {bio.length}/500
             </span>
@@ -766,23 +740,20 @@ export function ProfileTab() {
 
       {/* Contact Information */}
       <div
-        className={`backdrop-blur-[40px] rounded-[24px] border shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 transition-colors ${
-          theme === "dark"
-            ? "bg-[#2d2820]/[0.4] border-white/10"
-            : "bg-white/[0.12] border-white/20"
-        }`}
+        className={`backdrop-blur-[40px] rounded-[24px] border shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 transition-colors ${theme === "dark"
+          ? "bg-[#2d2820]/[0.4] border-white/10"
+          : "bg-white/[0.12] border-white/20"
+          }`}
       >
         <h3
-          className={`text-[20px] font-bold mb-2 transition-colors ${
-            theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
-          }`}
+          className={`text-[20px] font-bold mb-2 transition-colors ${theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
+            }`}
         >
           Contact Information
         </h3>
         <p
-          className={`text-[14px] mb-6 transition-colors ${
-            theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
-          }`}
+          className={`text-[14px] mb-6 transition-colors ${theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
+            }`}
         >
           Please enter only your social networks handle (no links, no @ needed).
         </p>
@@ -791,9 +762,8 @@ export function ProfileTab() {
           {/* Telegram */}
           <div>
             <label
-              className={`block text-[14px] font-semibold mb-2 transition-colors ${
-                theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
-              }`}
+              className={`block text-[14px] font-semibold mb-2 transition-colors ${theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
+                }`}
             >
               Telegram
             </label>
@@ -803,16 +773,14 @@ export function ProfileTab() {
                 value={telegram}
                 onChange={(e) => handleInputChange('telegram', e.target.value, setTelegram)}
                 placeholder="Enter your telegram handle"
-                className={`w-full px-4 py-3 pr-10 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${
-                  theme === "dark"
-                    ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
-                    : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
-                }`}
+                className={`w-full px-4 py-3 pr-10 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${theme === "dark"
+                  ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
+                  : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
+                  }`}
               />
               <LinkIcon
-                className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${
-                  theme === "dark" ? "text-[#8a7e70]" : "text-[#7a6b5a]"
-                }`}
+                className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${theme === "dark" ? "text-[#8a7e70]" : "text-[#7a6b5a]"
+                  }`}
               />
             </div>
             {errors.telegram && (
@@ -823,9 +791,8 @@ export function ProfileTab() {
           {/* LinkedIn */}
           <div>
             <label
-              className={`block text-[14px] font-semibold mb-2 transition-colors ${
-                theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
-              }`}
+              className={`block text-[14px] font-semibold mb-2 transition-colors ${theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
+                }`}
             >
               LinkedIn
             </label>
@@ -835,16 +802,14 @@ export function ProfileTab() {
                 value={linkedin}
                 onChange={(e) => handleInputChange('linkedin', e.target.value, setLinkedin)}
                 placeholder="Enter your linkedin handle"
-                className={`w-full px-4 py-3 pr-10 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${
-                  theme === "dark"
-                    ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
-                    : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
-                }`}
+                className={`w-full px-4 py-3 pr-10 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${theme === "dark"
+                  ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
+                  : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
+                  }`}
               />
               <LinkIcon
-                className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${
-                  theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
-                }`}
+                className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
+                  }`}
               />
             </div>
             {errors.linkedin && (
@@ -855,9 +820,8 @@ export function ProfileTab() {
           {/* WhatsApp */}
           <div>
             <label
-              className={`block text-[14px] font-semibold mb-2 transition-colors ${
-                theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
-              }`}
+              className={`block text-[14px] font-semibold mb-2 transition-colors ${theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
+                }`}
             >
               WhatsApp
             </label>
@@ -867,16 +831,14 @@ export function ProfileTab() {
                 value={whatsapp}
                 onChange={(e) => handleInputChange('whatsapp', e.target.value, setWhatsapp)}
                 placeholder="Enter your whatsApp handle"
-                className={`w-full px-4 py-3 pr-10 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${
-                  theme === "dark"
-                    ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
-                    : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
-                }`}
+                className={`w-full px-4 py-3 pr-10 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${theme === "dark"
+                  ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
+                  : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
+                  }`}
               />
               <LinkIcon
-                className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${
-                  theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
-                }`}
+                className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
+                  }`}
               />
             </div>
             {errors.whatsapp && (
@@ -887,9 +849,8 @@ export function ProfileTab() {
           {/* Twitter */}
           <div>
             <label
-              className={`block text-[14px] font-semibold mb-2 transition-colors ${
-                theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
-              }`}
+              className={`block text-[14px] font-semibold mb-2 transition-colors ${theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
+                }`}
             >
               Twitter
             </label>
@@ -899,16 +860,14 @@ export function ProfileTab() {
                 value={twitter}
                 onChange={(e) => handleInputChange('twitter', e.target.value, setTwitter)}
                 placeholder="Enter your twitter handle"
-                className={`w-full px-4 py-3 pr-10 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${
-                  theme === "dark"
-                    ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
-                    : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
-                }`}
+                className={`w-full px-4 py-3 pr-10 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${theme === "dark"
+                  ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
+                  : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
+                  }`}
               />
               <LinkIcon
-                className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${
-                  theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
-                }`}
+                className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
+                  }`}
               />
             </div>
             {errors.twitter && (
@@ -919,9 +878,8 @@ export function ProfileTab() {
           {/* Discord - Full Width */}
           <div className="md:col-span-2">
             <label
-              className={`block text-[14px] font-semibold mb-2 transition-colors ${
-                theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
-              }`}
+              className={`block text-[14px] font-semibold mb-2 transition-colors ${theme === "dark" ? "text-[#f5efe5]" : "text-[#2d2820]"
+                }`}
             >
               Discord
             </label>
@@ -931,16 +889,14 @@ export function ProfileTab() {
                 value={discord}
                 onChange={(e) => handleInputChange('discord', e.target.value, setDiscord)}
                 placeholder="Enter your discord handle"
-                className={`w-full px-4 py-3 pr-10 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${
-                  theme === "dark"
-                    ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
-                    : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
-                }`}
+                className={`w-full px-4 py-3 pr-10 rounded-[14px] backdrop-blur-[30px] border focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/30 transition-all text-[14px] ${theme === "dark"
+                  ? "bg-[#3d342c]/[0.4] border-white/15 text-[#f5efe5] placeholder-[#b8a898]"
+                  : "bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a]"
+                  }`}
               />
               <LinkIcon
-                className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${
-                  theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
-                }`}
+                className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
+                  }`}
               />
             </div>
             {errors.discord && (
