@@ -4,6 +4,7 @@ import { ThemeProvider } from '../shared/contexts/ThemeContext';
 import { LandingPage } from '../features/landing';
 import { SignInPage, SignUpPage, AuthCallbackPage } from '../features/auth';
 import { Dashboard } from '../features/dashboard';
+import { Toaster } from 'sonner';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { isAuthenticated, isLoading } = useAuth();
