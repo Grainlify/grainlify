@@ -249,7 +249,7 @@ export function BrowsePage({ onProjectClick }: BrowsePageProps) {
           return mappedProjects;
         } catch (err) {
           console.error('BrowsePage: Failed to fetch projects:', err);
-          throw err; // Let useOptimisticData handle the error state
+          throw err; // Re-throw to let the hook handle the error
         }
       });
     };

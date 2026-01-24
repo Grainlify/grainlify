@@ -221,7 +221,8 @@ export function DiscoverPage({ onGoToBilling, onGoToOpenSourceWeek }: DiscoverPa
   // Fetch recommended issues from top projects
   useEffect(() => {
     const loadRecommendedIssues = async () => {
-      if (projects.length === 0) return;
+      // Only fetch issues if we have projects and they're loaded
+      if (isLoadingProjects || projects.length === 0) return;
 
       await fetchIssues(async () => {
         const issues: IssueType[] = [];
@@ -264,10 +265,8 @@ export function DiscoverPage({ onGoToBilling, onGoToOpenSourceWeek }: DiscoverPa
       });
     };
 
-    if (projects.length > 0) {
-      loadRecommendedIssues();
-    }
-  }, [projects, fetchIssues]);
+    loadRecommendedIssues();
+  }, [projects, isLoadingProjects, fetchIssues]);
 
   // If an issue is selected, show the detail page instead
   if (selectedIssue) {
