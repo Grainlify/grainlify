@@ -5,6 +5,7 @@ import { Dropdown } from '../../../shared/components/ui/Dropdown';
 import { ProjectCard, Project } from '../components/ProjectCard';
 import { ProjectCardSkeleton } from '../components/ProjectCardSkeleton';
 import { getPublicProjects, getEcosystems } from '../../../shared/api/client';
+import { useOptimisticData } from '../../../shared/hooks/useOptimisticData';
 
 interface BrowsePageProps {
   onProjectClick?: (id: string) => void;
@@ -75,9 +76,15 @@ export function BrowsePage({ onProjectClick }: BrowsePageProps) {
     categories: [],
     tags: []
   });
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
+  
+  // Use optimistic data hook for projects with 30-second cache
+  const {
+    data: projects,
+    isLoading,
+    hasError,
+    fetchData: fetchProjects,
+  } = useOptimisticData<Project[]>([], { cacheDuration: 30000 });
+
   const [ecosystems, setEcosystems] = useState<Array<{ name: string }>>([]);
   const [isLoadingEcosystems, setIsLoadingEcosystems] = useState(true);
 
@@ -177,9 +184,7 @@ export function BrowsePage({ onProjectClick }: BrowsePageProps) {
   // Fetch projects from API
   useEffect(() => {
     const loadProjects = async () => {
-      setIsLoading(true);
-      setHasError(false);
-      try {
+      await fetchProjects(async () => {
         const params: {
           language?: string;
           ecosystem?: string;
@@ -238,38 +243,12 @@ export function BrowsePage({ onProjectClick }: BrowsePageProps) {
           });
 
         console.log('BrowsePage: Mapped projects', { count: mappedProjects.length });
-        setProjects(mappedProjects);
-        setIsLoading(false);
-        setHasError(false);
-      } catch (err) {
-        console.error('BrowsePage: Failed to fetch projects:', err);
-        // Check if it's a network error (backend down) vs other errors
-        const isNetworkError = err instanceof TypeError || 
-                              (err instanceof Error && (
-                                err.message.includes('fetch') || 
-                                err.message.includes('network') ||
-                                err.message.includes('Unable to connect') ||
-                                err.message.includes('Failed to fetch')
-                              ));
-        
-        if (isNetworkError) {
-          // Backend is down - keep showing skeleton forever
-          console.log('BrowsePage: Network error detected, keeping skeleton loader');
-          setProjects([]);
-          setHasError(true);
-          // Don't set isLoading to false - keep showing skeleton
-        } else {
-          // Other error (e.g., invalid response, auth error) - show empty state
-          console.log('BrowsePage: Non-network error, showing empty state');
-          setProjects([]);
-          setIsLoading(false);
-          setHasError(true);
-        }
-      }
+        return mappedProjects;
+      });
     };
 
     loadProjects();
-  }, [selectedFilters]);
+  }, [selectedFilters, fetchProjects]);
 
   return (
     <div className="space-y-6">

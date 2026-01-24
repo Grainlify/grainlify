@@ -138,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('AuthContext - login() called with token');
     setAuthToken(token);
     console.log('AuthContext - Token saved to localStorage');
-    
+
     try {
       console.log('AuthContext - Fetching user profile after login...');
       const userData = await getCurrentUser();
@@ -146,9 +146,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userData);
       setUserRole(userData.role as UserRole);
       setUserId(userData.id);
-      console.log('AuthContext - Login successful:', { 
-        role: userData.role, 
-        id: userData.id, 
+      console.log('AuthContext - Login successful:', {
+        role: userData.role,
+        id: userData.id,
         isAuthenticated: true,
         githubLogin: userData.github?.login
       });

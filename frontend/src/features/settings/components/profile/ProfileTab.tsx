@@ -76,6 +76,11 @@ export function ProfileTab() {
     location?: string;
     website?: string;
     bio?: string;
+    telegram?: string;
+    linkedin?: string;
+    whatsapp?: string;
+    twitter?: string;
+    discord?: string;
   }>({});
 
   /* -------------------- Validation helpers -------------------- */
@@ -113,7 +118,6 @@ export function ProfileTab() {
 
   const validateBio = (value: string) =>
     value.length > MAX_BIO_LENGTH ? "Bio cannot exceed 500 characters" : "";
-
   useEffect(() => {
     const fetchUser = async () => {
       setIsLoading(true);

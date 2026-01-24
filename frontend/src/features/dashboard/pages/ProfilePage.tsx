@@ -27,6 +27,8 @@ import {
   Crown,
   Link,
   ArrowLeft,
+  X,
+  FileEdit,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useTheme } from "../../../shared/contexts/ThemeContext";
@@ -117,6 +119,8 @@ export function ProfilePage({
       month_year: string;
       project_name: string;
       project_id: string;
+      merged?: boolean;
+      draft?: boolean;
     }>
   >([]);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
@@ -369,17 +373,73 @@ export function ProfilePage({
     return false;
   };
 
+  // Helper function to get PR state styling
+  const getPRStateStyle = (
+    state: string,
+    merged: boolean,
+    draft: boolean,
+  ): {
+    iconBgColor: string;
+    icon: any;
+    badgeText: string;
+    badgeColor: string;
+    shadowColor: string;
+    hoverShadow: string;
+  } => {
+    // Priority: merged > draft > state
+    if (merged) {
+      return {
+        iconBgColor: "bg-gradient-to-br from-[#c9983a]/80 to-[#d4af37]/60",
+        icon: GitMerge,
+        badgeText: "Merged",
+        badgeColor: "bg-[#c9983a]/40 border-[#d4af37]/60 text-[#f5d98a]",
+        shadowColor: "shadow-[0_4px_16px_rgba(201,152,58,0.5)]",
+        hoverShadow:
+          "group-hover/item:shadow-[0_5px_20px_rgba(201,152,58,0.6)]",
+      };
+    }
+
+    if (draft) {
+      return {
+        iconBgColor: "bg-gradient-to-br from-[#c9983a]/30 to-[#a67c2e]/20",
+        icon: FileEdit,
+        badgeText: "Draft",
+        badgeColor: "bg-[#c9983a]/20 border-[#c9983a]/40 text-[#d4c5b0]",
+        shadowColor: "shadow-[0_4px_16px_rgba(201,152,58,0.25)]",
+        hoverShadow:
+          "group-hover/item:shadow-[0_5px_20px_rgba(201,152,58,0.35)]",
+      };
+    }
+
+    if (state === "open") {
+      return {
+        iconBgColor: "bg-gradient-to-br from-[#c9983a]/60 to-[#d4af37]/50",
+        icon: GitPullRequest,
+        badgeText: "Open",
+        badgeColor: "bg-[#c9983a]/35 border-[#d4af37]/50 text-[#f5c563]",
+        shadowColor: "shadow-[0_4px_16px_rgba(201,152,58,0.4)]",
+        hoverShadow:
+          "group-hover/item:shadow-[0_5px_20px_rgba(201,152,58,0.5)]",
+      };
+    }
+
+    // Closed (not merged)
+    return {
+      iconBgColor: "bg-gradient-to-br from-[#8b7355]/50 to-[#6b5d4d]/40",
+      icon: X,
+      badgeText: "Closed",
+      badgeColor: "bg-[#8b7355]/30 border-[#8b7355]/50 text-[#b8a898]",
+      shadowColor: "shadow-[0_4px_16px_rgba(139,115,85,0.3)]",
+      hoverShadow: "group-hover/item:shadow-[0_5px_20px_rgba(139,115,85,0.4)]",
+    };
+  };
+
   // Group contribution activity by month, filtering to only show open issues
   const contributionsByMonth: { [key: string]: any[] } = {};
   contributionActivity.forEach((activity) => {
     // Only include issues if they are open, or include all PRs
     if (activity.type === "issue" && activity.state !== "open") {
       return; // Skip closed issues
-    }
-
-    // Filter based on search query
-    if (!matchesSearchQuery(activity, searchQuery)) {
-      return;
     }
 
     const month = activity.month_year || "Unknown";
@@ -399,6 +459,10 @@ export function ProfilePage({
         month: "short",
       }),
       url: activity.url,
+      // ADD THESE THREE LINES:
+      state: activity.state,
+      merged: activity.merged,
+      draft: activity.draft,
     });
   });
 
@@ -1876,19 +1940,35 @@ export function ProfilePage({
                     <div className="px-5 py-2">
                       {items.map((item, idx) => {
                         // Determine icon and styling based on type
-                        let IconComponent: React.ComponentType<any> | null =
-                          Circle;
+                        let IconComponent = Circle;
                         let iconBgColor = "bg-[#c9983a]/50";
+                        let shadowColor = "shadow-[0_4px_16px_rgba(0,0,0,0.3)]";
+                        let hoverShadowColor =
+                          "group-hover/item:shadow-[0_5px_20px_rgba(0,0,0,0.4)]";
                         let labelPrefix = "";
+                        let prStateBadge = null;
 
-                        if (item.type === "pr") {
-                          IconComponent = GitPullRequest;
-                          iconBgColor = "bg-[#d4af37]/50";
-                          labelPrefix = "";
-                        } else if (item.type === "review") {
-                          IconComponent = null; // No icon for reviews
-                          iconBgColor = "";
-                          labelPrefix = "Review: ";
+                        if (item.type === "pull_request") {
+                          // Use the helper function to get PR state styling
+                          const prStyle = getPRStateStyle(
+                            item.state || "open",
+                            item.merged || false,
+                            item.draft || false,
+                          );
+
+                          IconComponent = prStyle.icon;
+                          iconBgColor = prStyle.iconBgColor;
+                          shadowColor = prStyle.shadowColor;
+                          hoverShadowColor = prStyle.hoverShadow;
+
+                          // Create state badge for PRs
+                          prStateBadge = (
+                            <span
+                              className={`px-2 py-0.5 rounded-[6px] text-[11px] font-bold uppercase tracking-wide border ${prStyle.badgeColor} backdrop-blur-sm`}
+                            >
+                              {prStyle.badgeText}
+                            </span>
+                          );
                         } else if (item.type === "issue") {
                           IconComponent = Circle;
                           iconBgColor = "bg-[#c9983a]/50";
@@ -1914,62 +1994,58 @@ export function ProfilePage({
                                   : "cursor-default"
                               }`}
                             >
-                              {/* Icon + Number Badge (only for issues and PRs) */}
-                              {item.type !== "review" && IconComponent && (
-                                <div className="relative z-10 flex items-center gap-2.5 flex-shrink-0">
-                                  {/* Icon Circle */}
-                                  <div
-                                    className={`w-10 h-10 rounded-full ${iconBgColor} shadow-[0_4px_16px_rgba(0,0,0,0.3)] flex items-center justify-center group-hover/item:scale-110 group-hover/item:shadow-[0_5px_20px_rgba(0,0,0,0.4)] transition-all duration-200`}
-                                  >
-                                    <IconComponent
-                                      className="w-5 h-5 text-white group-hover/item:scale-110 transition-transform"
-                                      fill={
-                                        item.type === "issue" ? "white" : "none"
-                                      }
-                                      strokeWidth={
-                                        item.type === "issue" ? 0 : 3
-                                      }
-                                    />
-                                  </div>
-
-                                  {/* Number Badge */}
-                                  <div
-                                    className={`px-3.5 py-1.5 rounded-[6px] ${iconBgColor} shadow-[0_3px_10px_rgba(0,0,0,0.25)]`}
-                                  >
-                                    <span className="text-[14px] font-bold text-white">
-                                      {item.number}
-                                    </span>
-                                  </div>
+                              {/* Icon + Number Badge */}
+                              <div className="relative z-10 flex items-center gap-2.5 flex-shrink-0">
+                                {/* Icon Circle */}
+                                <div
+                                  className={`w-10 h-10 rounded-full ${iconBgColor} ${shadowColor} ${hoverShadowColor} flex items-center justify-center group-hover/item:scale-110 transition-all duration-200`}
+                                >
+                                  <IconComponent
+                                    className="w-5 h-5 text-white group-hover/item:scale-110 transition-transform"
+                                    fill={
+                                      item.type === "issue" ? "white" : "none"
+                                    }
+                                    strokeWidth={
+                                      item.type === "issue" ? 0 : 2.5
+                                    }
+                                  />
                                 </div>
-                              )}
 
-                              {/* Review label without icon */}
-                              {item.type === "review" && (
-                                <div className="relative z-10 flex-shrink-0 w-[120px]">
-                                  <span
-                                    className={`text-[15px] font-semibold transition-colors ${
-                                      theme === "dark"
-                                        ? "text-[#f5f5f5]"
-                                        : "text-[#2d2820]"
-                                    }`}
-                                  >
-                                    Review:
+                                {/* Number Badge */}
+                                <div
+                                  className={`px-3.5 py-1.5 rounded-[6px] ${iconBgColor} ${shadowColor}`}
+                                >
+                                  <span className="text-[14px] font-bold text-white">
+                                    {item.number}
                                   </span>
                                 </div>
-                              )}
+                              </div>
 
                               {/* Content */}
                               <div className="flex-1 min-w-0">
-                                <h4
-                                  className={`text-[15px] font-medium transition-colors ${
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h4
+                                    className={`text-[15px] font-medium transition-colors ${
+                                      theme === "dark"
+                                        ? "text-[#f5f5f5] group-hover/item:text-[#d4d4d4]"
+                                        : "text-[#2d2820] group-hover/item:text-[#4a3f2f]"
+                                    }`}
+                                  >
+                                    {labelPrefix}
+                                    {item.title}
+                                  </h4>
+                                  {/* State Badge (only for PRs) */}
+                                  {prStateBadge}
+                                </div>
+                                <p
+                                  className={`text-[13px] transition-colors ${
                                     theme === "dark"
-                                      ? "text-[#f5f5f5] group-hover/item:text-[#d4d4d4]"
-                                      : "text-[#2d2820] group-hover/item:text-[#4a3f2f]"
+                                      ? "text-[#d4d4d4]/70"
+                                      : "text-[#7a6b5a]/70"
                                   }`}
                                 >
-                                  {labelPrefix}
-                                  {item.title}
-                                </h4>
+                                  {item.project}
+                                </p>
                               </div>
 
                               {/* Date */}
@@ -1994,7 +2070,6 @@ export function ProfilePage({
           )}
         </div>
       </div>
-      {/* ) */}
     </div>
   );
 }

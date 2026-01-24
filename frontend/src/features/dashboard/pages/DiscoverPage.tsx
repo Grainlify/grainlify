@@ -1,12 +1,12 @@
 import { useTheme } from '../../../shared/contexts/ThemeContext';
 import { Heart, Star, GitFork, ArrowUpRight, Target, Zap } from 'lucide-react';
-import { LanguageIcon } from '../../../shared/components/LanguageIcon';
 import { IssueCard } from '../../../shared/components/ui/IssueCard';
 import { useState, useEffect } from 'react';
 import { IssueDetailPage } from './IssueDetailPage';
 import { ProjectDetailPage } from './ProjectDetailPage';
 import { getRecommendedProjects, getPublicProjectIssues } from '../../../shared/api/client';
 import { SkeletonLoader } from '../../../shared/components/SkeletonLoader';
+import { useOptimisticData } from '../../../shared/hooks/useOptimisticData';
 
 // Helper function to format numbers (e.g., 1234 -> "1.2K", 1234567 -> "1.2M")
 const formatNumber = (num: number): string => {
@@ -122,6 +122,28 @@ const getPrimaryTag = (labels: any[]): string | undefined => {
   return undefined;
 };
 
+type ProjectType = {
+  id: string;
+  name: string;
+  icon: string;
+  stars: string;
+  forks: string;
+  issues: number;
+  description: string;
+  tags: string[];
+  color: string;
+};
+
+type IssueType = {
+  id: string;
+  title: string;
+  description: string;
+  language: string;
+  daysLeft: string;
+  primaryTag?: string;
+  projectId: string;
+};
+
 interface DiscoverPageProps {
   onGoToBilling?: () => void;
   onGoToOpenSourceWeek?: () => void;
@@ -131,43 +153,32 @@ export function DiscoverPage({ onGoToBilling, onGoToOpenSourceWeek }: DiscoverPa
   const { theme } = useTheme();
   const [selectedIssue, setSelectedIssue] = useState<{ issueId: string; projectId?: string } | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [projects, setProjects] = useState<Array<{
-    id: string;
-    name: string;
-    icon: string;
-    stars: string;
-    forks: string;
-    issues: number;
-    description: string;
-    tags: string[];
-    color: string;
-  }>>([]);
-  const [recommendedIssues, setRecommendedIssues] = useState<Array<{
-    id: string;
-    title: string;
-    description: string;
-    language: string;
-    daysLeft: string;
-    primaryTag?: string;
-    projectId: string;
-  }>>([]);
-  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
-  const [isLoadingIssues, setIsLoadingIssues] = useState(true);
+  
+  // Use optimistic data hook for projects with 30-second cache
+  const {
+    data: projects,
+    isLoading: isLoadingProjects,
+    fetchData: fetchProjects,
+  } = useOptimisticData<ProjectType[]>([], { cacheDuration: 30000 });
+
+  // Use optimistic data hook for issues with 30-second cache
+  const {
+    data: recommendedIssues,
+    isLoading: isLoadingIssues,
+    fetchData: fetchIssues,
+  } = useOptimisticData<IssueType[]>([], { cacheDuration: 30000 });
 
   // Fetch recommended projects
   useEffect(() => {
     const loadRecommendedProjects = async () => {
-      setIsLoadingProjects(true);
-      try {
+      await fetchProjects(async () => {
         const response = await getRecommendedProjects(8);
         console.log('DiscoverPage: Recommended projects response', response);
         
         // Handle response - check if it exists and has projects array
         if (!response) {
           console.warn('DiscoverPage: No response received');
-          setProjects([]);
-          setIsLoadingProjects(false);
-          return;
+          return [];
         }
         
         // Handle both { projects: [...] } and direct array response
@@ -175,9 +186,7 @@ export function DiscoverPage({ onGoToBilling, onGoToOpenSourceWeek }: DiscoverPa
         
         if (!Array.isArray(projectsArray)) {
           console.error('DiscoverPage: Invalid response format - projects is not an array', response);
-          setProjects([]);
-          setIsLoadingProjects(false);
-          return;
+          return [];
         }
         
         const mappedProjects = projectsArray.map((p) => {
@@ -196,76 +205,62 @@ export function DiscoverPage({ onGoToBilling, onGoToOpenSourceWeek }: DiscoverPa
         });
         
         console.log('DiscoverPage: Mapped projects', mappedProjects);
-        setProjects(mappedProjects);
-        setIsLoadingProjects(false);
-      } catch (err) {
-        console.error('Failed to fetch recommended projects:', err);
-        setProjects([]);
-        setIsLoadingProjects(false); // Always set to false, even on error, to show empty state
-      }
+        return mappedProjects;
+      });
     };
 
     loadRecommendedProjects();
-  }, []);
+  }, [fetchProjects]);
 
   // Fetch recommended issues from top projects
   useEffect(() => {
     const loadRecommendedIssues = async () => {
-      if (projects.length === 0) return;
+      // Only fetch issues if we have projects and they're loaded
+      if (isLoadingProjects || projects.length === 0) return;
       
-      setIsLoadingIssues(true);
-      const issues: Array<{
-        id: string;
-        title: string;
-        description: string;
-        language: string;
-        daysLeft: string;
-        primaryTag?: string;
-        projectId: string;
-      }> = [];
-      
-      // Try to get issues from projects, moving to next if a project has no issues
-      for (const project of projects) {
-        if (issues.length >= 6) break; // We only need 6 issues
+      await fetchIssues(async () => {
+        const issues: IssueType[] = [];
         
-        try {
-          const issuesResponse = await getPublicProjectIssues(project.id);
-          if (issuesResponse?.issues && Array.isArray(issuesResponse.issues) && issuesResponse.issues.length > 0) {
-            // Take up to 2 issues from this project
-            const projectIssues = issuesResponse.issues.slice(0, 2);
-            for (const issue of projectIssues) {
-              if (issues.length >= 6) break;
-              
-              // Get project language for the issue
-              const projectData = projects.find(p => p.id === project.id);
-              const language = projectData?.tags.find(t => ['TypeScript', 'JavaScript', 'Python', 'Rust', 'Go', 'CSS', 'HTML'].includes(t)) || projectData?.tags[0] || 'TypeScript';
-              
-              issues.push({
-                id: String(issue.github_issue_id),
-                title: issue.title || 'Untitled Issue',
-                description: cleanIssueDescription(issue.description),
-                language: language,
-                daysLeft: getDaysLeft(),
-                primaryTag: getPrimaryTag(issue.labels || []),
-                projectId: project.id,
-              });
+        // Try to get issues from projects, moving to next if a project has no issues
+        for (const project of projects) {
+          if (issues.length >= 6) break; // We only need 6 issues
+          
+          try {
+            const issuesResponse = await getPublicProjectIssues(project.id);
+            if (issuesResponse?.issues && Array.isArray(issuesResponse.issues) && issuesResponse.issues.length > 0) {
+              // Take up to 2 issues from this project
+              const projectIssues = issuesResponse.issues.slice(0, 2);
+              for (const issue of projectIssues) {
+                if (issues.length >= 6) break;
+                
+                // Get project language for the issue
+                const projectData = projects.find(p => p.id === project.id);
+                const language = projectData?.tags.find(t => ['TypeScript', 'JavaScript', 'Python', 'Rust', 'Go', 'CSS', 'HTML'].includes(t)) || projectData?.tags[0] || 'TypeScript';
+                
+                issues.push({
+                  id: String(issue.github_issue_id),
+                  title: issue.title || 'Untitled Issue',
+                  description: cleanIssueDescription(issue.description),
+                  language: language,
+                  daysLeft: getDaysLeft(),
+                  primaryTag: getPrimaryTag(issue.labels || []),
+                  projectId: project.id,
+                });
+              }
             }
+          } catch (err) {
+            // If fetching issues fails, continue to next project
+            console.warn(`Failed to fetch issues for project ${project.id}:`, err);
+            continue;
           }
-        } catch (err) {
-          // If fetching issues fails, continue to next project
-          console.warn(`Failed to fetch issues for project ${project.id}:`, err);
-          continue;
         }
-      }
-      
-      setRecommendedIssues(issues);
-      setIsLoadingIssues(false);
+        
+        return issues;
+      });
     };
 
-    if (!isLoadingProjects && projects.length > 0) {
-      loadRecommendedIssues();
-    }
-  }, [projects, isLoadingProjects]);
+    loadRecommendedIssues();
+  }, [projects, isLoadingProjects, fetchIssues]);
 
   // If an issue is selected, show the detail page instead
   if (selectedIssue) {
