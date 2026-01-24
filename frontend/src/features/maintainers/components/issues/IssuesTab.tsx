@@ -8,6 +8,7 @@ import { IssueCard } from '../../../../shared/components/ui/IssueCard';
 import { applyToIssue, getProjectIssues } from '../../../../shared/api/client';
 import { formatDistanceToNow } from 'date-fns';
 import { IssueCardSkeleton } from '../../../../shared/components/IssueCardSkeleton';
+import RenderMarkdownContent from '../../../../app/utils/renderMarkdown';
 
 interface Project {
   id: string;
@@ -1004,7 +1005,7 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh, initialSele
                     <div className={`text-[14px] leading-relaxed whitespace-pre-wrap transition-colors ${
                       isDark ? 'text-[#e8dfd0]' : 'text-[#2d2820]'
                     }`}>
-                      {selectedIssueFromAPI.description}
+                     <RenderMarkdownContent content={selectedIssueFromAPI.description} />
                     </div>
                   </div>
                 )}

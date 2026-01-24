@@ -399,20 +399,30 @@ export function ContributionsTab() {
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[50] transition-opacity"
             onClick={() => setIsFilterOpen(false)}
           />
 
           {/* Filter Panel */}
-          <div className="fixed top-0 right-0 h-full w-[400px] backdrop-blur-[40px] bg-[#e5ddd1]/95 border-l border-white/30 z-50 shadow-[0_0_40px_rgba(0,0,0,0.15)] p-6 flex flex-col animate-slide-in-right">
+          <div className={`fixed top-0 right-0 h-full w-[400px] backdrop-blur-[40px] border-l z-[60] shadow-[0_0_40px_rgba(0,0,0,0.15)] p-6 flex flex-col animate-slide-in-right transition-colors ${
+            theme === 'dark' 
+              ? 'bg-[#2d2820]/95 border-white/10 text-[#f5efe5]' 
+              : 'bg-[#e5ddd1]/95 border-white/30 text-[#2d2820]'
+          }`}>
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-[18px] font-bold text-[#2d2820]">Filter contributions</h2>
+              <h2 className={`text-[18px] font-bold ${
+                theme === 'dark' ? 'text-[#f5efe5]' : 'text-[#2d2820]'
+              }`}>Filter contributions</h2>
               <button
                 onClick={() => setIsFilterOpen(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/[0.3] transition-all"
+                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
+                  theme === 'dark' ? 'hover:bg-white/[0.1]' : 'hover:bg-white/[0.3]'
+                }`}
               >
-                <X className="w-6 h-6 text-[#2d2820] stroke-[2.5]" />
+                <X className={`w-6 h-6 stroke-[2.5] ${
+                  theme === 'dark' ? 'text-[#f5efe5]' : 'text-[#2d2820]'
+                }`} />
               </button>
             </div>
 
@@ -425,27 +435,37 @@ export function ContributionsTab() {
                   className="w-full flex items-center justify-between mb-3"
                 >
                   <div className="flex items-center gap-3">
-                    <Circle className="w-5 h-5 text-[#7a6b5a]" />
-                    <span className="text-[14px] font-semibold text-[#2d2820]">Projects</span>
+                    <Circle className={`w-5 h-5 ${theme === 'dark' ? 'text-[#b8a898]' : 'text-[#7a6b5a]'}`} />
+                    <span className={`text-[14px] font-semibold ${theme === 'dark' ? 'text-[#f5efe5]' : 'text-[#2d2820]'}`}>Projects</span>
                   </div>
-                  <ChevronDown className={`w-5 h-5 text-[#2d2820] transition-transform ${isProjectSectionOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-5 h-5 transition-transform ${isProjectSectionOpen ? 'rotate-180' : ''} ${
+                    theme === 'dark' ? 'text-[#f5efe5]' : 'text-[#2d2820]'
+                  }`} />
                 </button>
 
                 {isProjectSectionOpen && (
                   <div className="space-y-3">
                     {/* Search Field */}
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#2d2820]" />
+                      <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${
+                        theme === 'dark' ? 'text-[#b8a898]' : 'text-[#2d2820]'
+                      }`} />
                       <input
                         type="text"
                         placeholder="Search"
-                        className="w-full pl-10 pr-4 py-3 rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25 text-[13px] text-[#2d2820] placeholder-[#7a6b5a] focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/40 transition-all"
+                        className={`w-full pl-10 pr-4 py-3 rounded-[12px] backdrop-blur-[30px] border transition-all text-[13px] focus:outline-none focus:border-[#c9983a]/40 ${
+                          theme === 'dark'
+                            ? 'bg-white/[0.05] border-white/10 text-[#f5efe5] placeholder-[#b8a898] focus:bg-white/[0.1]'
+                            : 'bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a] focus:bg-white/[0.2]'
+                        }`}
                       />
                     </div>
 
                     {/* Results Section */}
-                    <div className="backdrop-blur-[20px] bg-white/[0.1] rounded-[12px] border border-white/20 p-4">
-                      <p className="text-[12px] text-[#7a6b5a] text-center">No items found</p>
+                    <div className={`backdrop-blur-[20px] rounded-[12px] border p-4 ${
+                      theme === 'dark' ? 'bg-white/[0.05] border-white/10' : 'bg-white/[0.1] border-white/20'
+                    }`}>
+                      <p className={`text-[12px] text-center ${theme === 'dark' ? 'text-[#b8a898]' : 'text-[#7a6b5a]'}`}>No items found</p>
                     </div>
                   </div>
                 )}
@@ -458,65 +478,54 @@ export function ContributionsTab() {
                   className="w-full flex items-center justify-between mb-3"
                 >
                   <div className="flex items-center gap-3">
-                    <Circle className="w-5 h-5 text-[#7a6b5a]" />
-                    <span className="text-[14px] font-semibold text-[#2d2820]">Rewarded</span>
+                    <Circle className={`w-5 h-5 ${theme === 'dark' ? 'text-[#b8a898]' : 'text-[#7a6b5a]'}`} />
+                    <span className={`text-[14px] font-semibold ${theme === 'dark' ? 'text-[#f5efe5]' : 'text-[#2d2820]'}`}>Rewarded</span>
                     <span className="px-2 py-0.5 bg-[#c9983a] text-white text-[11px] font-semibold rounded-full">
                       {selectedRewards.length}
                     </span>
                   </div>
-                  <ChevronDown className={`w-5 h-5 text-[#2d2820] transition-transform ${isRewardedSectionOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-5 h-5 transition-transform ${isRewardedSectionOpen ? 'rotate-180' : ''} ${
+                    theme === 'dark' ? 'text-[#f5efe5]' : 'text-[#2d2820]'
+                  }`} />
                 </button>
 
                 {isRewardedSectionOpen && (
                   <div className="space-y-2">
                     {/* Main Dropdown showing current selection */}
-                    <div className="px-4 py-3 rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25">
-                      <span className="text-[13px] text-[#2d2820]">
+                    <div className={`px-4 py-3 rounded-[12px] backdrop-blur-[30px] border ${
+                      theme === 'dark' ? 'bg-white/[0.05] border-white/10' : 'bg-white/[0.15] border-white/25'
+                    }`}>
+                      <span className={`text-[13px] ${theme === 'dark' ? 'text-[#f5efe5]' : 'text-[#2d2820]'}`}>
                         {selectedRewards.join(', ')}
                       </span>
                     </div>
 
                     {/* Options List */}
                     <div className="space-y-1">
-                      <button
-                        onClick={() => {
-                          if (selectedRewards.includes('Rewarded')) {
-                            setSelectedRewards(selectedRewards.filter(r => r !== 'Rewarded'));
-                          } else {
-                            setSelectedRewards([...selectedRewards, 'Rewarded']);
-                          }
-                        }}
-                        className={`w-full px-4 py-3 rounded-[12px] text-left text-[13px] font-medium transition-all flex items-center justify-between ${
-                          selectedRewards.includes('Rewarded')
-                            ? 'bg-[#c9983a] text-white shadow-[0_4px_12px_rgba(201,152,58,0.3)]'
-                            : 'backdrop-blur-[20px] bg-white/[0.1] border border-white/20 text-[#2d2820] hover:bg-white/[0.15]'
-                        }`}
-                      >
-                        <span>Rewarded</span>
-                        {selectedRewards.includes('Rewarded') && (
-                          <Check className="w-4 h-4" />
-                        )}
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          if (selectedRewards.includes('Unrewarded')) {
-                            setSelectedRewards(selectedRewards.filter(r => r !== 'Unrewarded'));
-                          } else {
-                            setSelectedRewards([...selectedRewards, 'Unrewarded']);
-                          }
-                        }}
-                        className={`w-full px-4 py-3 rounded-[12px] text-left text-[13px] font-medium transition-all flex items-center justify-between ${
-                          selectedRewards.includes('Unrewarded')
-                            ? 'bg-[#c9983a] text-white shadow-[0_4px_12px_rgba(201,152,58,0.3)]'
-                            : 'backdrop-blur-[20px] bg-white/[0.1] border border-white/20 text-[#2d2820] hover:bg-white/[0.15]'
-                        }`}
-                      >
-                        <span>Unrewarded</span>
-                        {selectedRewards.includes('Unrewarded') && (
-                          <Check className="w-4 h-4" />
-                        )}
-                      </button>
+                      {['Rewarded', 'Unrewarded'].map((reward) => (
+                        <button
+                          key={reward}
+                          onClick={() => {
+                            if (selectedRewards.includes(reward)) {
+                              setSelectedRewards(selectedRewards.filter(r => r !== reward));
+                            } else {
+                              setSelectedRewards([...selectedRewards, reward]);
+                            }
+                          }}
+                          className={`w-full px-4 py-3 rounded-[12px] text-left text-[13px] font-medium transition-all flex items-center justify-between ${
+                            selectedRewards.includes(reward)
+                              ? 'bg-[#c9983a] text-white shadow-[0_4px_12px_rgba(201,152,58,0.3)]'
+                              : theme === 'dark'
+                                ? 'backdrop-blur-[20px] bg-white/[0.05] border border-white/10 text-[#f5efe5] hover:bg-white/[0.1]'
+                                : 'backdrop-blur-[20px] bg-white/[0.1] border border-white/20 text-[#2d2820] hover:bg-white/[0.15]'
+                          }`}
+                        >
+                          <span>{reward}</span>
+                          {selectedRewards.includes(reward) && (
+                            <Check className="w-4 h-4" />
+                          )}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -524,13 +533,19 @@ export function ContributionsTab() {
             </div>
 
             {/* Footer Buttons */}
-            <div className="flex items-center gap-3 mt-6 pt-6 border-t border-white/20">
+            <div className={`flex items-center gap-3 mt-6 pt-6 border-t ${
+              theme === 'dark' ? 'border-white/10' : 'border-white/20'
+            }`}>
               <button
                 onClick={() => {
                   setSelectedProject('');
                   setSelectedRewards(['Rewarded', 'Unrewarded']);
                 }}
-                className="flex-1 px-4 py-3 rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25 text-[13px] font-semibold text-[#6b5d4d] hover:bg-white/[0.2] transition-all"
+                className={`flex-1 px-4 py-3 rounded-[12px] backdrop-blur-[30px] border text-[13px] font-semibold transition-all ${
+                  theme === 'dark'
+                    ? 'bg-white/[0.05] border-white/10 text-[#b8a898] hover:bg-white/[0.1]'
+                    : 'bg-white/[0.15] border-white/25 text-[#6b5d4d] hover:bg-white/[0.2]'
+                }`}
               >
                 Reset
               </button>
