@@ -461,7 +461,6 @@ export function ProfilePage({
       }),
       url: activity.url,
       // ADD THESE THREE LINES:
-      state: activity.state,
       merged: activity.merged,
       draft: activity.draft,
     });
@@ -479,8 +478,8 @@ export function ProfilePage({
   return (
     <div
       className={`min-h-screen transition-colors ${theme === "dark"
-          ? "bg-gradient-to-br from-[#1a1512] via-[#2a221a] to-[#1f1812]"
-          : "bg-gradient-to-br from-white/[0.95] via-[#faf8f3] to-white/[0.9]"
+        ? "bg-gradient-to-br from-[#1a1512] via-[#2a221a] to-[#1f1812]"
+        : "bg-gradient-to-br from-white/[0.95] via-[#faf8f3] to-white/[0.9]"
         }`}
     >
       {/* Profile content */}
@@ -490,8 +489,8 @@ export function ProfilePage({
           <button
             onClick={onBack}
             className={`flex items-center gap-2 px-4 py-2 rounded-[12px] backdrop-blur-[30px] border font-medium text-[14px] hover:bg-white/[0.2] transition-all ${theme === "dark"
-                ? "bg-[#3d342c]/[0.4] border-white/15 text-[#d4c5b0]"
-                : "bg-white/[0.15] border-white/25 text-[#2d2820]"
+              ? "bg-[#3d342c]/[0.4] border-white/15 text-[#d4c5b0]"
+              : "bg-white/[0.15] border-white/25 text-[#2d2820]"
               }`}
           >
             <ArrowLeft className="w-4 h-4" />
@@ -570,8 +569,8 @@ export function ProfilePage({
                 ) : (
                   <h1
                     className={`text-[42px] font-black mb-4 tracking-tight transition-colors ${theme === "dark"
-                        ? "text-[#f5f5f5]"
-                        : "bg-gradient-to-r from-[#1a1410] via-[#2d2820] to-[#4a3f2f] bg-clip-text text-transparent drop-shadow-[0_2px_4px_rgba(0,0,0,0.1)]"
+                      ? "text-[#f5f5f5]"
+                      : "bg-gradient-to-r from-[#1a1410] via-[#2d2820] to-[#4a3f2f] bg-clip-text text-transparent drop-shadow-[0_2px_4px_rgba(0,0,0,0.1)]"
                       }`}
                   >
                     {viewingUser?.login || user?.github?.login || "Developer"}
@@ -585,8 +584,8 @@ export function ProfilePage({
                       {profileData.bio && (
                         <p
                           className={`text-[15px] leading-relaxed transition-colors ${theme === "dark"
-                              ? "text-[#d4d4d4]"
-                              : "text-[#7a6b5a]"
+                            ? "text-[#d4d4d4]"
+                            : "text-[#7a6b5a]"
                             }`}
                         >
                           {profileData.bio}
@@ -604,8 +603,8 @@ export function ProfilePage({
                             target="_blank"
                             rel="noopener noreferrer"
                             className={`text-[14px] font-medium hover:text-[#c9983a] transition-colors underline decoration-[#c9983a]/30 hover:decoration-[#c9983a]/60 ${theme === "dark"
-                                ? "text-[#d4c5b0]"
-                                : "text-[#7a6b5a]"
+                              ? "text-[#d4c5b0]"
+                              : "text-[#7a6b5a]"
                               }`}
                           >
                             {profileData.website
@@ -622,9 +621,8 @@ export function ProfilePage({
                   <div className="flex items-center gap-3 flex-wrap mb-4">
                     {/* GitHub */}
                     <a
-                      href={`https://github.com/${
-                        viewingUser?.login || user?.github?.login
-                      }`}
+                      href={`https://github.com/${viewingUser?.login || user?.github?.login
+                        }`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-8 h-8 rounded-full bg-gradient-to-br from-[#c9983a]/30 to-[#d4af37]/20 border-2 border-[#c9983a]/50 flex items-center justify-center hover:scale-110 hover:shadow-[0_4px_12px_rgba(201,152,58,0.4)] transition-all duration-300"
@@ -653,8 +651,8 @@ export function ProfilePage({
                     ) : (
                       <div
                         className={`w-8 h-8 rounded-full border-2 flex items-center justify-center cursor-not-allowed ${theme === "dark"
-                            ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10 border-gray-400/30 opacity-40"
-                            : "bg-gradient-to-br from-gray-300/40 to-gray-400/30 border-gray-400/50 opacity-60"
+                          ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10 border-gray-400/30 opacity-40"
+                          : "bg-gradient-to-br from-gray-300/40 to-gray-400/30 border-gray-400/50 opacity-60"
                           }`}
                         title="Telegram"
                       >
@@ -693,8 +691,8 @@ export function ProfilePage({
                     ) : (
                       <div
                         className={`w-8 h-8 mb-1 rounded-full border-2 flex items-center justify-center cursor-not-allowed ${theme === "dark"
-                            ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10 border-gray-400/30 opacity-40"
-                            : "bg-gradient-to-br from-gray-300/40 to-gray-400/30 border-gray-400/50 opacity-60"
+                          ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10 border-gray-400/30 opacity-40"
+                          : "bg-gradient-to-br from-gray-300/40 to-gray-400/30 border-gray-400/50 opacity-60"
                           }`}
                         title="LinkedIn"
                       >
@@ -729,8 +727,8 @@ export function ProfilePage({
                     ) : (
                       <div
                         className={`w-8 h-8 rounded-full border-2 flex items-center justify-center cursor-not-allowed ${theme === "dark"
-                            ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10 border-gray-400/30 opacity-40"
-                            : "bg-gradient-to-br from-gray-300/40 to-gray-400/30 border-gray-400/50 opacity-60"
+                          ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10 border-gray-400/30 opacity-40"
+                          : "bg-gradient-to-br from-gray-300/40 to-gray-400/30 border-gray-400/50 opacity-60"
                           }`}
                         title="WhatsApp"
                       >
@@ -765,8 +763,8 @@ export function ProfilePage({
                     ) : (
                       <div
                         className={`w-8 h-8 rounded-full border-2 flex items-center justify-center cursor-not-allowed ${theme === "dark"
-                            ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10 border-gray-400/30 opacity-40"
-                            : "bg-gradient-to-br from-gray-300/40 to-gray-400/30 border-gray-400/50 opacity-60"
+                          ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10 border-gray-400/30 opacity-40"
+                          : "bg-gradient-to-br from-gray-300/40 to-gray-400/30 border-gray-400/50 opacity-60"
                           }`}
                         title="Twitter"
                       >
@@ -801,8 +799,8 @@ export function ProfilePage({
                     ) : (
                       <div
                         className={`w-8 h-8 rounded-full border-2 flex items-center justify-center cursor-not-allowed ${theme === "dark"
-                            ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10 border-gray-400/30 opacity-40"
-                            : "bg-gradient-to-br from-gray-300/40 to-gray-400/30 border-gray-400/50 opacity-60"
+                          ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10 border-gray-400/30 opacity-40"
+                          : "bg-gradient-to-br from-gray-300/40 to-gray-400/30 border-gray-400/50 opacity-60"
                           }`}
                         title="Discord"
                       >
@@ -845,16 +843,16 @@ export function ProfilePage({
                           <>
                             <div
                               className={`text-[28px] font-black leading-none mb-1 drop-shadow-sm transition-colors ${theme === "dark"
-                                  ? "text-[#f5f5f5]"
-                                  : "text-[#2d2820]"
+                                ? "text-[#f5f5f5]"
+                                : "text-[#2d2820]"
                                 }`}
                             >
                               {profileData?.contributions_count || 0}
                             </div>
                             <div
                               className={`text-[12px] font-bold uppercase tracking-wider transition-colors ${theme === "dark"
-                                  ? "text-[#d4d4d4]"
-                                  : "text-[#7a6b5a]"
+                                ? "text-[#d4d4d4]"
+                                : "text-[#7a6b5a]"
                                 }`}
                             >
                               Contributions
@@ -887,16 +885,16 @@ export function ProfilePage({
                           <>
                             <div
                               className={`text-[28px] font-black leading-none mb-1 drop-shadow-sm transition-colors ${theme === "dark"
-                                  ? "text-[#f5f5f5]"
-                                  : "text-[#2d2820]"
+                                ? "text-[#f5f5f5]"
+                                : "text-[#2d2820]"
                                 }`}
                             >
                               {profileData?.rewards_count || 0}
                             </div>
                             <div
                               className={`text-[12px] font-bold uppercase tracking-wider transition-colors ${theme === "dark"
-                                  ? "text-[#d4d4d4]"
-                                  : "text-[#7a6b5a]"
+                                ? "text-[#d4d4d4]"
+                                : "text-[#7a6b5a]"
                                 }`}
                             >
                               Rewards
@@ -922,15 +920,15 @@ export function ProfilePage({
                       ) : (
                         <span
                           className={`text-[15px] font-medium transition-colors ${theme === "dark"
-                              ? "text-[#d4d4d4]"
-                              : "text-[#7a6b5a]"
+                            ? "text-[#d4d4d4]"
+                            : "text-[#7a6b5a]"
                             }`}
                         >
                           Contributor on{" "}
                           <span
                             className={`font-black text-[16px] transition-colors ${theme === "dark"
-                                ? "text-[#f5f5f5]"
-                                : "text-[#2d2820]"
+                              ? "text-[#f5f5f5]"
+                              : "text-[#2d2820]"
                               }`}
                           >
                             {profileData?.projects_contributed_to_count || 0}
@@ -955,15 +953,15 @@ export function ProfilePage({
                       ) : (
                         <span
                           className={`text-[15px] font-medium transition-colors ${theme === "dark"
-                              ? "text-[#d4d4d4]"
-                              : "text-[#7a6b5a]"
+                            ? "text-[#d4d4d4]"
+                            : "text-[#7a6b5a]"
                             }`}
                         >
                           Lead{" "}
                           <span
                             className={`font-black text-[16px] transition-colors ${theme === "dark"
-                                ? "text-[#f5f5f5]"
-                                : "text-[#2d2820]"
+                              ? "text-[#f5f5f5]"
+                              : "text-[#2d2820]"
                               }`}
                           >
                             {profileData?.projects_led_count || 0}
@@ -1078,8 +1076,8 @@ export function ProfilePage({
                 <div
                   key={idx}
                   className={`backdrop-blur-[20px] rounded-[16px] border p-5 ${theme === "dark"
-                      ? "bg-white/[0.08] border-white/10"
-                      : "bg-white/[0.15] border-white/25"
+                    ? "bg-white/[0.08] border-white/10"
+                    : "bg-white/[0.15] border-white/25"
                     }`}
                 >
                   <div className="flex items-center gap-3 mb-4">
@@ -1121,8 +1119,8 @@ export function ProfilePage({
                   <div
                     key={project.id}
                     className={`backdrop-blur-[20px] rounded-[16px] border p-5 hover:scale-105 hover:shadow-[0_12px_36px_rgba(0,0,0,0.12)] transition-all duration-300 cursor-pointer group/project ${theme === "dark"
-                        ? "bg-white/[0.08] border-white/10 hover:bg-white/[0.12] hover:border-white/15"
-                        : "bg-white/[0.15] border-white/25 hover:bg-white/[0.2] hover:border-white/40"
+                      ? "bg-white/[0.08] border-white/10 hover:bg-white/[0.12] hover:border-white/15"
+                      : "bg-white/[0.15] border-white/25 hover:bg-white/[0.2] hover:border-white/40"
                       }`}
                     style={{
                       animationDelay: `${idx * 100}ms`,
@@ -1149,8 +1147,8 @@ export function ProfilePage({
                       <div className="flex-1">
                         <h3
                           className={`text-[16px] font-bold group-hover/project:text-[#c9983a] transition-colors ${theme === "dark"
-                              ? "text-[#f5f5f5]"
-                              : "text-[#2d2820]"
+                            ? "text-[#f5f5f5]"
+                            : "text-[#2d2820]"
                             }`}
                         >
                           {projectName}
@@ -1193,8 +1191,8 @@ export function ProfilePage({
                     <div className="grid grid-cols-2 gap-3">
                       <div
                         className={`backdrop-blur-[15px] rounded-[10px] border p-3 group-hover/project:bg-white/[0.15] transition-all ${theme === "dark"
-                            ? "bg-white/[0.06] border-white/8"
-                            : "bg-white/[0.1] border-white/20"
+                          ? "bg-white/[0.06] border-white/8"
+                          : "bg-white/[0.1] border-white/20"
                           }`}
                       >
                         <div className="flex items-center gap-2 mb-2">
@@ -1203,8 +1201,8 @@ export function ProfilePage({
                           </div>
                           <span
                             className={`text-[10px] font-medium transition-colors ${theme === "dark"
-                                ? "text-[#d4d4d4]"
-                                : "text-[#7a6b5a]"
+                              ? "text-[#d4d4d4]"
+                              : "text-[#7a6b5a]"
                               }`}
                           >
                             Rewards
@@ -1212,8 +1210,8 @@ export function ProfilePage({
                         </div>
                         <div
                           className={`text-[20px] font-bold transition-colors ${theme === "dark"
-                              ? "text-[#f5f5f5]"
-                              : "text-[#2d2820]"
+                            ? "text-[#f5f5f5]"
+                            : "text-[#2d2820]"
                             }`}
                         >
                           0
@@ -1221,8 +1219,8 @@ export function ProfilePage({
                       </div>
                       <div
                         className={`backdrop-blur-[15px] rounded-[10px] border p-3 group-hover/project:bg-white/[0.15] transition-all ${theme === "dark"
-                            ? "bg-white/[0.06] border-white/8"
-                            : "bg-white/[0.1] border-white/20"
+                          ? "bg-white/[0.06] border-white/8"
+                          : "bg-white/[0.1] border-white/20"
                           }`}
                       >
                         <div className="flex items-center gap-2 mb-2">
@@ -1231,8 +1229,8 @@ export function ProfilePage({
                           </div>
                           <span
                             className={`text-[10px] font-medium transition-colors ${theme === "dark"
-                                ? "text-[#d4d4d4]"
-                                : "text-[#7a6b5a]"
+                              ? "text-[#d4d4d4]"
+                              : "text-[#7a6b5a]"
                               }`}
                           >
                             Merged PRs
@@ -1240,8 +1238,8 @@ export function ProfilePage({
                         </div>
                         <div
                           className={`text-[20px] font-bold transition-colors ${theme === "dark"
-                              ? "text-[#f5f5f5]"
-                              : "text-[#2d2820]"
+                            ? "text-[#f5f5f5]"
+                            : "text-[#2d2820]"
                             }`}
                         >
                           0
@@ -1346,8 +1344,8 @@ export function ProfilePage({
                         />
                         <span
                           className={`text-[15px] font-semibold transition-colors ${theme === "dark"
-                              ? "text-[#f5f5f5]"
-                              : "text-[#2d2820]"
+                            ? "text-[#f5f5f5]"
+                            : "text-[#2d2820]"
                             }`}
                         >
                           {language.name}
@@ -1358,8 +1356,8 @@ export function ProfilePage({
                           <div
                             key={idx}
                             className={`w-2.5 h-2.5 rounded-full transition-all ${idx < language.activityLevel
-                                ? "bg-[#c9983a] shadow-[0_0_8px_rgba(201,152,58,0.6)] group-hover:scale-125"
-                                : "bg-white/20"
+                              ? "bg-[#c9983a] shadow-[0_0_8px_rgba(201,152,58,0.6)] group-hover:scale-125"
+                              : "bg-white/20"
                               }`}
                           />
                         ))}
@@ -1441,8 +1439,8 @@ export function ProfilePage({
                         <Globe className="w-6 h-6 text-[#c9983a]" />
                         <span
                           className={`text-[15px] font-semibold transition-colors ${theme === "dark"
-                              ? "text-[#f5f5f5]"
-                              : "text-[#2d2820]"
+                            ? "text-[#f5f5f5]"
+                            : "text-[#2d2820]"
                             }`}
                         >
                           {ecosystem.name}
@@ -1453,8 +1451,8 @@ export function ProfilePage({
                           <div
                             key={idx}
                             className={`w-2.5 h-2.5 rounded-full transition-all ${idx < ecosystem.activityLevel
-                                ? "bg-[#c9983a] shadow-[0_0_8px_rgba(201,152,58,0.6)] group-hover:scale-125"
-                                : "bg-white/20"
+                              ? "bg-[#c9983a] shadow-[0_0_8px_rgba(201,152,58,0.6)] group-hover:scale-125"
+                              : "bg-white/20"
                               }`}
                           />
                         ))}
@@ -1770,236 +1768,236 @@ export function ProfilePage({
                       })}
                     </div>
                   ))}
-                    </div>
-                  )}
                 </div>
+              )}
+            </div>
 
             {/* Legend */}
-              <div className="flex items-center justify-end gap-4 mt-6">
-                <span className="text-[13px] font-bold text-[#7a6b5a]">Less</span>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-[16px] h-[16px] rounded-[4px] bg-white/40 border-2 border-white/60 shadow-[0_2px_8px_rgba(255,255,255,0.3)]" />
-                  <div className="w-[16px] h-[16px] rounded-[4px] bg-[#c9983a]/50 border-2 border-[#c9983a]/70 shadow-[0_2px_10px_rgba(201,152,58,0.3)]" />
-                  <div className="w-[16px] h-[16px] rounded-[4px] bg-[#c9983a]/75 border-2 border-[#c9983a]/90 shadow-[0_3px_14px_rgba(201,152,58,0.45)]" />
-                  <div className="w-[16px] h-[16px] rounded-[4px] bg-gradient-to-br from-[#c9983a] to-[#b8873a] border-2 border-[#ffd700] shadow-[0_4px_20px_rgba(201,152,58,0.6),0_0_15px_rgba(255,215,0,0.4)]" />
-                </div>
-                <span className="text-[13px] font-bold text-[#7a6b5a]">More</span>
+            <div className="flex items-center justify-end gap-4 mt-6">
+              <span className="text-[13px] font-bold text-[#7a6b5a]">Less</span>
+              <div className="flex items-center gap-2.5">
+                <div className="w-[16px] h-[16px] rounded-[4px] bg-white/40 border-2 border-white/60 shadow-[0_2px_8px_rgba(255,255,255,0.3)]" />
+                <div className="w-[16px] h-[16px] rounded-[4px] bg-[#c9983a]/50 border-2 border-[#c9983a]/70 shadow-[0_2px_10px_rgba(201,152,58,0.3)]" />
+                <div className="w-[16px] h-[16px] rounded-[4px] bg-[#c9983a]/75 border-2 border-[#c9983a]/90 shadow-[0_3px_14px_rgba(201,152,58,0.45)]" />
+                <div className="w-[16px] h-[16px] rounded-[4px] bg-gradient-to-br from-[#c9983a] to-[#b8873a] border-2 border-[#ffd700] shadow-[0_4px_20px_rgba(201,152,58,0.6),0_0_15px_rgba(255,215,0,0.4)]" />
               </div>
+              <span className="text-[13px] font-bold text-[#7a6b5a]">More</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Contributions Activity */}
+        <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8">
+          <h2
+            className={`text-[20px] font-bold mb-6 transition-colors ${theme === "dark" ? "text-[#f5f5f5]" : "text-[#2d2820]"
+              }`}
+          >
+            Contributions Activity
+          </h2>
+
+          {/* Search and Filter */}
+          <div className="flex items-center gap-3 mb-6">
+            <div className="relative flex-1">
+              <Search
+                className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${theme === "dark" ? "text-[#d4d4d4]" : "text-[#7a6b5a]"
+                  }`}
+              />
+              <input
+                type="text"
+                placeholder="Search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`w-full pl-12 pr-4 py-3 rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25 focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/40 transition-all text-[13px] ${theme === "dark"
+                  ? "text-[#f5f5f5] placeholder-[#d4d4d4]"
+                  : "text-[#2d2820] placeholder-[#7a6b5a]"
+                  }`}
+              />
             </div>
           </div>
 
-          {/* Contributions Activity */}
-          <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8">
-            <h2
-              className={`text-[20px] font-bold mb-6 transition-colors ${theme === "dark" ? "text-[#f5f5f5]" : "text-[#2d2820]"
-                }`}
-            >
-              Contributions Activity
-            </h2>
-
-            {/* Search and Filter */}
-            <div className="flex items-center gap-3 mb-6">
-              <div className="relative flex-1">
-                <Search
-                  className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${theme === "dark" ? "text-[#d4d4d4]" : "text-[#7a6b5a]"
-                    }`}
-                />
-                <input
-                  type="text"
-                  placeholder="Search"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className={`w-full pl-12 pr-4 py-3 rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25 focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/40 transition-all text-[13px] ${theme === "dark"
-                      ? "text-[#f5f5f5] placeholder-[#d4d4d4]"
-                      : "text-[#2d2820] placeholder-[#7a6b5a]"
-                    }`}
-                />
-              </div>
-            </div>
-
-            {/* Activity List */}
-            {isLoadingActivity ? (
-              <div className="space-y-2">
-                {Array.from({ length: 3 }).map((_, idx) => (
-                  <div
-                    key={idx}
-                    className="backdrop-blur-[20px] bg-white/[0.08] rounded-[12px] border border-white/20 p-5"
-                  >
-                    <SkeletonLoader
-                      variant="text"
-                      width="150px"
-                      height="20px"
-                      className="mb-3"
-                    />
-                    <div className="space-y-2">
-                      {Array.from({ length: 2 }).map((_, itemIdx) => (
-                        <div key={itemIdx} className="flex items-center gap-4">
-                          <SkeletonLoader
-                            variant="circle"
-                            width="32px"
-                            height="32px"
-                          />
-                          <SkeletonLoader
-                            variant="text"
-                            width="60%"
-                            height="16px"
-                          />
-                        </div>
-                      ))}
-                    </div>
+          {/* Activity List */}
+          {isLoadingActivity ? (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="backdrop-blur-[20px] bg-white/[0.08] rounded-[12px] border border-white/20 p-5"
+                >
+                  <SkeletonLoader
+                    variant="text"
+                    width="150px"
+                    height="20px"
+                    className="mb-3"
+                  />
+                  <div className="space-y-2">
+                    {Array.from({ length: 2 }).map((_, itemIdx) => (
+                      <div key={itemIdx} className="flex items-center gap-4">
+                        <SkeletonLoader
+                          variant="circle"
+                          width="32px"
+                          height="32px"
+                        />
+                        <SkeletonLoader
+                          variant="text"
+                          width="60%"
+                          height="16px"
+                        />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : Object.keys(contributionsByMonth).length === 0 ? (
-              <div
-                className={`text-center py-12 ${theme === "dark" ? "text-[#d4d4d4]" : "text-[#7a6b5a]"}`}
-              >
-                <Calendar className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p className="text-[16px] font-medium">No contributions yet</p>
-                <p className="text-[14px] mt-2">
-                  Start contributing to verified projects to see your activity
-                  here!
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {Object.entries(contributionsByMonth).map(([month, items]) => (
-                  <div
-                    key={month}
-                    className="backdrop-blur-[20px] bg-white/[0.08] rounded-[12px] border border-white/20 overflow-hidden"
+                </div>
+              ))}
+            </div>
+          ) : Object.keys(contributionsByMonth).length === 0 ? (
+            <div
+              className={`text-center py-12 ${theme === "dark" ? "text-[#d4d4d4]" : "text-[#7a6b5a]"}`}
+            >
+              <Calendar className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <p className="text-[16px] font-medium">No contributions yet</p>
+              <p className="text-[14px] mt-2">
+                Start contributing to verified projects to see your activity
+                here!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {Object.entries(contributionsByMonth).map(([month, items]) => (
+                <div
+                  key={month}
+                  className="backdrop-blur-[20px] bg-white/[0.08] rounded-[12px] border border-white/20 overflow-hidden"
+                >
+                  {/* Month Header with Calendar Icon */}
+                  <button
+                    onClick={() => toggleMonth(month)}
+                    className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-white/[0.05] transition-all group"
                   >
-                    {/* Month Header with Calendar Icon */}
-                    <button
-                      onClick={() => toggleMonth(month)}
-                      className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-white/[0.05] transition-all group"
+                    <Calendar
+                      className={`w-4 h-4 group-hover:text-[#c9983a] transition-colors flex-shrink-0 ${theme === "dark" ? "text-[#d4d4d4]" : "text-[#7a6b5a]"
+                        }`}
+                    />
+                    <span
+                      className={`text-[14px] font-semibold flex-1 text-left transition-colors ${theme === "dark" ? "text-[#f5f5f5]" : "text-[#2d2820]"
+                        }`}
                     >
-                      <Calendar
-                        className={`w-4 h-4 group-hover:text-[#c9983a] transition-colors flex-shrink-0 ${theme === "dark" ? "text-[#d4d4d4]" : "text-[#7a6b5a]"
-                          }`}
-                      />
-                      <span
-                        className={`text-[14px] font-semibold flex-1 text-left transition-colors ${theme === "dark" ? "text-[#f5f5f5]" : "text-[#2d2820]"
-                          }`}
-                      >
-                        {month}
-                      </span>
-                      <ChevronRight
-                        className={`w-4 h-4 transition-all duration-200 ${expandedMonths[month] ? "rotate-90" : ""
-                          } ${theme === "dark" ? "text-[#d4d4d4]" : "text-[#7a6b5a]"}`}
-                      />
-                    </button>
+                      {month}
+                    </span>
+                    <ChevronRight
+                      className={`w-4 h-4 transition-all duration-200 ${expandedMonths[month] ? "rotate-90" : ""
+                        } ${theme === "dark" ? "text-[#d4d4d4]" : "text-[#7a6b5a]"}`}
+                    />
+                  </button>
 
-                    {/* Horizontal Divider */}
-                    {expandedMonths[month] && (
-                      <div className="border-t border-white/15" />
-                    )}
+                  {/* Horizontal Divider */}
+                  {expandedMonths[month] && (
+                    <div className="border-t border-white/15" />
+                  )}
 
-                    {/* Month Items */}
-                    {expandedMonths[month] && (
-                      <div className="px-5 py-2">
-                        {items.map((item, idx) => {
-                          // Determine icon and styling based on type
-                          let IconComponent = Circle;
-                          const isIssue = item.type === 'issue';
-                          const isClosed = isIssue && item.state === 'closed';
-                          
-                          const iconBgColor = isIssue
-                            ? isClosed
-                              ? 'bg-gray-400/40'
-                              : 'bg-[#c9983a]/50'
-                            : 'bg-[#d4af37]/50';
+                  {/* Month Items */}
+                  {expandedMonths[month] && (
+                    <div className="px-5 py-2">
+                      {items.map((item, idx) => {
+                        // Determine icon and styling based on type
+                        let IconComponent = Circle;
+                        const isIssue = item.type === 'issue';
+                        const isClosed = isIssue && item.state === 'closed';
 
-                          const iconOpacity = isClosed ? 'opacity-70' : '';
+                        const iconBgColor = isIssue
+                          ? isClosed
+                            ? 'bg-gray-400/40'
+                            : 'bg-[#c9983a]/50'
+                          : 'bg-[#d4af37]/50';
 
-                          return (
-                            <div key={item.id} className="relative">
-                              {/* Vertical Line */}
-                              {idx < items.length - 1 && (
-                                <div className="absolute left-[20px] top-[36px] bottom-[-8px] w-[2px] bg-gradient-to-b from-white/25 to-white/8" />
-                              )}
+                        const iconOpacity = isClosed ? 'opacity-70' : '';
 
-                              <div
-                                onClick={() => {
-                                  if (item.type === 'issue' && onIssueClick) {
-                                    onIssueClick(item.id, item.project_id);
-                                  }
-                                }}
-                                className={`flex items-center gap-4 py-2.5 -mx-2 px-2 rounded-lg transition-all group/item ${item.type === 'issue' ? 'cursor-pointer' : 'cursor-default'
-                                  } hover:bg-white/[0.08]`}
-                              >
-                                {/* Icon + Number */}
-                                {IconComponent && (
-                                  <div className="relative z-10 flex items-center gap-2.5 flex-shrink-0">
-                                    <div
-                                      className={`w-10 h-10 rounded-full ${iconBgColor} ${iconOpacity}
+                        return (
+                          <div key={item.id} className="relative">
+                            {/* Vertical Line */}
+                            {idx < items.length - 1 && (
+                              <div className="absolute left-[20px] top-[36px] bottom-[-8px] w-[2px] bg-gradient-to-b from-white/25 to-white/8" />
+                            )}
+
+                            <div
+                              onClick={() => {
+                                if (item.type === 'issue' && onIssueClick) {
+                                  onIssueClick(item.id, item.project_id);
+                                }
+                              }}
+                              className={`flex items-center gap-4 py-2.5 -mx-2 px-2 rounded-lg transition-all group/item ${item.type === 'issue' ? 'cursor-pointer' : 'cursor-default'
+                                } hover:bg-white/[0.08]`}
+                            >
+                              {/* Icon + Number */}
+                              {IconComponent && (
+                                <div className="relative z-10 flex items-center gap-2.5 flex-shrink-0">
+                                  <div
+                                    className={`w-10 h-10 rounded-full ${iconBgColor} ${iconOpacity}
                                   shadow-[0_4px_16px_rgba(0,0,0,0.3)]
                                   flex items-center justify-center
                                   transition-all duration-200`}
-                                    >
-                                      <IconComponent
-                                        className="w-5 h-5 text-white"
-                                        fill={isIssue ? 'white' : 'none'}
-                                        strokeWidth={isIssue ? 0 : 3}
-                                      />
-                                    </div>
-
-                                    <div
-                                      className={`px-3.5 py-1.5 rounded-[6px] ${iconBgColor} ${iconOpacity}
-                                  shadow-[0_3px_10px_rgba(0,0,0,0.25)]`}
-                                    >
-                                      <span className="text-[14px] font-bold text-white">
-                                        {item.number}
-                                      </span>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Content */}
-                                <div className="flex-1 min-w-0">
-                                  <h4
-                                    className={`text-[15px] font-medium flex items-center gap-2 transition-colors ${theme === 'dark'
-                                        ? 'text-[#f5f5f5]'
-                                        : 'text-[#2d2820]'
-                                      }`}
                                   >
-                                    {item.title}
+                                    <IconComponent
+                                      className="w-5 h-5 text-white"
+                                      fill={isIssue ? 'white' : 'none'}
+                                      strokeWidth={isIssue ? 0 : 3}
+                                    />
+                                  </div>
 
-                                    {/* Status Badge */}
-                                    {isIssue && (
-                                      <span
-                                        className={`text-[11px] px-2 py-0.5 rounded-full ${isClosed
-                                            ? 'bg-gray-500/20 text-gray-600'
-                                            : 'bg-[#c9983a]/20 text-[#c9983a]'
-                                          }`}
-                                      >
-                                        {isClosed ? 'Closed' : 'Open'}
-                                      </span>
-                                    )}
-                                  </h4>
+                                  <div
+                                    className={`px-3.5 py-1.5 rounded-[6px] ${iconBgColor} ${iconOpacity}
+                                  shadow-[0_3px_10px_rgba(0,0,0,0.25)]`}
+                                  >
+                                    <span className="text-[14px] font-bold text-white">
+                                      {item.number}
+                                    </span>
+                                  </div>
                                 </div>
+                              )}
 
-                                {/* Date */}
-                                <span
-                                  className={`text-[13px] font-medium whitespace-nowrap transition-colors ${theme === 'dark'
-                                      ? 'text-[#d4d4d4]'
-                                      : 'text-[#7a6b5a]'
+                              {/* Content */}
+                              <div className="flex-1 min-w-0">
+                                <h4
+                                  className={`text-[15px] font-medium flex items-center gap-2 transition-colors ${theme === 'dark'
+                                    ? 'text-[#f5f5f5]'
+                                    : 'text-[#2d2820]'
                                     }`}
                                 >
-                                  {item.date}
-                                </span>
+                                  {item.title}
+
+                                  {/* Status Badge */}
+                                  {isIssue && (
+                                    <span
+                                      className={`text-[11px] px-2 py-0.5 rounded-full ${isClosed
+                                        ? 'bg-gray-500/20 text-gray-600'
+                                        : 'bg-[#c9983a]/20 text-[#c9983a]'
+                                        }`}
+                                    >
+                                      {isClosed ? 'Closed' : 'Open'}
+                                    </span>
+                                  )}
+                                </h4>
                               </div>
+
+                              {/* Date */}
+                              <span
+                                className={`text-[13px] font-medium whitespace-nowrap transition-colors ${theme === 'dark'
+                                  ? 'text-[#d4d4d4]'
+                                  : 'text-[#7a6b5a]'
+                                  }`}
+                              >
+                                {item.date}
+                              </span>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        {/* ) */}
       </div>
-      );
+      {/* ) */}
+    </div>
+  );
 }

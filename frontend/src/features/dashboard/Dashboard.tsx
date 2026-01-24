@@ -5,7 +5,7 @@ import {
   Globe, Users, FolderGit2, Trophy, Database, Plus,
   FileText, ChevronRight, Sparkles, Heart,
   Star, GitFork, ArrowUpRight, Target, Zap, ChevronDown,
-  CircleDot, Clock, Moon, Sun, Shield, Code
+  CircleDot, Clock, Moon, Sun, Shield, Code, Menu, X
 } from 'lucide-react';
 import { useAuth } from '../../shared/contexts/AuthContext';
 import grainlifyLogo from '../../assets/grainlify_log.svg';
@@ -48,6 +48,7 @@ export function Dashboard() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedEventName, setSelectedEventName] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeRole, setActiveRole] = useState<'contributor' | 'maintainer' | 'admin'>('contributor');
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
@@ -147,6 +148,7 @@ export function Dashboard() {
     setSelectedEcosystemName(null);
     setSelectedEventId(null);
     setSelectedEventName(null);
+    setIsMobileMenuOpen(false); // Close mobile menu on navigation
   };
 
   const handleLogout = () => {
@@ -261,12 +263,23 @@ export function Dashboard() {
           }`} />
       </div>
 
+      {/* Mobile Backdrop */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-[40] bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className={`fixed top-2 left-2 bottom-2 z-50 transition-all duration-300 ${isSidebarCollapsed ? 'w-[65px] mr-2' : 'w-56 mr-2'}`}>
-        {/* Toggle Arrow Button - positioned at top of sidebar aligned with header */}
+      <aside className={`fixed top-2 bottom-2 z-[50] transition-all duration-300 
+        ${isMobileMenuOpen ? 'left-2 translate-x-0' : '-translate-x-full lg:translate-x-0 lg:left-2'} 
+        ${isSidebarCollapsed ? 'w-[65px]' : 'w-56'}
+      `}>
+        {/* Toggle Arrow Button - Hidden on mobile */}
         <button
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className={`absolute z-[100] backdrop-blur-[90px] rounded-full border-[0.5px] w-6 h-6 shadow-md hover:shadow-lg transition-all flex items-center justify-center ${isSidebarCollapsed ? '-right-3 top-[60px]' : '-right-3 top-[60px]'
+          className={`absolute z-[100] backdrop-blur-[90px] rounded-full border-[0.5px] w-6 h-6 shadow-md hover:shadow-lg transition-all items-center justify-center hidden lg:flex ${isSidebarCollapsed ? '-right-3 top-[60px]' : '-right-3 top-[60px]'
             } ${darkTheme
               ? 'bg-[#2d2820]/[0.85] border-[rgba(201,152,58,0.2)]'
               : 'bg-white/[0.85] border-[rgba(245,239,235,0.32)]'
@@ -275,6 +288,15 @@ export function Dashboard() {
           <ChevronRight
             className={`w-3 h-3 text-[#c9983a] transition-transform duration-300 ${isSidebarCollapsed ? '' : 'rotate-180'}`}
           />
+        </button>
+
+        {/* Mobile Close Button */}
+        <button
+          onClick={() => setIsMobileMenuOpen(false)}
+          className={`absolute -right-10 top-2 z-[100] p-2 rounded-full backdrop-blur-md lg:hidden ${darkTheme ? 'bg-[#2d2820]/80 text-white' : 'bg-white/80 text-[#2d2820]'
+            }`}
+        >
+          <X className="w-5 h-5" />
         </button>
 
         <div className={`h-full backdrop-blur-[90px] rounded-[29px] border shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] relative overflow-y-auto scrollbar-hide transition-colors ${darkTheme
@@ -337,14 +359,25 @@ export function Dashboard() {
       </aside>
 
       {/* Main Content */}
-      <main className={`mr-2 my-2 relative z-10 transition-all duration-300 ${isSidebarCollapsed ? 'ml-[81px]' : 'ml-[240px]'}`}>
+      <main className={`mr-2 my-2 relative z-10 transition-all duration-300 ${isSidebarCollapsed ? 'ml-[81px]' : 'ml-[240px]'} lg:ml-auto ml-0 ${isSidebarCollapsed ? 'lg:ml-[81px]' : 'lg:ml-[240px]'
+        }`}>
         <div className="max-w-[1400px] mx-auto">
           {/* Premium Pill-Style Header - Greatest of All Time */}
-          <div className={`fixed top-2 right-2 left-auto z-[9999] flex items-center gap-3 h-[52px] py-3 rounded-[26px] shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] backdrop-blur-[90px] border transition-all duration-300 ${isSidebarCollapsed ? 'ml-[81px]' : 'ml-[240px]'
-            } ${darkTheme
+          <div className={`fixed top-2 right-2 left-2 lg:left-auto z-[9999] flex items-center gap-3 h-[52px] py-3 rounded-[26px] shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] backdrop-blur-[90px] border transition-all duration-300 ${darkTheme
               ? 'bg-[#2d2820]/[0.4] border-white/10 shadow-[inset_0px_0px_9px_0px_rgba(201,152,58,0.1)]'
               : 'bg-white/[0.35] border-white shadow-[inset_0px_0px_9px_0px_rgba(255,255,255,0.5)]'
-            }`} style={{ width: `calc(100vw - ${isSidebarCollapsed ? '81px' : '240px'} - 8px - 8px)` }}>
+            }`} style={{
+              width: 'auto',
+              marginLeft: window.innerWidth >= 1024 ? (isSidebarCollapsed ? '81px' : '240px') : '0'
+            }}>
+            {/* Mobile Hamburger Menu */}
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className={`lg:hidden ml-3 p-2 rounded-full transition-all ${darkTheme ? 'hover:bg-white/10 text-[#c9983a]' : 'hover:bg-black/5 text-[#a2792c]'
+                }`}
+            >
+              <Menu className="w-6 h-6" />
+            </button>
             {/* Search - Premium Pill Style */}
             <button
               onClick={() => setCurrentPage('search')}
