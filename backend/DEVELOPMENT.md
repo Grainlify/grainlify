@@ -7,7 +7,7 @@
 The server will **automatically restart** when you make changes to any `.go` file.
 
 ```bash
-# Quick start - recommended (handles PATH and installation automatically)
+# Quick start - recommended (handles PATH and installation automatically).........
 ./run-dev.sh
 
 # Or directly with air (if already installed)
