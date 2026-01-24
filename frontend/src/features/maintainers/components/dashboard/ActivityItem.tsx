@@ -9,6 +9,22 @@ interface ActivityItemProps {
 
 export function ActivityItem({ activity, index }: ActivityItemProps) {
   const { theme } = useTheme();
+
+  const getPRIconColor = () => {
+    if (activity.type !== 'pr') return '';
+
+    switch (activity.label) {
+      case 'Merged':
+        return 'text-[#8b5cf6]';
+      case 'Open':
+        return 'text-[#22c55e]';
+      case 'Closed':
+        return theme === 'dark' ? 'text-[#b8a898]' : 'text-[#7a6b5a]';
+      default:
+        return theme === 'dark' ? 'text-[#b8a898]' : 'text-[#7a6b5a]';
+    }
+  };
+
   return (
     <div
       className={`backdrop-blur-[25px] rounded-[14px] border p-4 hover:border-[#c9983a]/30 transition-all duration-300 group/item cursor-pointer ${
@@ -22,22 +38,18 @@ export function ActivityItem({ activity, index }: ActivityItemProps) {
         {/* Left: Icon + Number + Title */}
         <div className="flex items-start gap-3 flex-1 min-w-0">
           {/* Type Icon */}
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-            activity.type === 'pr' 
-              ? 'bg-[#d4af37]/50' 
-              : 'bg-[#c9983a]/50'
-          }`}>
-            {activity.type === 'pr' ? (
-              <GitPullRequest className="w-4 h-4 text-white" strokeWidth={3} />
-            ) : (
+          {activity.type === 'pr' ? (
+            <GitPullRequest className={`w-5 h-5 mt-0.5 flex-shrink-0 ${getPRIconColor()}`} />
+          ) : (
+            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-[#c9983a]/50">
               <Circle className="w-4 h-4 text-white fill-white" strokeWidth={0} />
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Number Badge */}
           <div className={`px-2.5 py-1 rounded-[6px] flex-shrink-0 ${
-            activity.type === 'pr' 
-              ? 'bg-[#d4af37]/50' 
+            activity.type === 'pr'
+              ? 'bg-[#d4af37]/50'
               : 'bg-[#c9983a]/50'
           }`}>
             <span className="text-[13px] font-bold text-white">
@@ -45,7 +57,7 @@ export function ActivityItem({ activity, index }: ActivityItemProps) {
             </span>
           </div>
 
-          {/* Title and Label */}
+          {/* Title and Time */}
           <div className="flex-1 min-w-0 pt-0.5">
             <h3 className={`text-[14px] font-medium transition-colors mb-1.5 line-clamp-1 ${
               theme === 'dark'
@@ -54,9 +66,9 @@ export function ActivityItem({ activity, index }: ActivityItemProps) {
             }`}>
               {activity.title}
             </h3>
-            
+
             <div className="flex items-center gap-3">
-              {activity.label && (
+              {activity.label && activity.type === 'issue' && (
                 <span className="inline-flex px-2.5 py-1 rounded-[6px] bg-gradient-to-br from-[#c9983a]/25 to-[#d4af37]/20 border border-[#c9983a]/40 text-[11px] font-semibold text-[#c9983a]">
                   {activity.label}
                 </span>
