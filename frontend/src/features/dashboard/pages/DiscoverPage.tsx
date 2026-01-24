@@ -1,5 +1,5 @@
 import { useTheme } from '../../../shared/contexts/ThemeContext';
-import { Heart, Star, GitFork, ArrowUpRight, Target, Zap, ChevronRight } from 'lucide-react';
+import { Heart, Star, GitFork, ArrowUpRight, Target, Zap } from 'lucide-react';
 import { IssueCard } from '../../../shared/components/ui/IssueCard';
 import { useState, useEffect } from 'react';
 import { IssueDetailPage } from './IssueDetailPage';

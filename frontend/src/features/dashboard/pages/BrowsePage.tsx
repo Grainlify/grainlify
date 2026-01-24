@@ -78,7 +78,7 @@ export function BrowsePage({ onProjectClick }: BrowsePageProps) {
     categories: [],
     tags: []
   });
-
+  
   // Use optimistic data hook for projects with 30-second cache
   const {
     data: projects,
@@ -267,8 +267,8 @@ export function BrowsePage({ onProjectClick }: BrowsePageProps) {
               <span
                 key={`${filterType}-${value}`}
                 className={`px-3.5 py-2 rounded-[10px] text-[13px] font-semibold border-[1.5px] flex items-center gap-2 transition-all hover:scale-105 shadow-lg ${theme === 'dark'
-                  ? 'bg-[#a17932] border-[#c9983a] text-white'
-                  : 'bg-[#b8872f] border-[#a17932] text-white'
+                    ? 'bg-[#a17932] border-[#c9983a] text-white'
+                    : 'bg-[#b8872f] border-[#a17932] text-white'
                   }`}
               >
                 {value}
@@ -311,8 +311,8 @@ export function BrowsePage({ onProjectClick }: BrowsePageProps) {
         </div>
       ) : projects.length === 0 ? (
         <div className={`p-8 rounded-[16px] border text-center ${theme === 'dark'
-          ? 'bg-white/[0.08] border-white/15 text-[#d4d4d4]'
-          : 'bg-white/[0.15] border-white/25 text-[#7a6b5a]'
+            ? 'bg-white/[0.08] border-white/15 text-[#d4d4d4]'
+            : 'bg-white/[0.15] border-white/25 text-[#7a6b5a]'
           }`}>
           <p className="text-[16px] font-semibold">No projects found</p>
           <p className="text-[14px] mt-2">Try adjusting your filters or check back later.</p>
