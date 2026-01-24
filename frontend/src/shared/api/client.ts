@@ -268,6 +268,8 @@ export const getProfileActivity = (
       month_year: string;
       project_name: string;
       project_id: string;
+      merged?: boolean;
+      draft?: boolean;
     }>;
     total: number;
     limit: number;
@@ -627,8 +629,7 @@ export const getLeaderboard = (limit = 10, offset = 0, ecosystem?: string) =>
       trendValue: number;
     }>
   >(
-    `/leaderboard?limit=${limit}&offset=${offset}${
-      ecosystem ? `&ecosystem=${ecosystem}` : ""
+    `/leaderboard?limit=${limit}&offset=${offset}${ecosystem ? `&ecosystem=${ecosystem}` : ""
     }`,
   );
 

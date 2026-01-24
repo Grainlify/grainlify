@@ -8,9 +8,8 @@ import { Dashboard } from "../features/dashboard";
 import { ProfilePage } from "../features/dashboard/pages/ProfilePage";
 import { LeaderboardPage } from "../features/leaderboard/pages/LeaderboardPage";
 
-function ProtectedRoute({ children }: { children: React.ReactElement }) {
+function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { isAuthenticated, isLoading } = useAuth();
-
   if (isLoading) return children; // let AuthProvider finish initial check
   if (!isAuthenticated) return <Navigate to="/" replace />;
   return children;

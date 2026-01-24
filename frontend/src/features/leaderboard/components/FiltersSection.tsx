@@ -32,7 +32,7 @@ export function FiltersSection({
   const { theme } = useTheme();
   const isMobile = useIsMobile();
 
-  const [ecosystems, setEcosystems] = useState<EcosystemOption[]>([
+  const [ecosystemOptions, setEcosystemOptions] = useState<EcosystemOption[]>([
     { label: "All Ecosystems", value: "all" },
   ]);
   const [loading, setLoading] = useState(false);
@@ -50,7 +50,7 @@ export function FiltersSection({
             value: e.slug,
           }));
 
-        setEcosystems([
+        setEcosystemOptions([
           { label: "All Ecosystems", value: "all" },
           ...activeEcosystems,
         ]);
@@ -101,9 +101,8 @@ export function FiltersSection({
             className={`flex items-center justify-between gap-2 ${isMobile ? 'w-full px-4' : 'px-4'} py-3 md:py-2.5 rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25 hover:bg-white/[0.2] active:scale-95 transition-all duration-300 min-h-[44px]`}
           >
             <span
-              className={`text-[13px] font-semibold transition-colors ${
-                theme === "dark" ? "text-[#f5f5f5]" : "text-[#2d2820]"
-              }`}
+              className={`text-[13px] font-semibold transition-colors ${theme === "dark" ? "text-[#f5f5f5]" : "text-[#2d2820]"
+                }`}
             >
               {selectedEcosystem.label}
             </span>
@@ -120,7 +119,7 @@ export function FiltersSection({
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 </div>
               ) : (
-                ecosystems.map((eco, index) => (
+                ecosystemOptions.map((eco, index) => (
                   <button
                     key={eco.value}
                     onClick={() => {
