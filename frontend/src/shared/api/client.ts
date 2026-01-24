@@ -6,6 +6,7 @@
 import { API_BASE_URL } from '../config/api';
 
 // Token management
+// Note: Tokens are stored in localStorage for persistence across sessions
 export const getAuthToken = (): string | null => {
   return localStorage.getItem('patchwork_jwt');
 };
