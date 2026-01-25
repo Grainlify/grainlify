@@ -36,7 +36,6 @@ export function Modal({
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
-  // Add/remove class to body when modal is open to blur sidebar
   React.useEffect(() => {
     if (isOpen) {
       document.body.classList.add('modal-open');
@@ -62,7 +61,6 @@ export function Modal({
           }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Fixed Header */}
         {(title || icon || showCloseButton) && (
           <div className="flex items-start justify-between p-6 pb-4 flex-shrink-0 border-b border-white/10">
             <div className="flex items-center gap-3 flex-1">
@@ -94,13 +92,9 @@ export function Modal({
             )}
           </div>
         )}
-
-        {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-6 scrollbar-custom">
           {children}
         </div>
-
-        {/* Fixed Footer */}
         {footer && (
           <div className="flex-shrink-0 border-t border-white/10 p-6 pt-4">
             {footer}
@@ -260,13 +254,13 @@ export function ModalSelect({
   onChange,
   options,
   required = false,
-  className = ''
+  className = '',
 }: ModalSelectProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
   return (
-    <div className={className}>
+    <div className={`flex flex-col gap-1 relative ${className}`} ref={containerRef}>
       {label && (
         <label className={`block text-[13px] font-medium mb-2 transition-colors ${
           isDark ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
