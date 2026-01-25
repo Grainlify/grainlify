@@ -1,5 +1,5 @@
-import React, { ReactNode } from 'react';
-import { X } from 'lucide-react';
+import React, { ReactNode, useState, useRef, useEffect } from 'react';
+import { X, ChevronDown } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 
 interface ModalProps {
@@ -35,7 +35,6 @@ export function Modal({
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
-  // Add/remove class to body when modal is open to blur sidebar
   React.useEffect(() => {
     if (isOpen) {
       document.body.classList.add('modal-open');
@@ -61,7 +60,6 @@ export function Modal({
           }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Fixed Header */}
         {(title || icon || showCloseButton) && (
           <div className="flex items-start justify-between p-6 pb-4 flex-shrink-0 border-b border-white/10">
             <div className="flex items-center gap-3 flex-1">
@@ -93,13 +91,9 @@ export function Modal({
             )}
           </div>
         )}
-
-        {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-6 scrollbar-custom">
           {children}
         </div>
-
-        {/* Fixed Footer */}
         {footer && (
           <div className="flex-shrink-0 border-t border-white/10 p-6 pt-4">
             {footer}
@@ -259,34 +253,88 @@ export function ModalSelect({
   onChange,
   options,
   required = false,
-  className = ''
+  className = '',
 }: ModalSelectProps) {
   const { theme } = useTheme();
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedOption = options.find((opt) => opt.value === value);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
-    <div className={className}>
+    <div className={`flex flex-col gap-1 relative ${className}`} ref={containerRef}>
       {label && (
-        <label className={`block text-[13px] font-medium mb-2 transition-colors ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-          }`}>
-          {label}
-          {required && <span className="text-[#c9983a] ml-1">*</span>}
+        <label
+          className={`block text-[13px] font-medium mb-2 transition-colors ${
+            theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
+          }`}
+        >
+          {label} {required && <span className="text-[#c9983a] ml-1">*</span>}
         </label>
       )}
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-        className={`w-full px-4 py-3 rounded-[14px] backdrop-blur-[30px] border focus:outline-none transition-all text-[14px] ${theme === 'dark'
-            ? 'bg-white/[0.08] border-white/15 text-[#f5f5f5] focus:bg-white/[0.12] focus:border-[#c9983a]/30'
-            : 'bg-white/[0.15] border-white/25 text-[#2d2820] focus:bg-white/[0.2] focus:border-[#c9983a]/30'
-          }`}
+
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full flex items-center justify-between px-4 py-3 rounded-[14px] backdrop-blur-[30px] border transition-all text-[14px] outline-none ${
+          theme === 'dark'
+            ? 'bg-white/[0.08] border-white/15 text-[#f5f5f5] focus:border-[#c9983a]/30'
+            : 'bg-white/[0.15] border-white/25 text-[#2d2820] focus:border-[#c9983a]/30'
+        } ${isOpen ? 'border-[#c9983a]' : ''}`}
+
       >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+        <span>{selectedOption ? selectedOption.label : 'Select...'}</span>
+        <ChevronDown 
+          className={`w-4 h-4 text-amber-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
+        />
+      </button>
+
+{/* Custom Dropdown Menu - FINAL THEME FIX */}
+      {isOpen && (
+        <div
+          className={`absolute z-[100] w-full mt-[80px] max-h-60 overflow-auto rounded-[14px] border shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 ${
+            theme === 'dark' 
+              ? 'bg-[#2d241d] border-[#c9983a]/20 shadow-black/40' // Dark Brown background + Gold border
+              : 'bg-[#ede3d0] border-[#c9983a]/60 shadow-amber-900/20'
+          }`}
+        >
+          <ul className="py-2">
+            {options.map((option) => (
+              <li
+                key={option.value}
+                onClick={() => {
+                  onChange(option.value);
+                  setIsOpen(false);
+                }}
+                className={`px-4 py-2.5 cursor-pointer text-[14px] transition-colors flex items-center justify-between ${
+                  theme === 'dark'
+                    ? value === option.value
+                      ? 'bg-[#c9983a]/20 text-[#c9983a] font-bold' // Dark mode active
+                      : 'text-[#e8dfd0] hover:bg-[#c9983a]/10'     // Dark mode hover (Cream text, gold bg)
+                    : value === option.value
+                      ? 'bg-[#c9983a]/30 text-[#8b6b2d] font-bold'
+                      : 'text-[#5c4d3c] hover:bg-[#c9983a]/20'
+                }`}
+              >
+                {option.label}
+                {value === option.value && (
+                  <div className="w-2 h-2 rounded-full bg-[#c9983a] shadow-[0_0_8px_#c9983a]" />
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

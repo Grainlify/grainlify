@@ -351,6 +351,22 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh, initialSele
     });
   }, [issues, searchQuery, selectedFilters]);
 
+  // Extract unique labels from all loaded issues
+  const availableLabels = useMemo(() => {
+    const labelsSet = new Set<string>();
+    issues.forEach(issue => {
+      if (Array.isArray(issue.labels)) {
+        issue.labels.forEach((label: any) => {
+          const labelName = typeof label === 'string' ? label : label.name;
+          if (labelName) {
+            labelsSet.add(labelName);
+          }
+        });
+      }
+    });
+    return Array.from(labelsSet).sort();
+  }, [issues]);
+
   // If we were opened from a deep-link (e.g. project detail click), auto-select the target issue.
   useEffect(() => {
     if (!initialSelectedIssueId) return;
@@ -1335,7 +1351,7 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh, initialSele
 
                 {/* Label Pills */}
                 <div className="flex flex-wrap gap-2">
-                  {['bug', 'Difficulty: easy', 'documentation'].filter(label => label.toLowerCase().includes(labelSearch.toLowerCase())).map((label) => (
+                  {availableLabels.filter(label => label.toLowerCase().includes(labelSearch.toLowerCase())).map((label) => (
                     <button
                       key={label}
                       onClick={() => {
@@ -1362,6 +1378,15 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh, initialSele
                       {label}
                     </button>
                   ))}
+                  
+                  {/* Empty state when no labels available */}
+                  {availableLabels.length === 0 && (
+                    <div className="text-center py-3 w-full">
+                      <p className={`text-[11px] ${isDark ? 'text-[#b8a898]' : 'text-[#7a6b5a]'}`}>
+                        {isLoadingIssues ? 'Loading labels...' : 'No labels available'}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

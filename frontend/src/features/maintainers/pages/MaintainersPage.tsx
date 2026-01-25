@@ -47,6 +47,16 @@ export function MaintainersPage({ onNavigate }: MaintainersPageProps) {
   const [targetIssueId, setTargetIssueId] = useState<string | undefined>(undefined);
   const [targetProjectId, setTargetProjectId] = useState<string | undefined>(undefined);
 
+  useEffect(() => {
+  if (projects && projects.length > 0) {
+    // Extraemos los IDs de todos los proyectos cargados
+    const allIds = projects.map(project => project.id);
+    // Inicializamos el Set con todos los IDs seleccionados
+    setSelectedRepoIds(new Set(allIds));
+  }
+}, [projects]);
+
+
   // Helper function to get GitHub repository avatar (owner's avatar)
   const getRepoAvatar = (githubFullName: string, size: number = 20): string => {
     const [owner] = githubFullName.split('/');
@@ -326,14 +336,7 @@ export function MaintainersPage({ onNavigate }: MaintainersPageProps) {
                                         Pending
                                       </span>
                                     )}
-                                    {repo.status === 'verified' && (
-                                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${theme === 'dark'
-                                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                        : 'bg-green-100 text-green-700 border border-green-300'
-                                        }`}>
-                                        Verified
-                                      </span>
-                                    )}
+                                  
                                     {repo.status === 'rejected' && (
                                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${theme === 'dark'
                                         ? 'bg-red-500/20 text-red-400 border border-red-500/30'
