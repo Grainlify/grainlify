@@ -66,6 +66,8 @@ SELECT
 
 		return c.Status(fiber.StatusOK).JSON(resp)
 	}
+}
+
 // ContributorStatsResponse holds stats for the Data page
 type ContributorStatsResponse struct {
 	KYCVerifiedCount      int64 `json:"kyc_verified_count"`
