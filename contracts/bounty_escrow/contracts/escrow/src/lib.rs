@@ -142,6 +142,8 @@ pub enum Error {
     
     /// Returned when caller lacks required authorization for the operation
     Unauthorized = 7,
+    InvalidAmount = 8,
+    InvalidDeadline = 9,
 }
 
 // ============================================================================
@@ -218,6 +220,7 @@ pub enum DataKey {
     Admin,
     Token,
     Escrow(u64), // bounty_id
+    ReentrancyGuard,
 }
 
 // ============================================================================
@@ -355,6 +358,18 @@ impl BountyEscrowContract {
         depositor.require_auth();
 
         // Ensure contract is initialized
+        if env.storage().instance().has(&DataKey::ReentrancyGuard) {
+            panic!("Reentrancy detected");
+        }
+        env.storage().instance().set(&DataKey::ReentrancyGuard, &true);
+
+        if amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
+
+        if deadline <= env.ledger().timestamp() {
+             return Err(Error::InvalidDeadline);
+        }
         if !env.storage().instance().has(&DataKey::Admin) {
             return Err(Error::NotInitialized);
         }
@@ -392,6 +407,8 @@ impl BountyEscrowContract {
                 deadline
             },
         );
+
+        env.storage().instance().remove(&DataKey::ReentrancyGuard);
 
         Ok(())
     }
@@ -450,6 +467,10 @@ impl BountyEscrowContract {
     /// 5. Consider implementing release delays for high-value bounties
     pub fn release_funds(env: Env, bounty_id: u64, contributor: Address) -> Result<(), Error> {
         // Ensure contract is initialized
+        if env.storage().instance().has(&DataKey::ReentrancyGuard) {
+            panic!("Reentrancy detected");
+        }
+        env.storage().instance().set(&DataKey::ReentrancyGuard, &true);
         if !env.storage().instance().has(&DataKey::Admin) {
             return Err(Error::NotInitialized);
         }
@@ -473,11 +494,11 @@ impl BountyEscrowContract {
         // Transfer funds to contributor
         let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let client = token::Client::new(&env, &token_addr);
-        client.transfer(&env.current_contract_address(), &contributor, &escrow.amount);
-
-        // Update escrow status
         escrow.status = EscrowStatus::Released;
         env.storage().persistent().set(&DataKey::Escrow(bounty_id), &escrow);
+
+        // Transfer funds to contributor
+        client.transfer(&env.current_contract_address(), &contributor, &escrow.amount);
 
         // Emit release event
         emit_funds_released(
@@ -490,6 +511,7 @@ impl BountyEscrowContract {
             },
         );
 
+        env.storage().instance().remove(&DataKey::ReentrancyGuard);
         Ok(())
     }
 
@@ -552,6 +574,17 @@ impl BountyEscrowContract {
     /// // Current time must be > deadline
     /// ```
     pub fn refund(env: Env, bounty_id: u64) -> Result<(), Error> {
+        if env.storage().instance().has(&DataKey::ReentrancyGuard) {
+            panic!("Reentrancy detected");
+        }
+        env.storage().instance().set(&DataKey::ReentrancyGuard, &true);
+
+        // We'll allow anyone to trigger the refund if conditions are met, 
+        // effectively making it permissionless but conditional.
+        // OR we can require depositor auth. Let's make it permissionless to ensure funds aren't stuck if depositor key is lost,
+        // but strictly logic bound.
+        // However, usually refund is triggered by depositor. Let's stick to logic.
+        
         // Verify bounty exists
         if !env.storage().persistent().has(&DataKey::Escrow(bounty_id)) {
             return Err(Error::BountyNotFound);
@@ -573,11 +606,11 @@ impl BountyEscrowContract {
         // Transfer funds back to depositor
         let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let client = token::Client::new(&env, &token_addr);
-        client.transfer(&env.current_contract_address(), &escrow.depositor, &escrow.amount);
-
-        // Update escrow status
         escrow.status = EscrowStatus::Refunded;
         env.storage().persistent().set(&DataKey::Escrow(bounty_id), &escrow);
+
+        // Transfer funds back to depositor
+        client.transfer(&env.current_contract_address(), &escrow.depositor, &escrow.amount);
 
         // Emit refund event
         emit_funds_refunded(
@@ -589,6 +622,8 @@ impl BountyEscrowContract {
                 timestamp: env.ledger().timestamp()
             },
         );
+
+        env.storage().instance().remove(&DataKey::ReentrancyGuard);
 
         Ok(())
     }

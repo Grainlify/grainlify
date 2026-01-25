@@ -145,21 +145,22 @@ use soroban_sdk::{
     token,
 };
 
+
 // ============================================================================
 // Event Types
 // ============================================================================
 
-/// Event emitted when a program is initialized.
-/// Topic: `ProgramInit`
-const PROGRAM_INITIALIZED: Symbol = symbol_short!("ProgramInit");
+/// Event emitted when a program is initialized/registerd
+
+const PROGRAM_REGISTERED: Symbol = symbol_short!("ProgReg");
 
 /// Event emitted when funds are locked in the program.
 /// Topic: `FundsLocked`
-const FUNDS_LOCKED: Symbol = symbol_short!("FundsLocked");
+const FUNDS_LOCKED: Symbol = symbol_short!("FundsLock");
 
 /// Event emitted when a batch payout is executed.
 /// Topic: `BatchPayout`
-const BATCH_PAYOUT: Symbol = symbol_short!("BatchPayout");
+const BATCH_PAYOUT: Symbol = symbol_short!("BatchPay");
 
 /// Event emitted when a single payout is executed.
 /// Topic: `Payout`
@@ -169,9 +170,12 @@ const PAYOUT: Symbol = symbol_short!("Payout");
 // Storage Keys
 // ============================================================================
 
-/// Storage key for program data.
-/// Contains all program state including balances and payout history.
-const PROGRAM_DATA: Symbol = symbol_short!("ProgramData");
+/// Storage key for the program registry (list of all program IDs)
+const PROGRAM_REGISTRY: Symbol = symbol_short!("ProgReg");
+
+// ============================================================================
+// Data Structures
+// ============================================================================
 
 // ============================================================================
 // Data Structures
@@ -204,6 +208,7 @@ pub struct PayoutRecord {
     pub timestamp: u64,
 }
 
+
 /// Complete program state and configuration.
 ///
 /// # Fields
@@ -234,6 +239,17 @@ pub struct PayoutRecord {
 ///     token_address: usdc_token_address,
 /// };
 /// ```
+
+/// Complete program state and configuration.
+///
+/// # Storage Key
+/// Stored with key: `("Program", program_id)`
+///
+/// # Invariants
+/// - `remaining_balance <= total_funds` (always)
+/// - `remaining_balance = total_funds - sum(payout_history.amounts)`
+/// - `payout_history` is append-only
+/// - `program_id` and `authorized_payout_key` are immutable after registration
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProgramData {
@@ -243,6 +259,13 @@ pub struct ProgramData {
     pub authorized_payout_key: Address,
     pub payout_history: Vec<PayoutRecord>,
     pub token_address: Address,
+}
+
+/// Storage key type for individual programs
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DataKey {
+    Program(String), // program_id -> ProgramData
 }
 
 // ============================================================================
@@ -255,8 +278,9 @@ pub struct ProgramEscrowContract;
 #[contractimpl]
 impl ProgramEscrowContract {
     // ========================================================================
-    // Initialization
+    // Program Registration & Initialization
     // ========================================================================
+
 
     /// Initializes a new program escrow for managing prize distributions.
     ///
@@ -324,18 +348,26 @@ impl ProgramEscrowContract {
     ///
     /// # Gas Cost
     /// Low - Initial storage writes
-    pub fn init_program(
+
+    
+    pub fn initialize_program(
         env: Env,
         program_id: String,
         authorized_payout_key: Address,
         token_address: Address,
     ) -> ProgramData {
-        // Prevent re-initialization
-        if env.storage().instance().has(&PROGRAM_DATA) {
-            panic!("Program already initialized");
+        // Validate program_id
+        if program_id.len() == 0 {
+            panic!("Program ID cannot be empty");
         }
 
-        // Create program data with zero balances
+        // Check if program already exists
+        let program_key = DataKey::Program(program_id.clone());
+        if env.storage().instance().has(&program_key) {
+            panic!("Program already exists");
+        }
+
+        // Create program data
         let program_data = ProgramData {
             program_id: program_id.clone(),
             total_funds: 0,
@@ -345,19 +377,59 @@ impl ProgramEscrowContract {
             token_address: token_address.clone(),
         };
 
-        // Store program configuration
-        env.storage().instance().set(&PROGRAM_DATA, &program_data);
+        // Store program data
+        env.storage().instance().set(&program_key, &program_data);
 
-        // Emit initialization event
+        // Update registry
+        let mut registry: Vec<String> = env
+            .storage()
+            .instance()
+            .get(&PROGRAM_REGISTRY)
+            .unwrap_or(vec![&env]);
+        registry.push_back(program_id.clone());
+        env.storage().instance().set(&PROGRAM_REGISTRY, &registry);
+
+        // Emit registration event
         env.events().publish(
-            (PROGRAM_INITIALIZED,),
+            (PROGRAM_REGISTERED,),
             (program_id, authorized_payout_key, token_address, 0i128),
         );
 
         program_data
     }
 
-    // ========================================================================
+    /// Lists all registered program IDs in the contract.
+    ///
+    /// # Returns
+    /// * `Vec<String>` - List of all program IDs
+    ///
+    /// # Example
+    /// ```rust
+    /// let programs = escrow_client.list_programs();
+    /// for program_id in programs.iter() {
+    ///     println!("Program: {}", program_id);
+    /// }
+    /// ```
+    pub fn list_programs(env: Env) -> Vec<String> {
+        env.storage()
+            .instance()
+            .get(&PROGRAM_REGISTRY)
+            .unwrap_or(vec![&env])
+    }
+
+    /// Checks if a program exists.
+    ///
+    /// # Arguments
+    /// * `program_id` - The program ID to check
+    ///
+    /// # Returns
+    /// * `bool` - True if program exists, false otherwise
+    pub fn program_exists(env: Env, program_id: String) -> bool {
+        let program_key = DataKey::Program(program_id);
+        env.storage().instance().has(&program_key)
+    }
+
+     // ========================================================================
     // Fund Management
     // ========================================================================
 
@@ -439,31 +511,33 @@ impl ProgramEscrowContract {
     /// - Forgetting to transfer tokens before calling
     /// -  Locking amount that exceeds actual contract balance
     /// -  Not verifying contract received the tokens
-    pub fn lock_program_funds(env: Env, amount: i128) -> ProgramData {
+   
+    pub fn lock_program_funds(env: Env, program_id: String, amount: i128) -> ProgramData {
         // Validate amount
         if amount <= 0 {
             panic!("Amount must be greater than zero");
         }
 
-        // Get current program data
+        // Get program data
+        let program_key = DataKey::Program(program_id.clone());
         let mut program_data: ProgramData = env
             .storage()
             .instance()
-            .get(&PROGRAM_DATA)
-            .unwrap_or_else(|| panic!("Program not initialized"));
+            .get(&program_key)
+            .unwrap_or_else(|| panic!("Program not found"));
 
-        // Update balances (cumulative)
+        // Update balances
         program_data.total_funds += amount;
         program_data.remaining_balance += amount;
 
         // Store updated data
-        env.storage().instance().set(&PROGRAM_DATA, &program_data);
+        env.storage().instance().set(&program_key, &program_data);
 
-        // Emit funds locked event
+        // Emit event
         env.events().publish(
             (FUNDS_LOCKED,),
             (
-                program_data.program_id.clone(),
+                program_id,
                 amount,
                 program_data.remaining_balance,
             ),
@@ -570,47 +644,45 @@ impl ProgramEscrowContract {
     /// # Limitations
     /// - Maximum batch size limited by gas/resource limits
     /// - For very large batches, consider multiple calls
-    /// - All amounts must be positive
-    pub fn batch_payout(
+    /// - All amounts must be positive  
+      pub fn batch_payout(
         env: Env,
+        program_id: String,
         recipients: Vec<Address>,
         amounts: Vec<i128>,
     ) -> ProgramData {
-        // Get current program data
+        // Get program data
+        let program_key = DataKey::Program(program_id.clone());
         let program_data: ProgramData = env
             .storage()
             .instance()
-            .get(&PROGRAM_DATA)
-            .unwrap_or_else(|| panic!("Program not initialized"));
+            .get(&program_key)
+            .unwrap_or_else(|| panic!("Program not found"));
 
-        // Verify authorization - CRITICAL security check
-        let caller = env.invoker();
-        if caller != program_data.authorized_payout_key {
-            panic!("Unauthorized: only authorized payout key can trigger payouts");
-        }
+        // Verify authorization - CRITICAL
+        program_data.authorized_payout_key.require_auth();
 
-        // Validate input lengths match
-        if recipients.len() != amounts.len() {
-            panic!("Recipients and amounts vectors must have the same length");
-        }
+    // Validate inputs
+    if recipients.len() != amounts.len() {
+        panic!("Recipients and amounts vectors must have the same length");
+    }
 
-        // Validate non-empty batch
-        if recipients.len() == 0 {
-            panic!("Cannot process empty batch");
-        }
+    if recipients.is_empty() {
+        panic!("Cannot process empty batch");
+    }
 
-        // Calculate total payout with overflow protection
+        // Calculate total with overflow protection
         let mut total_payout: i128 = 0;
         for amount in amounts.iter() {
-            if *amount <= 0 {
+            if amount <= 0 {
                 panic!("All amounts must be greater than zero");
             }
             total_payout = total_payout
-                .checked_add(*amount)
+                .checked_add(amount)
                 .unwrap_or_else(|| panic!("Payout amount overflow"));
         }
 
-        // Validate sufficient balance
+        // Validate balance
         if total_payout > program_data.remaining_balance {
             panic!(
                 "Insufficient balance: requested {}, available {}",
@@ -618,22 +690,22 @@ impl ProgramEscrowContract {
             );
         }
 
-        // Execute transfers and record payouts
+        // Execute transfers
         let mut updated_history = program_data.payout_history.clone();
         let timestamp = env.ledger().timestamp();
         let contract_address = env.current_contract_address();
         let token_client = token::Client::new(&env, &program_data.token_address);
 
         for (i, recipient) in recipients.iter().enumerate() {
-            let amount = amounts.get(i).unwrap();
+            let amount = amounts.get(i.try_into().unwrap()).unwrap();
 
-            // Transfer tokens from contract to recipient
-            token_client.transfer(&contract_address, recipient, amount);
+            // Transfer tokens
+            token_client.transfer(&contract_address, &recipient, &amount);
 
-            // Record payout in history
+            // Record payout
             let payout_record = PayoutRecord {
                 recipient: recipient.clone(),
-                amount: *amount,
+                amount,
                 timestamp,
             };
             updated_history.push_back(payout_record);
@@ -645,15 +717,13 @@ impl ProgramEscrowContract {
         updated_data.payout_history = updated_history;
 
         // Store updated data
-        env.storage()
-            .instance()
-            .set(&PROGRAM_DATA, &updated_data);
+        env.storage().instance().set(&program_key, &updated_data);
 
-        // Emit batch payout event
+        // Emit event
         env.events().publish(
             (BATCH_PAYOUT,),
             (
-                updated_data.program_id.clone(),
+                program_id,
                 recipients.len() as u32,
                 total_payout,
                 updated_data.remaining_balance,
@@ -716,26 +786,33 @@ impl ProgramEscrowContract {
     /// - Individual prize awards
     /// - Bonus payments
     /// - Late additions to prize pool distribution
-    pub fn single_payout(env: Env, recipient: Address, amount: i128) -> ProgramData {
-        // Get current program data
+    pub fn single_payout(
+        env: Env,
+        program_id: String,
+        recipient: Address,
+        amount: i128,
+    ) -> ProgramData {
+        // Get program data
+        let program_key = DataKey::Program(program_id.clone());
         let program_data: ProgramData = env
             .storage()
             .instance()
-            .get(&PROGRAM_DATA)
-            .unwrap_or_else(|| panic!("Program not initialized"));
+            .get(&program_key)
+            .unwrap_or_else(|| panic!("Program not found"));
 
+            program_data.authorized_payout_key.require_auth();
         // Verify authorization
-        let caller = env.invoker();
-        if caller != program_data.authorized_payout_key {
-            panic!("Unauthorized: only authorized payout key can trigger payouts");
-        }
+        // let caller = env.invoker();
+        // if caller != program_data.authorized_payout_key {
+        //     panic!("Unauthorized: only authorized payout key can trigger payouts");
+        // }
 
         // Validate amount
         if amount <= 0 {
             panic!("Amount must be greater than zero");
         }
 
-        // Validate sufficient balance
+        // Validate balance
         if amount > program_data.remaining_balance {
             panic!(
                 "Insufficient balance: requested {}, available {}",
@@ -743,7 +820,7 @@ impl ProgramEscrowContract {
             );
         }
 
-        // Transfer tokens to recipient
+        // Transfer tokens
         let contract_address = env.current_contract_address();
         let token_client = token::Client::new(&env, &program_data.token_address);
         token_client.transfer(&contract_address, &recipient, &amount);
@@ -765,15 +842,13 @@ impl ProgramEscrowContract {
         updated_data.payout_history = updated_history;
 
         // Store updated data
-        env.storage()
-            .instance()
-            .set(&PROGRAM_DATA, &updated_data);
+        env.storage().instance().set(&program_key, &updated_data);
 
-        // Emit payout event
+        // Emit event
         env.events().publish(
             (PAYOUT,),
             (
-                updated_data.program_id.clone(),
+                program_id,
                 recipient,
                 amount,
                 updated_data.remaining_balance,
@@ -821,51 +896,361 @@ impl ProgramEscrowContract {
     ///
     /// # Gas Cost
     /// Very Low - Single storage read
-    pub fn get_program_info(env: Env) -> ProgramData {
+    pub fn get_program_info(env: Env, program_id: String) -> ProgramData {
+        let program_key = DataKey::Program(program_id);
         env.storage()
             .instance()
-            .get(&PROGRAM_DATA)
-            .unwrap_or_else(|| panic!("Program not initialized"))
+            .get(&program_key)
+            .unwrap_or_else(|| panic!("Program not found"))
     }
 
-    /// Retrieves the remaining balance available in the program.
-    ///
-    /// This function returns the amount of funds still locked in the program
-    /// and available for future payouts.
+    /// Retrieves the remaining balance for a specific program.
     ///
     /// # Arguments
-    /// * `env` - The contract environment
+    /// * `program_id` - The program ID to query
     ///
     /// # Returns
-    /// * `i128` - Remaining token balance that has not been paid out
+    /// * `i128` - Remaining balance
     ///
     /// # Panics
-    /// * If program is not initialized
-    ///
-    /// # Use Cases
-    /// - Checking available funds before initiating a payout
-    /// - Displaying remaining balance in dashboards or UIs
-    /// - Validating program solvency
-    ///
-    /// # Example
-    /// ```rust
-    /// let remaining = escrow_client.get_remaining_balance();
-    /// println!("Remaining balance: {}", remaining);
-    /// ```
-    ///
-    /// # Security Considerations
-    /// - Read-only function
-    /// - Does not modify contract state
-    ///
-    /// # Gas Cost
-    /// Very Low - Single storage read
-    pub fn get_remaining_balance(env: Env) -> i128 {
+    /// * If program doesn't exist
+    pub fn get_remaining_balance(env: Env, program_id: String) -> i128 {
+        let program_key = DataKey::Program(program_id);
         let program_data: ProgramData = env
             .storage()
             .instance()
-            .get(&PROGRAM_DATA)
-            .unwrap_or_else(|| panic!("Program not initialized"));
+            .get(&program_key)
+            .unwrap_or_else(|| panic!("Program not found"));
 
         program_data.remaining_balance
+    }
+
+    /// Gets the total number of programs registered.
+    ///
+    /// # Returns
+    /// * `u32` - Count of registered programs
+    pub fn get_program_count(env: Env) -> u32 {
+        let registry: Vec<String> = env
+            .storage()
+            .instance()
+            .get(&PROGRAM_REGISTRY)
+            .unwrap_or(vec![&env]);
+        
+        registry.len()
+    }
+}
+
+/// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::{
+        testutils::{Address as _, Ledger},
+        token, Address, Env, String,
+    };
+
+    // Test helper to create a mock token contract
+    fn create_token_contract<'a>(env: &Env, admin: &Address) -> token::Client<'a> {
+        let token_address = env.register_stellar_asset_contract(admin.clone());
+        token::Client::new(env, &token_address)
+    }
+
+    // ========================================================================
+    // Program Registration Tests
+    // ========================================================================
+
+    #[test]
+    fn test_register_single_program() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProgramEscrowContract);
+        let client = ProgramEscrowContractClient::new(&env, &contract_id);
+
+        let backend = Address::generate(&env);
+        let token = Address::generate(&env);
+        let prog_id = String::from_str(&env, "Hackathon2024");
+
+        // Register program
+        let program = client.initialize_program(&prog_id, &backend, &token);
+
+        // Verify program data
+        assert_eq!(program.program_id, prog_id);
+        assert_eq!(program.authorized_payout_key, backend);
+        assert_eq!(program.token_address, token);
+        assert_eq!(program.total_funds, 0);
+        assert_eq!(program.remaining_balance, 0);
+        assert_eq!(program.payout_history.len(), 0);
+
+        // Verify it exists
+        assert!(client.program_exists(&prog_id));
+        assert_eq!(client.get_program_count(), 1);
+    }
+
+    #[test]
+    fn test_multiple_programs_isolation() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProgramEscrowContract);
+        let client = ProgramEscrowContractClient::new(&env, &contract_id);
+
+        let backend1 = Address::generate(&env);
+        let backend2 = Address::generate(&env);
+        let backend3 = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        // Register three programs
+        let prog1 = String::from_str(&env, "ETHGlobal2024");
+        let prog2 = String::from_str(&env, "Stellar2024");
+        let prog3 = String::from_str(&env, "BuildathonQ1");
+
+        client.initialize_program(&prog1, &backend1, &token);
+        client.initialize_program(&prog2, &backend2, &token);
+        client.initialize_program(&prog3, &backend3, &token);
+
+        // Verify all exist
+        assert!(client.program_exists(&prog1));
+        assert!(client.program_exists(&prog2));
+        assert!(client.program_exists(&prog3));
+        assert_eq!(client.get_program_count(), 3);
+
+        // Verify complete isolation
+        let info1 = client.get_program_info(&prog1);
+        let info2 = client.get_program_info(&prog2);
+        let info3 = client.get_program_info(&prog3);
+
+        assert_eq!(info1.program_id, prog1);
+        assert_eq!(info2.program_id, prog2);
+        assert_eq!(info3.program_id, prog3);
+
+        assert_eq!(info1.authorized_payout_key, backend1);
+        assert_eq!(info2.authorized_payout_key, backend2);
+        assert_eq!(info3.authorized_payout_key, backend3);
+
+        // Verify list programs
+        let programs = client.list_programs();
+        assert_eq!(programs.len(), 3);
+    }
+
+    #[test]
+    #[should_panic(expected = "Program already exists")]
+    fn test_duplicate_program_registration() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProgramEscrowContract);
+        let client = ProgramEscrowContractClient::new(&env, &contract_id);
+
+        let backend = Address::generate(&env);
+        let token = Address::generate(&env);
+        let prog_id = String::from_str(&env, "Hackathon2024");
+
+        // Register once - should succeed
+        client.initialize_program(&prog_id, &backend, &token);
+
+        // Register again - should panic
+        client.initialize_program(&prog_id, &backend, &token);
+    }
+
+    #[test]
+    #[should_panic(expected = "Program ID cannot be empty")]
+    fn test_empty_program_id() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProgramEscrowContract);
+        let client = ProgramEscrowContractClient::new(&env, &contract_id);
+
+        let backend = Address::generate(&env);
+        let token = Address::generate(&env);
+        let empty_id = String::from_str(&env, "");
+
+        client.initialize_program(&empty_id, &backend, &token);
+    }
+
+    #[test]
+    #[should_panic(expected = "Program not found")]
+    fn test_get_nonexistent_program() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProgramEscrowContract);
+        let client = ProgramEscrowContractClient::new(&env, &contract_id);
+
+        let prog_id = String::from_str(&env, "DoesNotExist");
+        client.get_program_info(&prog_id);
+    }
+
+    // ========================================================================
+    // Fund Locking Tests
+    // ========================================================================
+
+    #[test]
+    fn test_lock_funds_single_program() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let contract_id = env.register_contract(None, ProgramEscrowContract);
+        let client = ProgramEscrowContractClient::new(&env, &contract_id);
+        let token_client = create_token_contract(&env, &admin);
+
+        let backend = Address::generate(&env);
+        let prog_id = String::from_str(&env, "Hackathon2024");
+
+        // Register program
+        client.initialize_program(&prog_id, &backend, &token_client.address);
+
+        // Lock funds
+        let amount = 10_000_0000000i128; // 10,000 USDC
+        let updated = client.lock_program_funds(&prog_id, &amount);
+
+        assert_eq!(updated.total_funds, amount);
+        assert_eq!(updated.remaining_balance, amount);
+    }
+
+    #[test]
+    fn test_lock_funds_multiple_programs_isolation() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let contract_id = env.register_contract(None, ProgramEscrowContract);
+        let client = ProgramEscrowContractClient::new(&env, &contract_id);
+        let token_client = create_token_contract(&env, &admin);
+
+        let backend1 = Address::generate(&env);
+        let backend2 = Address::generate(&env);
+
+        let prog1 = String::from_str(&env, "Program1");
+        let prog2 = String::from_str(&env, "Program2");
+
+        // Register programs
+        client.initialize_program(&prog1, &backend1, &token_client.address);
+        client.initialize_program(&prog2, &backend2, &token_client.address);
+
+        // Lock different amounts in each program
+        let amount1 = 5_000_0000000i128;
+        let amount2 = 10_000_0000000i128;
+
+        client.lock_program_funds(&prog1, &amount1);
+        client.lock_program_funds(&prog2, &amount2);
+
+        // Verify isolation - funds don't mix
+        let info1 = client.get_program_info(&prog1);
+        let info2 = client.get_program_info(&prog2);
+
+        assert_eq!(info1.total_funds, amount1);
+        assert_eq!(info1.remaining_balance, amount1);
+        assert_eq!(info2.total_funds, amount2);
+        assert_eq!(info2.remaining_balance, amount2);
+    }
+
+    #[test]
+    fn test_lock_funds_cumulative() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let contract_id = env.register_contract(None, ProgramEscrowContract);
+        let client = ProgramEscrowContractClient::new(&env, &contract_id);
+        let token_client = create_token_contract(&env, &admin);
+
+        let backend = Address::generate(&env);
+        let prog_id = String::from_str(&env, "Hackathon2024");
+
+        client.initialize_program(&prog_id, &backend, &token_client.address);
+
+        // Lock funds multiple times
+        client.lock_program_funds(&prog_id, &1_000_0000000);
+        client.lock_program_funds(&prog_id, &2_000_0000000);
+        client.lock_program_funds(&prog_id, &3_000_0000000);
+
+        let info = client.get_program_info(&prog_id);
+        assert_eq!(info.total_funds, 6_000_0000000);
+        assert_eq!(info.remaining_balance, 6_000_0000000);
+    }
+
+    #[test]
+    #[should_panic(expected = "Amount must be greater than zero")]
+    fn test_lock_zero_funds() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProgramEscrowContract);
+        let client = ProgramEscrowContractClient::new(&env, &contract_id);
+
+        let backend = Address::generate(&env);
+        let token = Address::generate(&env);
+        let prog_id = String::from_str(&env, "Hackathon2024");
+
+        client.initialize_program(&prog_id, &backend, &token);
+        client.lock_program_funds(&prog_id, &0);
+    }
+
+    // ========================================================================
+    // Batch Payout Tests
+    // ========================================================================
+
+    
+    #[test]
+    #[should_panic(expected = "Recipients and amounts vectors must have the same length")]
+    fn test_batch_payout_mismatched_lengths() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let contract_id = env.register_contract(None, ProgramEscrowContract);
+        let client = ProgramEscrowContractClient::new(&env, &contract_id);
+        let token_client = create_token_contract(&env, &admin);
+
+        let backend = Address::generate(&env);
+        let prog_id = String::from_str(&env, "Test");
+
+        client.initialize_program(&prog_id, &backend, &token_client.address);
+        client.lock_program_funds(&prog_id, &10_000_0000000);
+
+        let recipients = soroban_sdk::vec![&env, Address::generate(&env), Address::generate(&env)];
+        let amounts = soroban_sdk::vec![&env, 1_000_0000000i128]; // Mismatch!
+
+        client.batch_payout(&prog_id, &recipients, &amounts);
+    }
+
+    #[test]
+    #[should_panic(expected = "Insufficient balance")]
+    fn test_batch_payout_insufficient_balance() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let contract_id = env.register_contract(None, ProgramEscrowContract);
+        let client = ProgramEscrowContractClient::new(&env, &contract_id);
+        let token_client = create_token_contract(&env, &admin);
+
+        let backend = Address::generate(&env);
+        let prog_id = String::from_str(&env, "Test");
+
+        client.initialize_program(&prog_id, &backend, &token_client.address);
+        client.lock_program_funds(&prog_id, &5_000_0000000);
+
+        let recipients = soroban_sdk::vec![&env, Address::generate(&env)];
+        let amounts = soroban_sdk::vec![&env, 10_000_0000000i128]; // More than available!
+
+        client.batch_payout(&prog_id, &recipients, &amounts);
+    }
+
+  
+    
+    #[test]
+    fn test_program_count() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProgramEscrowContract);
+        let client = ProgramEscrowContractClient::new(&env, &contract_id);
+
+        assert_eq!(client.get_program_count(), 0);
+
+        let backend = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        client.initialize_program(&String::from_str(&env, "P1"), &backend, &token);
+        assert_eq!(client.get_program_count(), 1);
+
+        client.initialize_program(&String::from_str(&env, "P2"), &backend, &token);
+        assert_eq!(client.get_program_count(), 2);
+
+        client.initialize_program(&String::from_str(&env, "P3"), &backend, &token);
+        assert_eq!(client.get_program_count(), 3);
     }
 }
