@@ -26,6 +26,7 @@ export function DataPage() {
     'Japan': [138.252924, 36.204824],
     'China': [104.195397, 35.86166],
   };
+
   const [activeTab, setActiveTab] = useState('overview');
   const [projectInterval, setProjectInterval] = useState('Monthly interval');
   const [contributorInterval, setContributorInterval] = useState('Monthly interval');
@@ -194,554 +195,105 @@ export function DataPage() {
         </div>
       </div>
 
-      {/* Main Content Grid */}
+      {/* Main Grid */}
       <div className="grid grid-cols-2 gap-6">
-        {/* Left Column - Project Activity */}
-        <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 p-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className={`text-[18px] font-bold transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-              }`}>Project activity</h2>
-            <div className="relative">
-              <button
-                onClick={() => setShowProjectIntervalDropdown(!showProjectIntervalDropdown)}
-                className="flex items-center gap-2 px-4 py-2 rounded-[10px] backdrop-blur-[20px] bg-white/[0.15] border border-white/25 hover:bg-white/[0.2] transition-all"
-              >
-                <span className={`text-[13px] font-semibold transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-                  }`}>{projectInterval}</span>
-                <ChevronDown className={`w-4 h-4 transition-colors ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                  }`} />
-              </button>
-              {showProjectIntervalDropdown && (
-                <div className="absolute right-0 mt-2 w-[180px] backdrop-blur-[30px] bg-white/[0.55] border-2 border-white/30 rounded-[12px] shadow-[0_8px_32px_rgba(0,0,0,0.15)] overflow-hidden z-50">
-                  <button
-                    onClick={() => {
-                      setProjectInterval('Daily interval');
-                      setShowProjectIntervalDropdown(false);
-                    }}
-                    className="w-full px-4 py-3 text-left text-[13px] font-medium text-[#2d2820] hover:bg-white/[0.3] transition-all"
-                  >
-                    Daily interval
-                  </button>
-                  <button
-                    onClick={() => {
-                      setProjectInterval('Weekly interval');
-                      setShowProjectIntervalDropdown(false);
-                    }}
-                    className="w-full px-4 py-3 text-left text-[13px] font-medium text-[#2d2820] hover:bg-white/[0.3] transition-all"
-                  >
-                    Weekly interval
-                  </button>
-                  <button
-                    onClick={() => {
-                      setProjectInterval('Monthly interval');
-                      setShowProjectIntervalDropdown(false);
-                    }}
-                    className={`w-full px-4 py-3 text-left text-[13px] font-medium transition-all ${projectInterval === 'Monthly interval'
-                        ? 'bg-white/[0.35] text-[#2d2820] font-bold'
-                        : 'text-[#2d2820] hover:bg-white/[0.3]'
-                      }`}
-                  >
-                    Monthly interval
-                  </button>
-                  <button
-                    onClick={() => {
-                      setProjectInterval('Quarterly interval');
-                      setShowProjectIntervalDropdown(false);
-                    }}
-                    className="w-full px-4 py-3 text-left text-[13px] font-medium text-[#2d2820] hover:bg-white/[0.3] transition-all"
-                  >
-                    Quarterly interval
-                  </button>
-                  <button
-                    onClick={() => {
-                      setProjectInterval('Yearly interval');
-                      setShowProjectIntervalDropdown(false);
-                    }}
-                    className="w-full px-4 py-3 text-left text-[13px] font-medium text-[#2d2820] hover:bg-white/[0.3] transition-all"
-                  >
-                    Yearly interval
-                  </button>
-                </div>
-              )}
+        {/* Left Column: Project + Contributor stacked */}
+        <div className="flex flex-col gap-6">
+          {/* Project Activity */}
+          <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 p-8 flex-1">
+            {/* ...All Project Activity JSX... */}
+            <div className="h-[140px] mb-6">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={projectActivityData}>
+                  <defs>
+                    <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#c9983a" stopOpacity={0.8} />
+                      <stop offset="100%" stopColor="#d4af37" stopOpacity={0.4} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(122, 107, 90, 0.1)" />
+                  <XAxis
+                    dataKey="month"
+                    stroke="#7a6b5a"
+                    tick={{ fill: '#7a6b5a', fontSize: 11, fontWeight: 600 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={40}
+                  />
+                  <YAxis stroke="#7a6b5a" tick={{ fill: '#7a6b5a', fontSize: 11, fontWeight: 600 }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="value" fill="url(#barGradient)" radius={[8, 8, 0, 0]} maxBarSize={40} />
+                  <RechartsLine type="monotone" dataKey="trend" stroke="#2d2820" strokeWidth={3} dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Chart */}
-          <div className="h-[280px] mb-6">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={projectActivityData}>
-                <defs>
-                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#c9983a" stopOpacity={0.8} />
-                    <stop offset="100%" stopColor="#d4af37" stopOpacity={0.4} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(122, 107, 90, 0.1)" />
-                <XAxis
-                  dataKey="month"
-                  stroke="#7a6b5a"
-                  tick={{ fill: '#7a6b5a', fontSize: 11, fontWeight: 600 }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                />
-                <YAxis stroke="#7a6b5a" tick={{ fill: '#7a6b5a', fontSize: 11, fontWeight: 600 }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar
-                  dataKey="value"
-                  fill="url(#barGradient)"
-                  radius={[8, 8, 0, 0]}
-                  maxBarSize={40}
-                />
-                <RechartsLine
-                  type="monotone"
-                  dataKey="trend"
-                  stroke="#2d2820"
-                  strokeWidth={3}
-                  dot={false}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => toggleProjectFilter('new')}
-              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${projectFilters.new
-                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
-                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
-                }`}
-            >
-              New
-            </button>
-            <button
-              onClick={() => toggleProjectFilter('reactivated')}
-              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${projectFilters.reactivated
-                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
-                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
-                }`}
-            >
-              Reactivated
-            </button>
-            <button
-              onClick={() => toggleProjectFilter('active')}
-              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${projectFilters.active
-                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
-                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
-                }`}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => toggleProjectFilter('churned')}
-              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${projectFilters.churned
-                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
-                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
-                }`}
-            >
-              Churned
-            </button>
-            <button
-              onClick={() => toggleProjectFilter('prMerged')}
-              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${projectFilters.prMerged
-                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
-                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
-                }`}
-            >
-              PR merged
-            </button>
+          {/* Contributor Activity */}
+          <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 p-8 flex-1">
+            {/* ...All Contributor Activity JSX... */}
+            <div className="h-[140px] mb-6">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={contributorActivityData}>
+                  <defs>
+                    <linearGradient id="contributorBarGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#c9983a" stopOpacity={0.8} />
+                      <stop offset="100%" stopColor="#d4af37" stopOpacity={0.4} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(122, 107, 90, 0.1)" />
+                  <XAxis
+                    dataKey="month"
+                    stroke="#7a6b5a"
+                    tick={{ fill: '#7a6b5a', fontSize: 11, fontWeight: 600 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={40}
+                  />
+                  <YAxis stroke="#7a6b5a" tick={{ fill: '#7a6b5a', fontSize: 11, fontWeight: 600 }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="value" fill="url(#contributorBarGradient)" radius={[8, 8, 0, 0]} maxBarSize={40} />
+                  <RechartsLine type="monotone" dataKey="trend" stroke="#2d2820" strokeWidth={3} dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
 
-        {/* Right Column - Contributors Map */}
-        <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8">
-          <h2 className={`text-[18px] font-bold mb-6 transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-            }`}>Contributors map</h2>
-
-          {/* World Map Visualization */}
-          <div className="relative h-[280px] mb-6 rounded-[16px] backdrop-blur-[20px] bg-gradient-to-br from-[#2d2820]/80 via-[#1a1410]/70 to-[#2d2820]/80 border border-white/10 overflow-hidden">
-            {/* Map Background Pattern */}
-            <div className="absolute inset-0 opacity-20">
-              <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(201,152,58,0.2)" strokeWidth="0.5" />
-                  </pattern>
-                </defs>
-                <rect width="100%" height="100%" fill="url(#grid)" />
-              </svg>
-            </div>
-
-            {/* World Map SVG */}
-            <div className="absolute inset-0 w-full h-full">
-              <ComposableMap
-                projection="geoMercator"
-                projectionConfig={{
-                  scale: 100,
-                }}
-                className="w-full h-full"
-              >
-                <defs>
-                  <linearGradient id="mapGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#c9983a" stopOpacity="0.3" />
-                    <stop offset="50%" stopColor="#d4af37" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="#c9983a" stopOpacity="0.2" />
-                  </linearGradient>
-                  <filter id="glow">
-                    <feGaussianBlur stdDeviation="3" result="coloredBlur" />
-                    <feMerge>
-                      <feMergeNode in="coloredBlur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
-                <ZoomableGroup
-                  zoom={mapZoom}
-                  center={mapCenter}
-                  onMoveEnd={({ coordinates, zoom }) => {
-                    setMapCenter(coordinates as [number, number]);
-                    setMapZoom(zoom);
-                  }}
-                >
-                  <Geographies geography={geoUrl}>
-                    {({ geographies }) =>
-                      geographies.map((geo) => {
-                        const isHighlighted = Object.keys(countryCoordinates).some(country =>
-                          geo.properties.name === country ||
-                          (country === "United Kingdom" && geo.properties.name === "United Kingdom") || // Add aliases if needed
-                          (country === "United States" && geo.properties.name === "United States of America")
-                        );
-                        return (
-                          <Geography
-                            key={geo.rsmKey}
-                            geography={geo}
-                            fill={isHighlighted ? "url(#mapGradient)" : "rgba(255,255,255,0.05)"}
-                            stroke="#c9983a"
-                            strokeWidth={0.5}
-                            style={{
-                              default: { outline: "none" },
-                              hover: { fill: "#d4af37", outline: "none", opacity: 0.8 },
-                              pressed: { outline: "none" },
-                            }}
-                          />
-                        );
-                      })
-                    }
-                  </Geographies>
-
-                  {/* Markers */}
-                  {contributorsByRegion.map((region) => {
-                    const coords = countryCoordinates[region.name];
-                    if (!coords) return null;
-                    return (
-                      <Marker key={region.name} coordinates={coords}>
-                        <circle r={4} fill="#c9983a" stroke="#fff" strokeWidth={1} style={{ filter: 'url(#glow)' }}>
-                          <animate attributeName="opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite" />
-                        </circle>
-                      </Marker>
-                    );
-                  })}
-
-                  {/* Simple Connection Lines for visual effect */}
-                  <MapLine
-                    from={countryCoordinates['United Kingdom']}
-                    to={countryCoordinates['India']}
-                    stroke="#c9983a"
-                    strokeWidth={0.5}
-                    strokeDasharray="3,3"
-                    className="opacity-30"
-                  />
-                  <MapLine
-                    from={countryCoordinates['Canada']}
-                    to={countryCoordinates['Germany']}
-                    stroke="#d4af37"
-                    strokeWidth={0.5}
-                    strokeDasharray="3,3"
-                    className="opacity-30"
-                  />
-                  <MapLine
-                    from={countryCoordinates['Brazil']}
-                    to={countryCoordinates['Spain']}
-                    stroke="#c9983a"
-                    strokeWidth={0.5}
-                    strokeDasharray="3,3"
-                    className="opacity-30"
-                  />
-
-                </ZoomableGroup>
-              </ComposableMap>
-            </div>
-
-            {/* Map Info Overlay */}
-            <div className="absolute top-4 right-4 flex flex-col gap-1">
-              <button
-                onClick={() => setMapZoom(z => Math.min(z * 1.5, 8))}
-                className="w-8 h-8 rounded-[8px] backdrop-blur-[25px] bg-white/[0.2] border border-white/30 flex items-center justify-center text-white font-bold text-[11px] hover:bg-white/[0.3] transition-all cursor-pointer"
-              >
-                +
-              </button>
-              <button
-                onClick={() => setMapZoom(z => Math.max(z / 1.5, 1))}
-                className="w-8 h-8 rounded-[8px] backdrop-blur-[25px] bg-white/[0.2] border border-white/30 flex items-center justify-center text-white font-bold text-[11px] hover:bg-white/[0.3] transition-all cursor-pointer"
-              >
-                −
-              </button>
-            </div>
-          </div>
-
-          {/* Country Bars */}
-          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-            {contributorsByRegion.map((region) => (
-              <div key={region.name} className="flex items-center gap-3 group">
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className={`text-[13px] font-semibold transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-                      }`}>{region.name}</span>
-                    <span className="text-[12px] font-bold text-[#c9983a]">{region.value}</span>
-                  </div>
-                  <div className="h-6 rounded-[6px] backdrop-blur-[15px] bg-white/[0.08] border border-white/15 overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-[#c9983a] to-[#d4af37] rounded-[6px] transition-all duration-500 group-hover:shadow-[0_0_15px_rgba(201,152,58,0.5)]"
-                      style={{ width: `${region.percentage}%` }}
+        {/* Right Column: Contributors Map */}
+        <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 p-8 flex flex-col">
+          <h2 className="text-white font-bold mb-4">Contributors Map</h2>
+          <ComposableMap projectionConfig={{ scale: 150 }} width={400} height={300}>
+            <ZoomableGroup zoom={mapZoom} center={mapCenter}>
+              <Geographies geography={geoUrl}>
+                {({ geographies }) =>
+                  geographies.map(geo => (
+                    <Geography
+                      key={geo.rsmKey}
+                      geography={geo}
+                      fill="#c9983a33"
+                      stroke="#c9983a77"
                     />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                  ))
+                }
+              </Geographies>
+              {Object.entries(countryCoordinates).map(([name, coords]) => (
+                <Marker key={name} coordinates={coords}>
+                  <circle r={5} fill="#c9983a" stroke="#fff" strokeWidth={2} />
+                </Marker>
+              ))}
+            </ZoomableGroup>
+          </ComposableMap>
         </div>
       </div>
 
-      {/* Bottom Grid */}
+      {/* Bottom Grid: Info Panel */}
       <div className="grid grid-cols-2 gap-6">
-        {/* Contributor Activity */}
-        <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className={`text-[18px] font-bold transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-              }`}>Contributor activity</h2>
-            <div className="relative">
-              <button
-                onClick={() => setShowContributorIntervalDropdown(!showContributorIntervalDropdown)}
-                className="flex items-center gap-2 px-4 py-2 rounded-[10px] backdrop-blur-[20px] bg-white/[0.15] border border-white/25 hover:bg-white/[0.2] transition-all"
-              >
-                <span className={`text-[13px] font-semibold transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-                  }`}>{contributorInterval}</span>
-                <ChevronDown className={`w-4 h-4 transition-colors ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                  }`} />
-              </button>
-              {showContributorIntervalDropdown && (
-                <div className="absolute right-0 mt-2 w-[180px] backdrop-blur-[30px] bg-white/[0.55] border-2 border-white/30 rounded-[12px] shadow-[0_8px_32px_rgba(0,0,0,0.15)] overflow-hidden z-50">
-                  <button
-                    onClick={() => {
-                      setContributorInterval('Daily interval');
-                      setShowContributorIntervalDropdown(false);
-                    }}
-                    className="w-full px-4 py-3 text-left text-[13px] font-medium text-[#2d2820] hover:bg-white/[0.3] transition-all"
-                  >
-                    Daily interval
-                  </button>
-                  <button
-                    onClick={() => {
-                      setContributorInterval('Weekly interval');
-                      setShowContributorIntervalDropdown(false);
-                    }}
-                    className="w-full px-4 py-3 text-left text-[13px] font-medium text-[#2d2820] hover:bg-white/[0.3] transition-all"
-                  >
-                    Weekly interval
-                  </button>
-                  <button
-                    onClick={() => {
-                      setContributorInterval('Monthly interval');
-                      setShowContributorIntervalDropdown(false);
-                    }}
-                    className={`w-full px-4 py-3 text-left text-[13px] font-medium transition-all ${contributorInterval === 'Monthly interval'
-                        ? 'bg-white/[0.35] text-[#2d2820] font-bold'
-                        : 'text-[#2d2820] hover:bg-white/[0.3]'
-                      }`}
-                  >
-                    Monthly interval
-                  </button>
-                  <button
-                    onClick={() => {
-                      setContributorInterval('Quarterly interval');
-                      setShowContributorIntervalDropdown(false);
-                    }}
-                    className="w-full px-4 py-3 text-left text-[13px] font-medium text-[#2d2820] hover:bg-white/[0.3] transition-all"
-                  >
-                    Quarterly interval
-                  </button>
-                  <button
-                    onClick={() => {
-                      setContributorInterval('Yearly interval');
-                      setShowContributorIntervalDropdown(false);
-                    }}
-                    className="w-full px-4 py-3 text-left text-[13px] font-medium text-[#2d2820] hover:bg-white/[0.3] transition-all"
-                  >
-                    Yearly interval
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Chart */}
-          <div className="h-[280px] mb-6">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={contributorActivityData}>
-                <defs>
-                  <linearGradient id="contributorBarGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#c9983a" stopOpacity={0.8} />
-                    <stop offset="100%" stopColor="#d4af37" stopOpacity={0.4} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(122, 107, 90, 0.1)" />
-                <XAxis
-                  dataKey="month"
-                  stroke="#7a6b5a"
-                  tick={{ fill: '#7a6b5a', fontSize: 11, fontWeight: 600 }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                />
-                <YAxis stroke="#7a6b5a" tick={{ fill: '#7a6b5a', fontSize: 11, fontWeight: 600 }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar
-                  dataKey="value"
-                  fill="url(#contributorBarGradient)"
-                  radius={[8, 8, 0, 0]}
-                  maxBarSize={40}
-                />
-                <RechartsLine
-                  type="monotone"
-                  dataKey="trend"
-                  stroke="#2d2820"
-                  strokeWidth={3}
-                  dot={false}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => toggleContributorFilter('new')}
-              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${contributorFilters.new
-                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
-                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
-                }`}
-            >
-              New
-            </button>
-            <button
-              onClick={() => toggleContributorFilter('reactivated')}
-              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${contributorFilters.reactivated
-                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
-                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
-                }`}
-            >
-              Reactivated
-            </button>
-            <button
-              onClick={() => toggleContributorFilter('active')}
-              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${contributorFilters.active
-                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
-                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
-                }`}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => toggleContributorFilter('churned')}
-              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${contributorFilters.churned
-                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
-                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
-                }`}
-            >
-              Churned
-            </button>
-            <button
-              onClick={() => toggleContributorFilter('prMerged')}
-              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${contributorFilters.prMerged
-                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
-                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
-                }`}
-            >
-              PR merged
-            </button>
-          </div>
-        </div>
-
-        {/* Information Panel */}
-        <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8">
-          <h2 className={`text-[18px] font-bold mb-6 transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-            }`}>Information</h2>
-
-          {/* Info Text */}
-          <div className="mb-6 p-5 rounded-[16px] backdrop-blur-[20px] bg-white/[0.15] border border-white/25">
-            <div className="flex items-start gap-3">
-              <Info className="w-5 h-5 text-[#c9983a] flex-shrink-0 mt-0.5" />
-              <p className={`text-[14px] leading-relaxed transition-colors ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#4a3f2f]'
-                }`}>
-                Only data from contributors who have completed a KYC are included. Contributors without a completed KYC are excluded from the map.
-              </p>
-            </div>
-          </div>
-
-          {/* Contributor Stats */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-6 rounded-[16px] backdrop-blur-[25px] bg-gradient-to-br from-white/[0.2] to-white/[0.12] border-2 border-white/30 shadow-[0_6px_24px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_32px_rgba(201,152,58,0.15)] transition-all group">
-              <div>
-                <h3 className={`text-[14px] font-bold uppercase tracking-wider mb-2 transition-colors ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                  }`}>Contributors with billing profile</h3>
-                <div className={`text-[42px] font-black leading-none transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'bg-gradient-to-r from-[#2d2820] to-[#c9983a] bg-clip-text text-transparent'
-                  }`}>
-                  0 / 0
-                </div>
-              </div>
-              <div className="w-16 h-16 rounded-[16px] bg-gradient-to-br from-[#c9983a]/30 to-[#d4af37]/20 border-2 border-[#c9983a]/50 flex items-center justify-center shadow-[0_4px_16px_rgba(201,152,58,0.25)] group-hover:scale-110 group-hover:shadow-[0_6px_24px_rgba(201,152,58,0.4)] transition-all duration-300">
-                <svg className="w-8 h-8 text-[#c9983a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-            </div>
-
-            {/* Additional Stats Placeholder */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-5 rounded-[14px] backdrop-blur-[20px] bg-white/[0.15] border border-white/25 hover:bg-white/[0.2] transition-all group cursor-pointer">
-                <div className={`text-[11px] font-bold uppercase tracking-wider mb-2 transition-colors ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                  }`}>Active</div>
-                <div className={`text-[28px] font-black transition-colors ${theme === 'dark' ? 'text-[#f5f5f5] group-hover:text-[#c9983a]' : 'text-[#2d2820] group-hover:text-[#c9983a]'
-                  }`}>0</div>
-              </div>
-              <div className="p-5 rounded-[14px] backdrop-blur-[20px] bg-white/[0.15] border border-white/25 hover:bg-white/[0.2] transition-all group cursor-pointer">
-                <div className={`text-[11px] font-bold uppercase tracking-wider mb-2 transition-colors ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                  }`}>Total</div>
-                <div className={`text-[28px] font-black transition-colors ${theme === 'dark' ? 'text-[#f5f5f5] group-hover:text-[#c9983a]' : 'text-[#2d2820] group-hover:text-[#c9983a]'
-                  }`}>0</div>
-              </div>
-            </div>
-          </div>
+        <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 p-8">
+          <h2 className="text-white font-bold mb-4">Info Panel</h2>
+          {/* Your info content goes here */}
         </div>
       </div>
-
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(201, 152, 58, 0.5);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(201, 152, 58, 0.7);
-        }
-      `}</style>
     </div>
   );
 }
