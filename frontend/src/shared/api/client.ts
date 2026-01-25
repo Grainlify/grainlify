@@ -35,11 +35,7 @@ async function apiRequest<T>(
   endpoint: string,
   options: ApiRequestOptions = {}
 ): Promise<T> {
-  const {
-    requiresAuth = false,
-    headers = {},
-    ...fetchOptions
-  } = options;
+  const { requiresAuth = false, headers = {}, ...fetchOptions } = options;
 
   const url = `${API_BASE_URL}${endpoint}`;
   if (endpoint === '/ecosystems') {
@@ -116,9 +112,7 @@ async function apiRequest<T>(
       const errorData = await response.json();
       throw new Error(errorData.message || errorData.error || 'API request failed');
     } catch {
-      throw new Error(
-        `API request failed with status ${response.status}`,
-      );
+      throw new Error(`API request failed with status ${response.status}`);
     }
   }
 
@@ -198,7 +192,10 @@ export const resyncGitHubProfile = () =>
   }>('/me/github/resync', { requiresAuth: true, method: 'POST' });
 
 export const getGitHubLoginUrl = () => {
-  return `${API_BASE_URL}/auth/github/login/start`;
+  // Pass the current frontend origin as redirect parameter
+  // This allows the backend to redirect back to the correct frontend after OAuth
+  const redirectAfterLogin = window.location.origin;
+  return `${API_BASE_URL}/auth/github/login/start?redirect=${encodeURIComponent(redirectAfterLogin)}`;
 };
 
 export const getGitHubStatus = () =>
@@ -214,14 +211,8 @@ export const getUserProfile = () =>
     projects_contributed_to_count: number;
     projects_led_count: number;
     rewards_count: number;
-    languages: Array<{
-      language: string;
-      contribution_count: number;
-    }>;
-    ecosystems: Array<{
-      ecosystem_name: string;
-      contribution_count: number;
-    }>;
+    languages: Array<{ language: string; contribution_count: number }>;
+    ecosystems: Array<{ ecosystem_name: string; contribution_count: number }>;
     rank: {
       position: number | null;
       tier: string;
@@ -230,10 +221,7 @@ export const getUserProfile = () =>
     };
   }>('/profile', { requiresAuth: true });
 
-export const getProfileCalendar = (
-  userId?: string,
-  login?: string,
-) => {
+export const getProfileCalendar = (userId?: string, login?: string) => {
   const params = new URLSearchParams();
   if (userId) params.append('user_id', userId);
   if (login) params.append('login', login);
@@ -262,19 +250,16 @@ export const getProfileActivity = (limit = 50, offset = 0, userId?: string, logi
       month_year: string;
       project_name: string;
       project_id: string;
+      merged?: boolean;
+      draft?: boolean;
     }>;
     total: number;
     limit: number;
     offset: number;
-  }>(`/profile/activity?${params.toString()}`, {
-    requiresAuth: true,
-  });
+  }>(`/profile/activity?${params.toString()}`, { requiresAuth: true });
 };
 
-export const getProjectsContributed = (
-  userId?: string,
-  login?: string,
-) => {
+export const getProjectsContributed = (userId?: string, login?: string) => {
   const params = new URLSearchParams();
   if (userId) params.append('user_id', userId);
   if (login) params.append('login', login);
@@ -300,14 +285,8 @@ export const getPublicProfile = (userId?: string, login?: string) => {
     contributions_count: number;
     projects_contributed_to_count: number;
     projects_led_count: number;
-    languages: Array<{
-      language: string;
-      contribution_count: number;
-    }>;
-    ecosystems: Array<{
-      ecosystem_name: string;
-      contribution_count: number;
-    }>;
+    languages: Array<{ language: string; contribution_count: number }>;
+    ecosystems: Array<{ ecosystem_name: string; contribution_count: number }>;
     bio?: string;
     website?: string;
     telegram?: string;
@@ -330,11 +309,6 @@ export const updateProfile = (data: {
   location?: string;
   website?: string;
   bio?: string;
-  telegram?: string;
-  linkedin?: string;
-  whatsapp?: string;
-  twitter?: string;
-  discord?: string;
 }) =>
   apiRequest<{ message: string }>('/profile/update', {
     method: 'PUT',
@@ -619,7 +593,7 @@ export const deleteEcosystem = (id: string) =>
   });
 
 // Leaderboard
-export const getLeaderboard = (limit = 10, offset = 0) =>
+export const getLeaderboard = (limit = 10, offset = 0, ecosystem?: string) =>
   apiRequest<Array<{
     rank: number;
     rank_tier: string;
@@ -632,7 +606,7 @@ export const getLeaderboard = (limit = 10, offset = 0) =>
     score: number;
     trend: 'up' | 'down' | 'same';
     trendValue: number;
-  }>>(`/leaderboard?limit=${limit}&offset=${offset}`);
+  }>>(`/leaderboard?limit=${limit}&offset=${offset}${ecosystem ? `&ecosystem=${ecosystem}` : ''}`);
 
 export const getProjectLeaderboard = (limit = 10, offset = 0, ecosystem?: string) => {
   const params = new URLSearchParams();
