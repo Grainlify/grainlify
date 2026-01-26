@@ -104,6 +104,7 @@ export function Dashboard() {
 
     return localStorage.getItem("dashboardTab") || "discover";
   });
+  const [previousPage, setPreviousPage] = useState<string | null>(null);
 
   // Admin password gating (bootstrap token)
   const [showAdminPasswordModal, setShowAdminPasswordModal] = useState(false);
@@ -163,16 +164,27 @@ export function Dashboard() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
+        if (currentPage !== "search") {
+          setPreviousPage(currentPage);
+        }
         setCurrentPage("search");
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [currentPage]);
+
+  const openSearch = () => {
+    if (currentPage !== "search") {
+      setPreviousPage(currentPage);
+    }
+    setCurrentPage("search");
+  };
 
   const handleNavigation = (page: string) => {
     setCurrentPage(page);
+    setPreviousPage(null);
     setSelectedProjectId(null);
     setSelectedIssue(null);
     setSelectedEcosystemId(null);
@@ -310,7 +322,9 @@ export function Dashboard() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-2 left-2 bottom-2 z-50 transition-all duration-300 ${isSidebarCollapsed ? "w-[65px] mr-2" : "w-56 mr-2"}`}
+        className={`fixed top-2 left-2 bottom-2 z-50 transition-all duration-300 ${
+          isSidebarCollapsed ? "w-[65px] mr-2" : "w-56 mr-2"
+        }`}
       >
         {/* Toggle Arrow Button - positioned at top of sidebar aligned with header */}
         <button
@@ -324,7 +338,9 @@ export function Dashboard() {
           }`}
         >
           <ChevronRight
-            className={`w-3 h-3 text-[#c9983a] transition-transform duration-300 ${isSidebarCollapsed ? "" : "rotate-180"}`}
+            className={`w-3 h-3 text-[#c9983a] transition-transform duration-300 ${
+              isSidebarCollapsed ? "" : "rotate-180"
+            }`}
           />
         </button>
 
@@ -338,7 +354,11 @@ export function Dashboard() {
           <div className="flex flex-col h-full px-0 py-[40px]">
             {/* Logo/Avatar */}
             <div
-              className={`flex items-center mb-6 transition-all ${isSidebarCollapsed ? "px-[8px] justify-center" : "px-2 justify-start"}`}
+              className={`flex items-center mb-6 transition-all ${
+                isSidebarCollapsed
+                  ? "px-[8px] justify-center"
+                  : "px-2 justify-start"
+              }`}
             >
               {isSidebarCollapsed ? (
                 <img
@@ -376,7 +396,9 @@ export function Dashboard() {
 
             {/* Main Navigation */}
             <nav
-              className={`space-y-2 mb-auto ${isSidebarCollapsed ? "px-[8px]" : "px-2"}`}
+              className={`space-y-2 mb-auto ${
+                isSidebarCollapsed ? "px-[8px]" : "px-2"
+              }`}
             >
               {navItems.map((item) => {
                 const isActive = currentPage === item.id;
@@ -393,18 +415,20 @@ export function Dashboard() {
                       isActive
                         ? "bg-[#c9983a] shadow-[inset_0px_0px_4px_0px_rgba(255,255,255,0.25)] border-[0.5px] border-[rgba(245,239,235,0.16)]"
                         : darkTheme
-                          ? "hover:bg-white/[0.08]"
-                          : "hover:bg-white/[0.1]"
+                        ? "hover:bg-white/[0.08]"
+                        : "hover:bg-white/[0.1]"
                     }`}
                     title={isSidebarCollapsed ? item.label : ""}
                   >
                     <Icon
-                      className={`w-6 h-6 transition-colors ${isSidebarCollapsed ? "" : "flex-shrink-0"} ${
+                      className={`w-6 h-6 transition-colors ${
+                        isSidebarCollapsed ? "" : "flex-shrink-0"
+                      } ${
                         isActive
                           ? "text-white"
                           : darkTheme
-                            ? "text-[#e8c77f]"
-                            : "text-[#a2792c]"
+                          ? "text-[#e8c77f]"
+                          : "text-[#a2792c]"
                       }`}
                     />
                     {!isSidebarCollapsed && (
@@ -413,8 +437,8 @@ export function Dashboard() {
                           isActive
                             ? "text-white"
                             : darkTheme
-                              ? "text-[#d4c5b0]"
-                              : "text-[#6b5d4d]"
+                            ? "text-[#d4c5b0]"
+                            : "text-[#6b5d4d]"
                         }`}
                       >
                         {item.label}
@@ -430,7 +454,9 @@ export function Dashboard() {
 
       {/* Main Content */}
       <main
-        className={`mr-2 my-2 relative z-10 transition-all duration-300 ${isSidebarCollapsed ? "ml-[81px]" : "ml-[240px]"}`}
+        className={`mr-2 my-2 relative z-10 transition-all duration-300 ${
+          isSidebarCollapsed ? "ml-[81px]" : "ml-[240px]"
+        }`}
       >
         <div className="max-w-[1400px] mx-auto">
           {/* Premium Pill-Style Header - Greatest of All Time */}
@@ -443,12 +469,14 @@ export function Dashboard() {
                 : "bg-white/[0.35] border-white shadow-[inset_0px_0px_9px_0px_rgba(255,255,255,0.5)]"
             }`}
             style={{
-              width: `calc(100vw - ${isSidebarCollapsed ? "81px" : "240px"} - 8px - 8px)`,
+              width: `calc(100vw - ${
+                isSidebarCollapsed ? "81px" : "240px"
+              } - 8px - 8px)`,
             }}
           >
             {/* Search - Premium Pill Style */}
             <button
-              onClick={() => setCurrentPage("search")}
+              onClick={openSearch}
               className={`relative h-[46px] flex-1 rounded-[23px] overflow-visible backdrop-blur-[40px] shadow-[0px_6px_6.5px_-1px_rgba(0,0,0,0.36),0px_0px_4.2px_0px_rgba(0,0,0,0.69)] ml-[3px] transition-all hover:scale-[1.01] cursor-pointer ${
                 darkTheme ? "bg-[#2d2820]" : "bg-[#d4c5b0]"
               }`}
@@ -637,7 +665,9 @@ export function Dashboard() {
                     />
                   )}
                 {currentPage === "contributors" && <ContributorsPage />}
-                {currentPage === "maintainers" && <MaintainersPage />}
+                {currentPage === "maintainers" && (
+                  <MaintainersPage onNavigate={setCurrentPage} />
+                )}
                 {currentPage === "profile" && (
                   <ProfilePage
                     viewingUserId={viewingUserId}
@@ -677,7 +707,9 @@ export function Dashboard() {
                     >
                       <Shield className="w-16 h-16 mx-auto mb-4 text-[#c9983a]" />
                       <h2
-                        className={`text-2xl font-bold mb-2 ${darkTheme ? "text-[#f5f5f5]" : "text-[#2d2820]"}`}
+                        className={`text-2xl font-bold mb-2 ${
+                          darkTheme ? "text-[#f5f5f5]" : "text-[#2d2820]"
+                        }`}
                       >
                         Admin Access Required
                       </h2>
@@ -695,18 +727,24 @@ export function Dashboard() {
                 )}
                 {currentPage === "search" && (
                   <SearchPage
-                    onBack={() => setCurrentPage("discover")}
+                    onBack={() => {
+                      setCurrentPage(previousPage || "discover");
+                      setPreviousPage(null);
+                    }}
                     onIssueClick={(id) => {
                       setSelectedIssue({ issueId: id });
                       setCurrentPage("discover");
+                      setPreviousPage(null);
                     }}
                     onProjectClick={(id) => {
                       setSelectedProjectId(id);
                       setCurrentPage("discover");
+                      setPreviousPage(null);
                     }}
                     onContributorClick={(id) => {
                       // Navigate to profile page or contributors page with selected contributor
                       setCurrentPage("contributors");
+                      setPreviousPage(null);
                     }}
                   />
                 )}
@@ -731,7 +769,9 @@ export function Dashboard() {
         <form onSubmit={handleAdminPasswordSubmit}>
           <div className="space-y-4">
             <p
-              className={`text-sm ${darkTheme ? "text-[#d4d4d4]" : "text-[#7a6b5a]"}`}
+              className={`text-sm ${
+                darkTheme ? "text-[#d4d4d4]" : "text-[#7a6b5a]"
+              }`}
             >
               Enter the admin password to access the admin panel.
             </p>
@@ -744,7 +784,9 @@ export function Dashboard() {
               autoFocus
             />
             <p
-              className={`text-xs ${darkTheme ? "text-[#b8a898]" : "text-[#7a6b5a]"}`}
+              className={`text-xs ${
+                darkTheme ? "text-[#b8a898]" : "text-[#7a6b5a]"
+              }`}
             >
               Tip: This must match the backend `ADMIN_BOOTSTRAP_TOKEN`.
             </p>

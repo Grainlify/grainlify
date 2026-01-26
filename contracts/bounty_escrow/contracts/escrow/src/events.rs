@@ -269,6 +269,8 @@ pub struct FundsRefunded {
     pub amount: i128,
     pub refund_to: Address,
     pub timestamp: u64,
+    pub refund_mode: crate::RefundMode,
+    pub remaining_amount: i128,
 }
 
 /// Emits a FundsRefunded event.
@@ -282,5 +284,31 @@ pub struct FundsRefunded {
 /// Data: Complete `FundsRefunded` struct
 pub fn emit_funds_refunded(env: &Env, event: FundsRefunded) {
     let topics = (symbol_short!("f_ref"), event.bounty_id);
+    env.events().publish(topics, event.clone());
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct BatchFundsLocked {
+    pub count: u32,
+    pub total_amount: i128,
+    pub timestamp: u64,
+}
+
+pub fn emit_batch_funds_locked(env: &Env, event: BatchFundsLocked) {
+    let topics = (symbol_short!("b_lock"), );
+    env.events().publish(topics, event.clone());
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct BatchFundsReleased {
+    pub count: u32,
+    pub total_amount: i128,
+    pub timestamp: u64,
+}
+
+pub fn emit_batch_funds_released(env: &Env, event: BatchFundsReleased) {
+    let topics = (symbol_short!("b_rel"), );
     env.events().publish(topics, event.clone());
 }

@@ -15,6 +15,7 @@ interface DatePickerProps {
   placeholder?: string;
   required?: boolean;
   className?: string;
+  error?: string | null; // ADDED: Error message support
 }
 
 export function DatePicker({
@@ -23,10 +24,14 @@ export function DatePicker({
   onChange,
   placeholder = "Pick a date",
   required = false,
-  className = ""
+  className = "",
+  error // ADDED
 }: DatePickerProps) {
   const { theme } = useTheme();
   const [open, setOpen] = React.useState(false);
+
+  // ADDED: Check if there's an error
+  const isError = !!error;
 
   // Parse the date value (YYYY-MM-DD format)
   // Parse as UTC to avoid timezone issues
@@ -54,11 +59,15 @@ export function DatePicker({
   // Format date for display
   const displayValue = date ? format(date, "MMM dd, yyyy") : "";
 
-  // Input styling matching ModalInput
+  // UPDATED: Input styling matching ModalInput with error support
   const inputClasses = `w-full px-4 py-3 rounded-[14px] backdrop-blur-[30px] border focus:outline-none transition-all text-[14px] flex items-center justify-between ${
-    theme === 'dark'
-      ? 'bg-white/[0.08] border-white/15 text-[#f5f5f5] placeholder-[#d4d4d4] focus:bg-white/[0.12] focus:border-[#c9983a]/30'
-      : 'bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a] focus:bg-white/[0.2] focus:border-[#c9983a]/30'
+    isError
+      ? theme === 'dark'
+        ? 'bg-red-500/10 border-red-500/40 text-[#f5f5f5] placeholder-red-300/50 focus:border-red-500/60'
+        : 'bg-red-500/5 border-red-500/40 text-[#2d2820] placeholder-red-700/50 focus:border-red-500/60'
+      : theme === 'dark'
+        ? 'bg-white/[0.08] border-white/15 text-[#f5f5f5] placeholder-[#d4d4d4] focus:bg-white/[0.12] focus:border-[#c9983a]/30'
+        : 'bg-white/[0.15] border-white/25 text-[#2d2820] placeholder-[#7a6b5a] focus:bg-white/[0.2] focus:border-[#c9983a]/30'
   } ${className}`;
 
   // Popover content styling for theme - using theme colors
@@ -150,7 +159,15 @@ export function DatePicker({
           />
         </PopoverContent>
       </Popover>
+      
+      {/* ADDED: Error message display */}
+      {isError && (
+        <p className={`text-[12px] mt-1.5 transition-colors ${
+          theme === 'dark' ? 'text-red-400' : 'text-red-600'
+        }`}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }
-
