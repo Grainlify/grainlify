@@ -65,8 +65,8 @@ export function ProjectCard({ project, onClick, showDelete, onDelete }: ProjectC
               onDelete(e, project.id.toString(), project.name);
             }}
             className={`p-2 rounded-[10px] transition-all ${theme === 'dark'
-                ? 'hover:bg-red-500/20 text-red-400'
-                : 'hover:bg-red-500/30 text-red-600'
+              ? 'hover:bg-red-500/20 text-red-400'
+              : 'hover:bg-red-500/30 text-red-600'
               }`}
             title="Delete project"
           >

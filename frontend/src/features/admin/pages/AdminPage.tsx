@@ -11,7 +11,9 @@ import {
   deleteOpenSourceWeekEvent,
   getAdminProjects,
   deleteAdminProject,
-  createProject
+  createProject,
+  verifyProject,
+  syncProject
 } from '../../../shared/api/client';
 import { ProjectCard, Project } from '../../dashboard/components/ProjectCard';
 
@@ -115,13 +117,25 @@ export function AdminPage() {
   const [projectFormData, setProjectFormData] = useState({
     github_full_name: '',
     ecosystem_name: '',
-    language: ''
+    language: '',
+    tags: '',
+    category: 'other'
   });
+
+  // Automatically select first ecosystem when modal opens
+  useEffect(() => {
+    if (showAddProjectModal && ecosystems.length > 0 && !projectFormData.ecosystem_name) {
+      setProjectFormData(prev => ({ ...prev, ecosystem_name: ecosystems[0].name }));
+    }
+  }, [showAddProjectModal, ecosystems, projectFormData.ecosystem_name]);
 
   const fetchAdminProjects = useCallback(async () => {
     try {
       setIsAdminProjectsLoading(true);
+      setErrorMessage(null);
+      console.log('AdminPage: Fetching admin projects...');
       const response = await getAdminProjects();
+      console.log('AdminPage: Admin projects response:', response);
 
       const mappedProjects: Project[] = (response.projects || []).map((p: any) => ({
         id: p.id,
@@ -132,14 +146,17 @@ export function AdminPage() {
         contributors: p.contributors_count || 0,
         openIssues: p.open_issues_count || 0,
         prs: p.open_prs_count || 0,
-        description: truncateDescription(p.description) || `${p.language || 'Project'} repository`,
+        description: truncateDescription(p.description) || `${p.language || p.category || 'Project'} repository`,
         tags: Array.isArray(p.tags) ? p.tags : [],
         color: getProjectColor(p.github_full_name.split('/')[1] || p.github_full_name),
       }));
 
+      console.log('AdminPage: Mapped projects:', mappedProjects.length);
       setAdminProjects(mappedProjects);
     } catch (error) {
-      console.error('Failed to fetch admin projects:', error);
+      console.error('AdminPage: Failed to fetch admin projects:', error);
+      const msg = error instanceof Error ? error.message : 'Failed to load projects.';
+      setErrorMessage(msg);
       setAdminProjects([]);
     } finally {
       setIsAdminProjectsLoading(false);
@@ -253,6 +270,12 @@ export function AdminPage() {
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!projectFormData.github_full_name.includes('/')) {
+      setErrorMessage('GitHub Repository must be in the format "owner/repo"');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       setErrorMessage(null);
@@ -260,14 +283,32 @@ export function AdminPage() {
         github_full_name: projectFormData.github_full_name,
         ecosystem_name: projectFormData.ecosystem_name,
         language: projectFormData.language || undefined,
+        tags: projectFormData.tags ? projectFormData.tags.split(',').map(t => t.trim()).filter(t => t !== '') : [],
+        category: projectFormData.category || undefined,
       });
       setShowAddProjectModal(false);
-      setProjectFormData({ github_full_name: '', ecosystem_name: '', language: '' });
+      setProjectFormData({
+        github_full_name: '',
+        ecosystem_name: ecosystems[0]?.name || '',
+        language: '',
+        tags: '',
+        category: 'other'
+      });
       await fetchAdminProjects();
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to create project.');
+      const msg = err instanceof Error ? err.message : 'Failed to create project.';
+      setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyProject = async (id: string) => {
+    try {
+      await verifyProject(id);
+      await fetchAdminProjects();
+    } catch (e) {
+      setErrorMessage(e instanceof Error ? e.message : 'Failed to verify project.');
     }
   };
 
@@ -381,7 +422,7 @@ export function AdminPage() {
               </div>
               <p className={`text-[16px] max-w-3xl transition-colors ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
                 }`}>
-                Manage ecosystems, projects, and platform events from a single dashboard.
+                Manage ecosystems, projects, and Open-Source Week events from a single dashboard.
               </p>
             </div>
             <div className={`px-4 py-2 rounded-[12px] backdrop-blur-[20px] border transition-colors ${theme === 'dark'
@@ -391,8 +432,6 @@ export function AdminPage() {
               <span className="text-[13px] font-medium">Admin Access Verified</span>
             </div>
           </div>
-
-          {/* Admin Tabs */}
           <div className="flex items-center gap-4 mt-10">
             <button
               onClick={() => setActiveTab('ecosystems')}
@@ -433,7 +472,6 @@ export function AdminPage() {
         </div>
       )}
 
-      {/* Tab Content */}
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
         {activeTab === 'ecosystems' && (
           <section className={`backdrop-blur-[40px] rounded-[24px] border shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 transition-colors ${theme === 'dark'
@@ -480,6 +518,9 @@ export function AdminPage() {
                       <span className={`px-2.5 py-1 rounded-full ${theme === 'dark' ? 'bg-white/10 text-[#d4d4d4]' : 'bg-black/5 text-[#7a6b5a]'}`}>{eco.project_count} Projects</span>
                       <span className={`px-2.5 py-1 rounded-full ${theme === 'dark' ? 'bg-green-500/10 text-green-400' : 'bg-green-50 text-green-700'}`}>{eco.status}</span>
                     </div>
+                    {eco.project_count > 0 && (
+                      <p className="mt-4 text-[11px] text-[#c9983a] font-medium">⚠️ Ecosystem has projects and cannot be deleted.</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -611,7 +652,6 @@ export function AdminPage() {
           </ModalFooter>
         </form>
       </Modal>
-
       <Modal isOpen={showAddProjectModal} onClose={() => setShowAddProjectModal(false)} title="Add New Project">
         <form onSubmit={handleCreateProject} className="space-y-6">
           <ModalInput
@@ -628,11 +668,34 @@ export function AdminPage() {
             options={ecosystems.map(e => ({ value: e.name, label: e.name }))}
             required
           />
+          <div className="grid grid-cols-2 gap-4">
+            <ModalSelect
+              label="Category"
+              value={projectFormData.category}
+              onChange={(v) => setProjectFormData({ ...projectFormData, category: v })}
+              options={[
+                { value: 'defi', label: 'DeFi' },
+                { value: 'nft', label: 'NFT' },
+                { value: 'infrastructure', label: 'Infrastructure' },
+                { value: 'tooling', label: 'Tooling' },
+                { value: 'gaming', label: 'Gaming' },
+                { value: 'dao', label: 'DAO' },
+                { value: 'other', label: 'Other' },
+              ]}
+              required
+            />
+            <ModalInput
+              label="Primary Language"
+              value={projectFormData.language}
+              onChange={(v) => setProjectFormData({ ...projectFormData, language: v })}
+              placeholder="e.g. TypeScript, Rust"
+            />
+          </div>
           <ModalInput
-            label="Primary Language"
-            value={projectFormData.language}
-            onChange={(v) => setProjectFormData({ ...projectFormData, language: v })}
-            placeholder="e.g. TypeScript, Rust, Go"
+            label="Tags (comma separated)"
+            value={projectFormData.tags}
+            onChange={(v) => setProjectFormData({ ...projectFormData, tags: v })}
+            placeholder="e.g. react, web3, wallet"
           />
           <ModalFooter>
             <ModalButton onClick={() => setShowAddProjectModal(false)}>Cancel</ModalButton>
@@ -640,7 +703,6 @@ export function AdminPage() {
           </ModalFooter>
         </form>
       </Modal>
-
       {/* Confirmation Modals */}
       <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="Delete Ecosystem">
         <div className="px-1 py-2">

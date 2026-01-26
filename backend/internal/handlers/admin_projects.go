@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"log/slog"
 	"time"
 
@@ -75,13 +76,18 @@ ORDER BY p.created_at DESC
 			var starsCount, forksCount *int
 			var openIssuesCount, openPRsCount, contributorsCount int
 			var createdAt, updatedAt time.Time
-			var ecosystemName *string
-			var language *string
-			var tags []string
+			var ecosystemName, language *string
+			var tagsJSON []byte
 			var category *string
 
-			if err := rows.Scan(&id, &fullName, &status, &repoID, &starsCount, &forksCount, &openIssuesCount, &openPRsCount, &contributorsCount, &createdAt, &updatedAt, &ecosystemName, &language, &tags, &category); err != nil {
+			if err := rows.Scan(&id, &fullName, &status, &repoID, &starsCount, &forksCount, &openIssuesCount, &openPRsCount, &contributorsCount, &createdAt, &updatedAt, &ecosystemName, &language, &tagsJSON, &category); err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "projects_list_failed"})
+			}
+
+			// Parse tags JSONB
+			var tags []string
+			if len(tagsJSON) > 0 {
+				json.Unmarshal(tagsJSON, &tags)
 			}
 
 			out = append(out, fiber.Map{

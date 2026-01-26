@@ -93,6 +93,7 @@ ON CONFLICT (github_full_name) DO UPDATE SET
   language = EXCLUDED.language,
   tags = EXCLUDED.tags,
   category = EXCLUDED.category,
+  deleted_at = NULL,
   updated_at = now()
 RETURNING id, status
 `, userID, fullName, ecosystemID, req.Language, tagsJSON, req.Category).Scan(&projectID, &status)
@@ -134,7 +135,7 @@ func (h *ProjectsHandler) Mine() fiber.Handler {
 			)
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid_user"})
 		}
-		
+
 		userID, err := uuid.Parse(sub)
 		if err != nil {
 			slog.Warn("projects/mine: failed to parse user_id as UUID",

@@ -39,7 +39,7 @@ SELECT
   COUNT(p.id) AS project_count,
   COUNT(DISTINCT p.owner_user_id) AS user_count
 FROM ecosystems e
-LEFT JOIN projects p ON p.ecosystem_id = e.id
+LEFT JOIN projects p ON p.ecosystem_id = e.id AND p.deleted_at IS NULL
 GROUP BY e.id
 ORDER BY e.created_at DESC
 LIMIT 200
@@ -61,16 +61,16 @@ LIMIT 200
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "ecosystems_list_failed"})
 			}
 			out = append(out, fiber.Map{
-				"id":          id.String(),
-				"slug":        slug,
-				"name":        name,
-				"description": desc,
-				"website_url": website,
-				"status":      status,
-				"created_at":  createdAt,
-				"updated_at":  updatedAt,
+				"id":            id.String(),
+				"slug":          slug,
+				"name":          name,
+				"description":   desc,
+				"website_url":   website,
+				"status":        status,
+				"created_at":    createdAt,
+				"updated_at":    updatedAt,
 				"project_count": projectCnt,
-				"user_count": userCnt,
+				"user_count":    userCnt,
 			})
 		}
 
@@ -79,11 +79,11 @@ LIMIT 200
 }
 
 type ecosystemUpsertRequest struct {
-	Slug       string `json:"slug"`
-	Name       string `json:"name"`
+	Slug        string `json:"slug"`
+	Name        string `json:"name"`
 	Description string `json:"description"`
-	WebsiteURL string `json:"website_url"`
-	Status     string `json:"status"` // active|inactive
+	WebsiteURL  string `json:"website_url"`
+	Status      string `json:"status"` // active|inactive
 }
 
 func (h *EcosystemsAdminHandler) Create() fiber.Handler {
@@ -186,9 +186,9 @@ func (h *EcosystemsAdminHandler) Delete() fiber.Handler {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid_ecosystem_id"})
 		}
 
-		// Check if ecosystem has any projects
+		// Check if ecosystem has any projects (active only)
 		var projectCount int64
-		if err := h.db.Pool.QueryRow(c.Context(), `SELECT COUNT(*) FROM projects WHERE ecosystem_id = $1`, ecoID).Scan(&projectCount); err != nil {
+		if err := h.db.Pool.QueryRow(c.Context(), `SELECT COUNT(*) FROM projects WHERE ecosystem_id = $1 AND deleted_at IS NULL`, ecoID).Scan(&projectCount); err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "ecosystem_delete_check_failed"})
 		}
 		if projectCount > 0 {
@@ -218,5 +218,3 @@ func normalizeSlug(s string) string {
 	}
 	return strings.Trim(string(out), "-")
 }
-
-
