@@ -102,8 +102,9 @@ WHERE id = $1
 //
 // Rules:
 // - Requires ADMIN_BOOTSTRAP_TOKEN header match
-// - If user is already an admin, returns a fresh JWT token
-// - Otherwise, promotes the user to admin and returns a fresh JWT with the updated role
+// - Allowed if there are currently 0 admins in the DB, OR the caller is already an admin
+// - Returns a fresh JWT with the updated role to avoid re-login
+
 func (h *AdminHandler) BootstrapAdmin() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if h.db == nil || h.db.Pool == nil {

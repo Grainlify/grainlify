@@ -1,142 +1,48 @@
-//! # Program Escrow Smart Contract
+//! # Program Escrow Contract
 //!
-//! A secure escrow system for managing hackathon and program prize pools on Stellar.
-//! This contract enables organizers to lock funds and distribute prizes to multiple
-//! winners through secure, auditable batch payouts.
+//! This contract manages escrow functionality for hackathon and program prize pools on the
+//! Grainlify platform. Unlike the bounty escrow which handles individual bounties, this contract
+//! manages a single prize pool that can be distributed to multiple winners.
 //!
 //! ## Overview
 //!
-//! The Program Escrow contract manages the complete lifecycle of hackathon/program prizes:
-//! 1. **Initialization**: Set up program with authorized payout controller
-//! 2. **Fund Locking**: Lock prize pool funds in escrow
-//! 3. **Batch Payouts**: Distribute prizes to multiple winners simultaneously
-//! 4. **Single Payouts**: Distribute individual prizes
-//! 5. **Tracking**: Maintain complete payout history and balance tracking
+//! The Program Escrow Contract provides secure fund management for hackathons, contests, and
+//! grant programs. Organizers lock funds into the contract, and the authorized backend can
+//! execute payouts to multiple winners either individually or in batches. This contract maintains
+//! a complete payout history for transparency and auditing.
 //!
-//! ## Architecture
+//! ## Key Features
 //!
-//! ```text
-//! ┌─────────────────────────────────────────────────────────────────┐
-//! │              Program Escrow Architecture                         │
-//! ├─────────────────────────────────────────────────────────────────┤
-//! │                                                                  │
-//! │  ┌──────────────┐                                               │
-//! │  │  Organizer   │                                               │
-//! │  └──────┬───────┘                                               │
-//! │         │                                                        │
-//! │         │ 1. init_program()                                     │
-//! │         ▼                                                        │
-//! │  ┌──────────────────┐                                           │
-//! │  │  Program Created │                                           │
-//! │  └────────┬─────────┘                                           │
-//! │           │                                                      │
-//! │           │ 2. lock_program_funds()                             │
-//! │           ▼                                                      │
-//! │  ┌──────────────────┐                                           │
-//! │  │  Funds Locked    │                                           │
-//! │  │  (Prize Pool)    │                                           │
-//! │  └────────┬─────────┘                                           │
-//! │           │                                                      │
-//! │           │ 3. Hackathon happens...                             │
-//! │           │                                                      │
-//! │  ┌────────▼─────────┐                                           │
-//! │  │ Authorized       │                                           │
-//! │  │ Payout Key       │                                           │
-//! │  └────────┬─────────┘                                           │
-//! │           │                                                      │
-//! │    ┌──────┴───────┐                                             │
-//! │    │              │                                             │
-//! │    ▼              ▼                                             │
-//! │ batch_payout() single_payout()                                  │
-//! │    │              │                                             │
-//! │    ▼              ▼                                             │
-//! │ ┌─────────────────────────┐                                    │
-//! │ │   Winner 1, 2, 3, ...   │                                    │
-//! │ └─────────────────────────┘                                    │
-//! │                                                                  │
-//! │  Storage:                                                        │
-//! │  ┌──────────────────────────────────────────┐                  │
-//! │  │ ProgramData:                             │                  │
-//! │  │  - program_id                            │                  │
-//! │  │  - total_funds                           │                  │
-//! │  │  - remaining_balance                     │                  │
-//! │  │  - authorized_payout_key                 │                  │
-//! │  │  - payout_history: [PayoutRecord]        │                  │
-//! │  │  - token_address                         │                  │
-//! │  └──────────────────────────────────────────┘                  │
-//! └─────────────────────────────────────────────────────────────────┘
-//! ```
+//! - **Prize Pool Management**: Lock and manage funds for entire programs
+//! - **Batch Payouts**: Efficiently distribute prizes to multiple winners in a single transaction
+//! - **Single Payouts**: Release individual prizes when needed
+//! - **Payout History**: Immutable record of all distributions
+//! - **Balance Tracking**: Real-time tracking of remaining funds
+//! - **Event Emission**: All operations emit events for off-chain indexing
 //!
 //! ## Security Model
 //!
-//! ### Trust Assumptions
-//! - **Authorized Payout Key**: Trusted backend service that triggers payouts
-//! - **Organizer**: Trusted to lock appropriate prize amounts
-//! - **Token Contract**: Standard Stellar Asset Contract (SAC)
-//! - **Contract**: Trustless; operates according to programmed rules
-//!
-//! ### Key Security Features
-//! 1. **Single Initialization**: Prevents program re-configuration
-//! 2. **Authorization Checks**: Only authorized key can trigger payouts
-//! 3. **Balance Validation**: Prevents overdrafts
-//! 4. **Atomic Transfers**: All-or-nothing batch operations
-//! 5. **Complete Audit Trail**: Full payout history tracking
-//! 6. **Overflow Protection**: Safe arithmetic for all calculations
+//! - **Authorization**: Only the authorized payout key can release funds
+//! - **Balance Validation**: Prevents overdrafts with strict balance checks
+//! - **Overflow Protection**: Safe arithmetic for all balance operations
+//! - **Atomic Operations**: Batch payouts are all-or-nothing
+//! - **Immutable History**: Payout records cannot be modified after creation
 //!
 //! ## Usage Example
 //!
-//! ```rust
-//! use soroban_sdk::{Address, Env, String, vec};
+//! ```rust,ignore
+//! // 1. Initialize program escrow
+//! contract.init_program(env, program_id, authorized_key, token_address);
 //!
-//! // 1. Initialize program (one-time setup)
-//! let program_id = String::from_str(&env, "Hackathon2024");
-//! let backend = Address::from_string("GBACKEND...");
-//! let usdc_token = Address::from_string("CUSDC...");
+//! // 2. Lock prize pool funds
+//! contract.lock_program_funds(env, total_prize_amount);
 //!
-//! let program = escrow_client.init_program(
-//!     &program_id,
-//!     &backend,
-//!     &usdc_token
-//! );
+//! // 3. Distribute prizes to winners
+//! contract.batch_payout(env, winner_addresses, prize_amounts);
 //!
-//! // 2. Lock prize pool (10,000 USDC)
-//! let prize_pool = 10_000_0000000; // 10,000 USDC (7 decimals)
-//! escrow_client.lock_program_funds(&prize_pool);
-//!
-//! // 3. After hackathon, distribute prizes
-//! let winners = vec![
-//!     &env,
-//!     Address::from_string("GWINNER1..."),
-//!     Address::from_string("GWINNER2..."),
-//!     Address::from_string("GWINNER3..."),
-//! ];
-//!
-//! let prizes = vec![
-//!     &env,
-//!     5_000_0000000,  // 1st place: 5,000 USDC
-//!     3_000_0000000,  // 2nd place: 3,000 USDC
-//!     2_000_0000000,  // 3rd place: 2,000 USDC
-//! ];
-//!
-//! escrow_client.batch_payout(&winners, &prizes);
+//! // 4. Check remaining balance
+//! let remaining = contract.get_remaining_balance(env);
 //! ```
-//!
-//! ## Event System
-//!
-//! The contract emits events for all major operations:
-//! - `ProgramInit`: Program initialization
-//! - `FundsLocked`: Prize funds locked
-//! - `BatchPayout`: Multiple prizes distributed
-//! - `Payout`: Single prize distributed
-//!
-//! ## Best Practices
-//!
-//! 1. **Verify Winners**: Confirm winner addresses off-chain before payout
-//! 2. **Test Payouts**: Use testnet for testing prize distributions
-//! 3. **Secure Backend**: Protect authorized payout key with HSM/multi-sig
-//! 4. **Audit History**: Review payout history before each distribution
-//! 5. **Balance Checks**: Verify remaining balance matches expectations
-//! 6. **Token Approval**: Ensure contract has token allowance before locking funds
 
 #![no_std]
 use soroban_sdk::{
@@ -144,427 +50,64 @@ use soroban_sdk::{
     Vec,
 };
 
-// ==================== MONITORING MODULE ====================
-mod monitoring {
-    use soroban_sdk::{contracttype, symbol_short, Address, Env, String, Symbol};
+/// Event emitted when a program is initialized.
+///
+/// This event signals the creation of a new program escrow with its configuration.
+const PROGRAM_INITIALIZED: Symbol = symbol_short!("ProgramInit");
 
-    // Storage keys
-    const OPERATION_COUNT: &str = "op_count";
-    const USER_COUNT: &str = "usr_count";
-    const ERROR_COUNT: &str = "err_count";
-
-    // Event: Operation metric
-    #[contracttype]
-    #[derive(Clone, Debug)]
-    pub struct OperationMetric {
-        pub operation: Symbol,
-        pub caller: Address,
-        pub timestamp: u64,
-        pub success: bool,
-    }
-
-    // Event: Performance metric
-    #[contracttype]
-    #[derive(Clone, Debug)]
-    pub struct PerformanceMetric {
-        pub function: Symbol,
-        pub duration: u64,
-        pub timestamp: u64,
-    }
-
-    // Data: Health status
-    #[contracttype]
-    #[derive(Clone, Debug)]
-    pub struct HealthStatus {
-        pub is_healthy: bool,
-        pub last_operation: u64,
-        pub total_operations: u64,
-        pub contract_version: String,
-    }
-
-    // Data: Analytics
-    #[contracttype]
-    #[derive(Clone, Debug)]
-    pub struct Analytics {
-        pub operation_count: u64,
-        pub unique_users: u64,
-        pub error_count: u64,
-        pub error_rate: u32,
-    }
-
-    // Data: State snapshot
-    #[contracttype]
-    #[derive(Clone, Debug)]
-    pub struct StateSnapshot {
-        pub timestamp: u64,
-        pub total_operations: u64,
-        pub total_users: u64,
-        pub total_errors: u64,
-    }
-
-    // Data: Performance stats
-    #[contracttype]
-    #[derive(Clone, Debug)]
-    pub struct PerformanceStats {
-        pub function_name: Symbol,
-        pub call_count: u64,
-        pub total_time: u64,
-        pub avg_time: u64,
-        pub last_called: u64,
-    }
-
-    // Track operation
-    pub fn track_operation(env: &Env, operation: Symbol, caller: Address, success: bool) {
-        let key = Symbol::new(env, OPERATION_COUNT);
-        let count: u64 = env.storage().persistent().get(&key).unwrap_or(0);
-        env.storage().persistent().set(&key, &(count + 1));
-
-        if !success {
-            let err_key = Symbol::new(env, ERROR_COUNT);
-            let err_count: u64 = env.storage().persistent().get(&err_key).unwrap_or(0);
-            env.storage().persistent().set(&err_key, &(err_count + 1));
-        }
-
-        env.events().publish(
-            (symbol_short!("metric"), symbol_short!("op")),
-            OperationMetric {
-                operation,
-                caller,
-                timestamp: env.ledger().timestamp(),
-                success,
-            },
-        );
-    }
-
-    // Track performance
-    pub fn emit_performance(env: &Env, function: Symbol, duration: u64) {
-        let count_key = (Symbol::new(env, "perf_cnt"), function.clone());
-        let time_key = (Symbol::new(env, "perf_time"), function.clone());
-
-        let count: u64 = env.storage().persistent().get(&count_key).unwrap_or(0);
-        let total: u64 = env.storage().persistent().get(&time_key).unwrap_or(0);
-
-        env.storage().persistent().set(&count_key, &(count + 1));
-        env.storage()
-            .persistent()
-            .set(&time_key, &(total + duration));
-
-        env.events().publish(
-            (symbol_short!("metric"), symbol_short!("perf")),
-            PerformanceMetric {
-                function,
-                duration,
-                timestamp: env.ledger().timestamp(),
-            },
-        );
-    }
-
-    // Health check
-    pub fn health_check(env: &Env) -> HealthStatus {
-        let key = Symbol::new(env, OPERATION_COUNT);
-        let ops: u64 = env.storage().persistent().get(&key).unwrap_or(0);
-
-        HealthStatus {
-            is_healthy: true,
-            last_operation: env.ledger().timestamp(),
-            total_operations: ops,
-            contract_version: String::from_str(env, "1.0.0"),
-        }
-    }
-
-    // Get analytics
-    pub fn get_analytics(env: &Env) -> Analytics {
-        let op_key = Symbol::new(env, OPERATION_COUNT);
-        let usr_key = Symbol::new(env, USER_COUNT);
-        let err_key = Symbol::new(env, ERROR_COUNT);
-
-        let ops: u64 = env.storage().persistent().get(&op_key).unwrap_or(0);
-        let users: u64 = env.storage().persistent().get(&usr_key).unwrap_or(0);
-        let errors: u64 = env.storage().persistent().get(&err_key).unwrap_or(0);
-
-        let error_rate = if ops > 0 {
-            ((errors as u128 * 10000) / ops as u128) as u32
-        } else {
-            0
-        };
-
-        Analytics {
-            operation_count: ops,
-            unique_users: users,
-            error_count: errors,
-            error_rate,
-        }
-    }
-
-    // Get state snapshot
-    pub fn get_state_snapshot(env: &Env) -> StateSnapshot {
-        let op_key = Symbol::new(env, OPERATION_COUNT);
-        let usr_key = Symbol::new(env, USER_COUNT);
-        let err_key = Symbol::new(env, ERROR_COUNT);
-
-        StateSnapshot {
-            timestamp: env.ledger().timestamp(),
-            total_operations: env.storage().persistent().get(&op_key).unwrap_or(0),
-            total_users: env.storage().persistent().get(&usr_key).unwrap_or(0),
-            total_errors: env.storage().persistent().get(&err_key).unwrap_or(0),
-        }
-    }
-
-    // Get performance stats
-    pub fn get_performance_stats(env: &Env, function_name: Symbol) -> PerformanceStats {
-        let count_key = (Symbol::new(env, "perf_cnt"), function_name.clone());
-        let time_key = (Symbol::new(env, "perf_time"), function_name.clone());
-        let last_key = (Symbol::new(env, "perf_last"), function_name.clone());
-
-        let count: u64 = env.storage().persistent().get(&count_key).unwrap_or(0);
-        let total: u64 = env.storage().persistent().get(&time_key).unwrap_or(0);
-        let last: u64 = env.storage().persistent().get(&last_key).unwrap_or(0);
-
-        let avg = if count > 0 { total / count } else { 0 };
-
-        PerformanceStats {
-            function_name,
-            call_count: count,
-            total_time: total,
-            avg_time: avg,
-            last_called: last,
-        }
-    }
-}
-// ==================== END MONITORING MODULE ====================
-
-// ==================== ANTI-ABUSE MODULE ====================
-mod anti_abuse {
-    use soroban_sdk::{contracttype, symbol_short, Address, Env};
-
-    #[contracttype]
-    #[derive(Clone, Debug, Eq, PartialEq)]
-    pub struct AntiAbuseConfig {
-        pub window_size: u64,      // Window size in seconds
-        pub max_operations: u32,   // Max operations allowed in window
-        pub cooldown_period: u64, // Minimum seconds between operations
-    }
-
-    #[contracttype]
-    #[derive(Clone, Debug, Eq, PartialEq)]
-    pub struct AddressState {
-        pub last_operation_timestamp: u64,
-        pub window_start_timestamp: u64,
-        pub operation_count: u32,
-    }
-
-    #[contracttype]
-    #[derive(Clone, Debug, Eq, PartialEq)]
-    pub enum AntiAbuseKey {
-        Config,
-        State(Address),
-        Whitelist(Address),
-        Admin,
-    }
-
-    pub fn get_config(env: &Env) -> AntiAbuseConfig {
-        env.storage()
-            .instance()
-            .get(&AntiAbuseKey::Config)
-            .unwrap_or(AntiAbuseConfig {
-                window_size: 3600, // 1 hour default
-                max_operations: 10,
-                cooldown_period: 60, // 1 minute default
-            })
-    }
-
-    pub fn set_config(env: &Env, config: AntiAbuseConfig) {
-        env.storage().instance().set(&AntiAbuseKey::Config, &config);
-    }
-
-    pub fn is_whitelisted(env: &Env, address: Address) -> bool {
-        env.storage()
-            .instance()
-            .has(&AntiAbuseKey::Whitelist(address))
-    }
-
-    pub fn set_whitelist(env: &Env, address: Address, whitelisted: bool) {
-        if whitelisted {
-            env.storage()
-                .instance()
-                .set(&AntiAbuseKey::Whitelist(address), &true);
-        } else {
-            env.storage()
-                .instance()
-                .remove(&AntiAbuseKey::Whitelist(address));
-        }
-    }
-
-    pub fn get_admin(env: &Env) -> Option<Address> {
-        env.storage().instance().get(&AntiAbuseKey::Admin)
-    }
-
-    pub fn set_admin(env: &Env, admin: Address) {
-        env.storage().instance().set(&AntiAbuseKey::Admin, &admin);
-    }
-
-    pub fn check_rate_limit(env: &Env, address: Address) {
-        if is_whitelisted(env, address.clone()) {
-            return;
-        }
-
-        let config = get_config(env);
-        let now = env.ledger().timestamp();
-        let key = AntiAbuseKey::State(address.clone());
-
-        let mut state: AddressState = env.storage().persistent().get(&key).unwrap_or(AddressState {
-            last_operation_timestamp: 0,
-            window_start_timestamp: now,
-            operation_count: 0,
-        });
-
-        // 1. Cooldown check
-        if state.last_operation_timestamp > 0
-            && now < state.last_operation_timestamp.saturating_add(config.cooldown_period)
-        {
-            env.events().publish(
-                (symbol_short!("abuse"), symbol_short!("cooldown")),
-                (address.clone(), now),
-            );
-            panic!("Operation in cooldown period");
-        }
-
-        // 2. Window check
-        if now >= state.window_start_timestamp.saturating_add(config.window_size) {
-            // New window
-            state.window_start_timestamp = now;
-            state.operation_count = 1;
-        } else {
-            // Same window
-            if state.operation_count >= config.max_operations {
-                env.events().publish(
-                    (symbol_short!("abuse"), symbol_short!("limit")),
-                    (address.clone(), now),
-                );
-                panic!("Rate limit exceeded");
-            }
-            state.operation_count += 1;
-        }
-
-        state.last_operation_timestamp = now;
-        env.storage().persistent().set(&key, &state);
-
-        // Extend TTL for state (approx 1 day)
-        env.storage().persistent().extend_ttl(&key, 17280, 17280);
-    }
-}
-
-// ============================================================================
-// Event Types
-// ============================================================================
-
-/// Event emitted when a program is initialized/registerd
-
-const PROGRAM_REGISTERED: Symbol = symbol_short!("ProgReg");
-
-/// Event emitted when funds are locked in the program.
-/// Topic: `FundsLocked`
-const FUNDS_LOCKED: Symbol = symbol_short!("FundsLock");
+/// Event emitted when funds are locked into the program escrow.
+///
+/// This event is published each time additional funds are added to the prize pool.
+const FUNDS_LOCKED: Symbol = symbol_short!("FundsLocked");
 
 /// Event emitted when a batch payout is executed.
-/// Topic: `BatchPayout`
-const BATCH_PAYOUT: Symbol = symbol_short!("BatchPay");
+///
+/// This event contains summary information about the batch operation.
+const BATCH_PAYOUT: Symbol = symbol_short!("BatchPayout");
 
 /// Event emitted when a single payout is executed.
-/// Topic: `Payout`
+///
+/// This event contains details about the individual payout transaction.
 const PAYOUT: Symbol = symbol_short!("Payout");
 
-// ============================================================================
-// Storage Keys
-// ============================================================================
-
-/// Storage key for the program registry (list of all program IDs)
-const PROGRAM_REGISTRY: Symbol = symbol_short!("ProgReg");
-
-// ============================================================================
-// Data Structures
-// ============================================================================
-
-// ============================================================================
-// Data Structures
-// ============================================================================
-
-/// Record of an individual payout transaction.
+/// Storage key for program data.
 ///
-/// # Fields
-/// * `recipient` - Address that received the payout
-/// * `amount` - Amount transferred (in token's smallest denomination)
-/// * `timestamp` - Unix timestamp when payout was executed
+/// This key is used to store and retrieve the main program escrow data structure.
+const PROGRAM_DATA: Symbol = symbol_short!("ProgramData");
+
+/// Record of a single payout transaction.
 ///
-/// # Usage
-/// These records are stored in the payout history to provide a complete
-/// audit trail of all prize distributions.
-///
-/// # Example
-/// ```rust
-/// let record = PayoutRecord {
-///     recipient: winner_address,
-///     amount: 1000_0000000, // 1000 USDC
-///     timestamp: env.ledger().timestamp(),
-/// };
-/// ```
+/// Each payout creates an immutable record that is added to the program's payout history.
+/// These records provide a complete audit trail of all fund distributions.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PayoutRecord {
+    /// Address that received the payout.
     pub recipient: Address,
+    /// Amount transferred in this payout (in token base units).
     pub amount: i128,
+    /// Unix timestamp when the payout was executed.
     pub timestamp: u64,
 }
 
-/// Complete program state and configuration.
+/// Complete data structure for a program escrow.
 ///
-/// # Fields
-/// * `program_id` - Unique identifier for the program/hackathon
-/// * `total_funds` - Total amount of funds locked (cumulative)
-/// * `remaining_balance` - Current available balance for payouts
-/// * `authorized_payout_key` - Address authorized to trigger payouts
-/// * `payout_history` - Complete record of all payouts
-/// * `token_address` - Token contract used for transfers
-///
-/// # Storage
-/// Stored in instance storage with key `PROGRAM_DATA`.
-///
-/// # Invariants
-/// - `remaining_balance <= total_funds` (always)
-/// - `remaining_balance = total_funds - sum(payout_history.amounts)`
-/// - `payout_history` is append-only
-/// - `program_id` and `authorized_payout_key` are immutable after init
-///
-/// # Example
-/// ```rust
-/// let program_data = ProgramData {
-///     program_id: String::from_str(&env, "Hackathon2024"),
-///     total_funds: 10_000_0000000,
-///     remaining_balance: 7_000_0000000,
-///     authorized_payout_key: backend_address,
-///     payout_history: vec![&env],
-///     token_address: usdc_token_address,
-/// };
-/// ```
-
-/// Complete program state and configuration.
-///
-/// # Storage Key
-/// Stored with key: `("Program", program_id)`
-///
-/// # Invariants
-/// - `remaining_balance <= total_funds` (always)
-/// - `remaining_balance = total_funds - sum(payout_history.amounts)`
-/// - `payout_history` is append-only
-/// - `program_id` and `authorized_payout_key` are immutable after registration
+/// This structure maintains all state for a program's prize pool including balances,
+/// authorization, and complete payout history.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProgramData {
+    /// Unique identifier for the program/hackathon.
     pub program_id: String,
+    /// Total funds ever locked into this program (cumulative).
     pub total_funds: i128,
+    /// Current remaining balance available for payouts.
     pub remaining_balance: i128,
+    /// Address authorized to execute payouts (typically Grainlify backend).
     pub authorized_payout_key: Address,
+    /// Complete history of all payouts executed from this escrow.
     pub payout_history: Vec<PayoutRecord>,
+    /// Token contract address used for all transfers.
     pub token_address: Address,
 }
 
@@ -584,78 +127,43 @@ pub struct ProgramEscrowContract;
 
 #[contractimpl]
 impl ProgramEscrowContract {
-    // ========================================================================
-    // Program Registration & Initialization
-    // ========================================================================
-
-    /// Initializes a new program escrow for managing prize distributions.
+    /// Initialize a new program escrow.
+    ///
+    /// Creates a new program escrow with zero initial balance. This function must be called
+    /// before any funds can be locked or distributed. Each contract instance can only be
+    /// initialized once.
     ///
     /// # Arguments
-    /// * `env` - The contract environment
-    /// * `program_id` - Unique identifier for this program/hackathon
-    /// * `authorized_payout_key` - Address authorized to trigger payouts (backend)
-    /// * `token_address` - Address of the token contract for transfers (e.g., USDC)
+    ///
+    /// * `env` - The contract execution environment
+    /// * `program_id` - Unique identifier for the program/hackathon
+    /// * `authorized_payout_key` - Address authorized to trigger payouts (typically Grainlify backend)
+    /// * `token_address` - Address of the token contract to use for transfers (typically native XLM)
     ///
     /// # Returns
-    /// * `ProgramData` - The initialized program configuration
+    ///
+    /// The initialized `ProgramData` structure with zero balances and empty payout history.
     ///
     /// # Panics
-    /// * If program is already initialized
     ///
-    /// # State Changes
-    /// - Creates ProgramData with zero balances
-    /// - Sets authorized payout key (immutable after this)
-    /// - Initializes empty payout history
-    /// - Emits ProgramInitialized event
+    /// Panics if the program has already been initialized.
     ///
-    /// # Security Considerations
-    /// - Can only be called once (prevents re-configuration)
-    /// - No authorization required (first-caller initialization)
-    /// - Authorized payout key should be a secure backend service
-    /// - Token address must be a valid Stellar Asset Contract
-    /// - Program ID should be unique and descriptive
+    /// # Security
     ///
-    /// # Events
-    /// Emits: `ProgramInit(program_id, authorized_payout_key, token_address, 0)`
+    /// - Can only be called once per contract instance
+    /// - The authorized_payout_key should be carefully secured
+    /// - Consider using a backend-controlled or multisig address for payout authorization
+    /// - Emits `ProgramInitialized` event for off-chain tracking
     ///
     /// # Example
-    /// ```rust
-    /// use soroban_sdk::{Address, String, Env};
     ///
-    /// let program_id = String::from_str(&env, "ETHGlobal2024");
-    /// let backend = Address::from_string("GBACKEND...");
-    /// let usdc = Address::from_string("CUSDC...");
-    ///
-    /// let program = escrow_client.init_program(
-    ///     &program_id,
-    ///     &backend,
-    ///     &usdc
-    /// );
-    ///
-    /// println!("Program created: {}", program.program_id);
+    /// ```rust,ignore
+    /// let program_id = String::from_str(&env, "hackathon-2024");
+    /// let backend_key = Address::from_string("GBACKEND...");
+    /// let xlm_token = Address::from_string("CTOKEN...");
+    /// let program_data = contract.init_program(env, program_id, backend_key, xlm_token);
     /// ```
-    ///
-    /// # Production Setup
-    /// ```bash
-    /// # Deploy contract
-    /// stellar contract deploy \
-    ///   --wasm target/wasm32-unknown-unknown/release/escrow.wasm \
-    ///   --source ORGANIZER_KEY
-    ///
-    /// # Initialize program
-    /// stellar contract invoke \
-    ///   --id CONTRACT_ID \
-    ///   --source ORGANIZER_KEY \
-    ///   -- init_program \
-    ///   --program_id "Hackathon2024" \
-    ///   --authorized_payout_key GBACKEND... \
-    ///   --token_address CUSDC...
-    /// ```
-    ///
-    /// # Gas Cost
-    /// Low - Initial storage writes
-
-    pub fn initialize_program(
+    pub fn init_program(
         env: Env,
         program_id: String,
         authorized_payout_key: Address,
@@ -718,128 +226,41 @@ impl ProgramEscrowContract {
         program_data
     }
 
-    /// Lists all registered program IDs in the contract.
+    /// Lock funds into the program escrow.
     ///
-    /// # Returns
-    /// * `Vec<String>` - List of all program IDs
-    ///
-    /// # Example
-    /// ```rust
-    /// let programs = escrow_client.list_programs();
-    /// for program_id in programs.iter() {
-    ///     println!("Program: {}", program_id);
-    /// }
-    /// ```
-    pub fn list_programs(env: Env) -> Vec<String> {
-        env.storage()
-            .instance()
-            .get(&PROGRAM_REGISTRY)
-            .unwrap_or(vec![&env])
-    }
-
-    /// Checks if a program exists.
+    /// Adds funds to the program's prize pool. This function can be called multiple times
+    /// to incrementally fund the program. The total_funds and remaining_balance are both
+    /// increased by the specified amount.
     ///
     /// # Arguments
-    /// * `program_id` - The program ID to check
+    ///
+    /// * `env` - The contract execution environment
+    /// * `amount` - Amount of funds to lock (in token base units, must be > 0)
     ///
     /// # Returns
-    /// * `bool` - True if program exists, false otherwise
-    pub fn program_exists(env: Env, program_id: String) -> bool {
-        let program_key = DataKey::Program(program_id);
-        env.storage().instance().has(&program_key)
-    }
-
-    // ========================================================================
-    // Fund Management
-    // ========================================================================
-
-    /// Locks funds into the program escrow for prize distribution.
     ///
-    /// # Arguments
-    /// * `env` - The contract environment
-    /// * `amount` - Amount of tokens to lock (in token's smallest denomination)
-    ///
-    /// # Returns
-    /// * `ProgramData` - Updated program data with new balance
+    /// Updated `ProgramData` with increased balances.
     ///
     /// # Panics
-    /// * If amount is zero or negative
-    /// * If program is not initialized
     ///
-    /// # State Changes
-    /// - Increases `total_funds` by amount
-    /// - Increases `remaining_balance` by amount
-    /// - Emits FundsLocked event
+    /// - Panics if amount is <= 0
+    /// - Panics if the program has not been initialized
     ///
-    /// # Prerequisites
-    /// Before calling this function:
-    /// 1. Caller must have sufficient token balance
-    /// 2. Caller must approve contract for token transfer
-    /// 3. Tokens must actually be transferred to contract
+    /// # Security
     ///
-    /// # Security Considerations
-    /// - Amount must be positive
-    /// - This function doesn't perform the actual token transfer
-    /// - Caller is responsible for transferring tokens to contract
-    /// - Consider verifying contract balance matches recorded amount
-    /// - Multiple lock operations are additive (cumulative)
-    ///
-    /// # Events
-    /// Emits: `FundsLocked(program_id, amount, new_remaining_balance)`
+    /// - Validates amount is positive
+    /// - Updates both total_funds (cumulative) and remaining_balance (current)
+    /// - Emits `FundsLocked` event with new balances
+    /// - Note: Actual token transfer must be done separately before calling this function
     ///
     /// # Example
-    /// ```rust
-    /// use soroban_sdk::token;
     ///
-    /// // 1. Transfer tokens to contract
-    /// let amount = 10_000_0000000; // 10,000 USDC
-    /// token_client.transfer(
-    ///     &organizer,
-    ///     &contract_address,
-    ///     &amount
-    /// );
-    ///
-    /// // 2. Record the locked funds
-    /// let updated = escrow_client.lock_program_funds(&amount);
-    /// println!("Locked: {} USDC", amount / 10_000_000);
-    /// println!("Remaining: {}", updated.remaining_balance);
+    /// ```rust,ignore
+    /// let prize_pool = 10000_0000000i128; // 10,000 XLM
+    /// let updated_data = contract.lock_program_funds(env, prize_pool);
+    /// // Can call again to add more funds later
     /// ```
-    ///
-    /// # Production Usage
-    /// ```bash
-    /// # 1. Transfer USDC to contract
-    /// stellar contract invoke \
-    ///   --id USDC_TOKEN_ID \
-    ///   --source ORGANIZER_KEY \
-    ///   -- transfer \
-    ///   --from ORGANIZER_ADDRESS \
-    ///   --to CONTRACT_ADDRESS \
-    ///   --amount 10000000000
-    ///
-    /// # 2. Record locked funds
-    /// stellar contract invoke \
-    ///   --id CONTRACT_ID \
-    ///   --source ORGANIZER_KEY \
-    ///   -- lock_program_funds \
-    ///   --amount 10000000000
-    /// ```
-    ///
-    /// # Gas Cost
-    /// Low - Storage update + event emission
-    ///
-    /// # Common Pitfalls
-    /// - Forgetting to transfer tokens before calling
-    /// -  Locking amount that exceeds actual contract balance
-    /// -  Not verifying contract received the tokens
-
-    pub fn lock_program_funds(env: Env, program_id: String, amount: i128) -> ProgramData {
-        // Apply rate limiting
-        anti_abuse::check_rate_limit(&env, env.current_contract_address());
-
-        let start = env.ledger().timestamp();
-        let caller = env.current_contract_address();
-
-        // Validate amount
+    pub fn lock_program_funds(env: Env, amount: i128) -> ProgramData {
         if amount <= 0 {
             monitoring::track_operation(&env, symbol_short!("lock"), caller.clone(), false);
             panic!("Amount must be greater than zero");
@@ -879,105 +300,56 @@ impl ProgramEscrowContract {
         program_data
     }
 
-    // ========================================================================
-    // Payout Functions
-    // ========================================================================
-
-    /// Executes batch payouts to multiple recipients simultaneously.
+    /// Execute batch payouts to multiple recipients.
+    ///
+    /// Distributes prizes to multiple winners in a single atomic transaction. This is more
+    /// efficient than multiple single payouts and ensures all winners are paid together or
+    /// none are paid (all-or-nothing atomicity).
     ///
     /// # Arguments
-    /// * `env` - The contract environment
-    /// * `recipients` - Vector of recipient addresses
-    /// * `amounts` - Vector of amounts (must match recipients length)
+    ///
+    /// * `env` - The contract execution environment
+    /// * `recipients` - Vector of recipient addresses (must not be empty)
+    /// * `amounts` - Vector of amounts (must match recipients length, all must be > 0)
     ///
     /// # Returns
-    /// * `ProgramData` - Updated program data after payouts
+    ///
+    /// Updated `ProgramData` with decreased remaining_balance and updated payout_history.
     ///
     /// # Panics
-    /// * If caller is not the authorized payout key
-    /// * If program is not initialized
-    /// * If recipients and amounts vectors have different lengths
-    /// * If vectors are empty
-    /// * If any amount is zero or negative
-    /// * If total payout exceeds remaining balance
-    /// * If arithmetic overflow occurs
     ///
-    /// # Authorization
-    /// - **CRITICAL**: Only authorized payout key can call
-    /// - Caller must be exact match to `authorized_payout_key`
+    /// - Panics if caller is not the authorized payout key
+    /// - Panics if program has not been initialized
+    /// - Panics if recipients and amounts vectors have different lengths
+    /// - Panics if recipients vector is empty
+    /// - Panics if any amount is <= 0
+    /// - Panics if total payout exceeds remaining balance
+    /// - Panics on arithmetic overflow when calculating total
     ///
-    /// # State Changes
-    /// - Transfers tokens from contract to each recipient
-    /// - Adds PayoutRecord for each transfer to history
-    /// - Decreases `remaining_balance` by total payout amount
-    /// - Emits BatchPayout event
+    /// # Security
     ///
-    /// # Atomicity
-    /// This operation is atomic - either all transfers succeed or all fail.
-    /// If any transfer fails, the entire batch is reverted.
-    ///
-    /// # Security Considerations
-    /// - Verify recipient addresses off-chain before calling
-    /// - Ensure amounts match winner rankings/criteria
-    /// - Total payout is calculated with overflow protection
-    /// - Balance check prevents overdraft
-    /// - All transfers are logged for audit trail
-    /// - Consider implementing payout limits for additional safety
-    ///
-    /// # Events
-    /// Emits: `BatchPayout(program_id, recipient_count, total_amount, new_balance)`
+    /// - **Authorization Required**: Only authorized_payout_key can call this function
+    /// - **Atomic Operation**: All transfers succeed or all fail together
+    /// - **Balance Validation**: Ensures sufficient funds before any transfers
+    /// - **Overflow Protection**: Uses checked arithmetic for total calculation
+    /// - **Immutable History**: All payouts are permanently recorded
+    /// - Emits `BatchPayout` event with summary information
     ///
     /// # Example
-    /// ```rust
-    /// use soroban_sdk::{vec, Address};
     ///
-    /// // Define winners and prizes
-    /// let winners = vec![
-    ///     &env,
-    ///     Address::from_string("GWINNER1..."), // 1st place
-    ///     Address::from_string("GWINNER2..."), // 2nd place
-    ///     Address::from_string("GWINNER3..."), // 3rd place
+    /// ```rust,ignore
+    /// let winners = vec![&env, 
+    ///     Address::from_string("GWINNER1..."),
+    ///     Address::from_string("GWINNER2..."),
+    ///     Address::from_string("GWINNER3...")
     /// ];
-    ///
-    /// let prizes = vec![
-    ///     &env,
-    ///     5_000_0000000,  // $5,000 USDC
-    ///     3_000_0000000,  // $3,000 USDC
-    ///     2_000_0000000,  // $2,000 USDC
+    /// let prizes = vec![&env, 
+    ///     5000_0000000i128,  // 1st place: 5000 XLM
+    ///     3000_0000000i128,  // 2nd place: 3000 XLM
+    ///     2000_0000000i128   // 3rd place: 2000 XLM
     /// ];
-    ///
-    /// // Execute batch payout (only authorized backend can call)
-    /// let result = escrow_client.batch_payout(&winners, &prizes);
-    /// println!("Paid {} winners", winners.len());
-    /// println!("Remaining: {}", result.remaining_balance);
+    /// let updated_data = contract.batch_payout(env, winners, prizes);
     /// ```
-    ///
-    /// # Production Usage
-    /// ```bash
-    /// # Batch payout to 3 winners
-    /// stellar contract invoke \
-    ///   --id CONTRACT_ID \
-    ///   --source BACKEND_KEY \
-    ///   -- batch_payout \
-    ///   --recipients '["GWINNER1...", "GWINNER2...", "GWINNER3..."]' \
-    ///   --amounts '[5000000000, 3000000000, 2000000000]'
-    /// ```
-    ///
-    /// # Gas Cost
-    /// High - Multiple token transfers + storage updates
-    /// Cost scales linearly with number of recipients
-    ///
-    /// # Best Practices
-    /// 1. Verify all winner addresses before execution
-    /// 2. Double-check prize amounts match criteria
-    /// 3. Test on testnet with same number of recipients
-    /// 4. Monitor events for successful completion
-    /// 5. Keep batch size reasonable (recommend < 50 recipients)
-    ///
-    /// # Limitations
-    /// - Maximum batch size limited by gas/resource limits
-    /// - For very large batches, consider multiple calls
-    /// - All amounts must be positive  
     pub fn batch_payout(
         env: Env,
         program_id: String,
@@ -1072,67 +444,45 @@ impl ProgramEscrowContract {
         updated_data
     }
 
-    /// Executes a single payout to one recipient.
+    /// Execute a single payout to one recipient.
+    ///
+    /// Distributes a prize to a single winner. Use this for individual payouts or when
+    /// distributing prizes at different times. For multiple simultaneous payouts, consider
+    /// using `batch_payout` for better efficiency.
     ///
     /// # Arguments
-    /// * `env` - The contract environment
-    /// * `recipient` - Address of the prize recipient
-    /// * `amount` - Amount to transfer (in token's smallest denomination)
+    ///
+    /// * `env` - The contract execution environment
+    /// * `recipient` - Address of the recipient to receive the payout
+    /// * `amount` - Amount to transfer (must be > 0)
     ///
     /// # Returns
-    /// * `ProgramData` - Updated program data after payout
+    ///
+    /// Updated `ProgramData` with decreased remaining_balance and updated payout_history.
     ///
     /// # Panics
-    /// * If caller is not the authorized payout key
-    /// * If program is not initialized
-    /// * If amount is zero or negative
-    /// * If amount exceeds remaining balance
     ///
-    /// # Authorization
-    /// - Only authorized payout key can call this function
+    /// - Panics if caller is not the authorized payout key
+    /// - Panics if program has not been initialized
+    /// - Panics if amount is <= 0
+    /// - Panics if amount exceeds remaining balance
     ///
-    /// # State Changes
-    /// - Transfers tokens from contract to recipient
-    /// - Adds PayoutRecord to history
-    /// - Decreases `remaining_balance` by amount
-    /// - Emits Payout event
+    /// # Security
     ///
-    /// # Security Considerations
-    /// - Verify recipient address before calling
-    /// - Amount must be positive
-    /// - Balance check prevents overdraft
-    /// - Transfer is logged in payout history
-    ///
-    /// # Events
-    /// Emits: `Payout(program_id, recipient, amount, new_balance)`
+    /// - **Authorization Required**: Only authorized_payout_key can call this function
+    /// - **Balance Validation**: Ensures sufficient funds before transfer
+    /// - **Immutable History**: Payout is permanently recorded
+    /// - Emits `Payout` event with transaction details
     ///
     /// # Example
-    /// ```rust
-    /// use soroban_sdk::Address;
     ///
+    /// ```rust,ignore
     /// let winner = Address::from_string("GWINNER...");
-    /// let prize = 1_000_0000000; // $1,000 USDC
-    ///
-    /// // Execute single payout
-    /// let result = escrow_client.single_payout(&winner, &prize);
-    /// println!("Paid {} to winner", prize);
+    /// let prize = 1000_0000000i128; // 1000 XLM
+    /// let updated_data = contract.single_payout(env, winner, prize);
     /// ```
-    ///
-    /// # Gas Cost
-    /// Medium - Single token transfer + storage update
-    ///
-    /// # Use Cases
-    /// - Individual prize awards
-    /// - Bonus payments
-    /// - Late additions to prize pool distribution
-    pub fn single_payout(
-        env: Env,
-        program_id: String,
-        recipient: Address,
-        amount: i128,
-    ) -> ProgramData {
-        // Get program data
-        let program_key = DataKey::Program(program_id.clone());
+    pub fn single_payout(env: Env, recipient: Address, amount: i128) -> ProgramData {
+        // Verify authorization
         let program_data: ProgramData = env
             .storage()
             .instance()
@@ -1200,64 +550,69 @@ impl ProgramEscrowContract {
         updated_data
     }
 
-    // ========================================================================
-    // View Functions (Read-only)
-    // ========================================================================
-
-    /// Retrieves complete program information.
+    /// Get complete program information.
+    ///
+    /// Returns all data about the program escrow including balances, configuration,
+    /// and complete payout history. This is a read-only view function.
     ///
     /// # Arguments
-    /// * `env` - The contract environment
+    ///
+    /// * `env` - The contract execution environment
     ///
     /// # Returns
-    /// * `ProgramData` - Complete program state including:
-    ///   - Program ID
-    ///   - Total funds locked
-    ///   - Remaining balance
-    ///   - Authorized payout key
-    ///   - Complete payout history
-    ///   - Token contract address
+    ///
+    /// Complete `ProgramData` structure including:
+    /// - program_id
+    /// - total_funds (cumulative)
+    /// - remaining_balance (current)
+    /// - authorized_payout_key
+    /// - payout_history (all payouts)
+    /// - token_address
     ///
     /// # Panics
-    /// * If program is not initialized
     ///
-    /// # Use Cases
-    /// - Verifying program configuration
-    /// - Checking balances before payouts
-    /// - Auditing payout history
-    /// - Displaying program status in UI
+    /// Panics if the program has not been initialized.
     ///
     /// # Example
-    /// ```rust
-    /// let info = escrow_client.get_program_info();
-    /// println!("Program: {}", info.program_id);
-    /// println!("Total Locked: {}", info.total_funds);
-    /// println!("Remaining: {}", info.remaining_balance);
-    /// println!("Payouts Made: {}", info.payout_history.len());
-    /// ```
     ///
-    /// # Gas Cost
-    /// Very Low - Single storage read
-    pub fn get_program_info(env: Env, program_id: String) -> ProgramData {
-        let program_key = DataKey::Program(program_id);
+    /// ```rust,ignore
+    /// let program_info = contract.get_program_info(env);
+    /// // Access all program data: balances, history, etc.
+    /// ```
+    pub fn get_program_info(env: Env) -> ProgramData {
         env.storage()
             .instance()
             .get(&program_key)
             .unwrap_or_else(|| panic!("Program not found"))
     }
 
-    /// Retrieves the remaining balance for a specific program.
+    /// Get the current remaining balance.
+    ///
+    /// Returns the amount of funds still available for distribution. This is a convenience
+    /// function that extracts just the remaining_balance from the program data.
     ///
     /// # Arguments
-    /// * `program_id` - The program ID to query
+    ///
+    /// * `env` - The contract execution environment
     ///
     /// # Returns
-    /// * `i128` - Remaining balance
+    ///
+    /// Current remaining balance available for payouts (in token base units).
     ///
     /// # Panics
-    /// * If program doesn't exist
-    pub fn get_remaining_balance(env: Env, program_id: String) -> i128 {
-        let program_key = DataKey::Program(program_id);
+    ///
+    /// Panics if the program has not been initialized.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let available = contract.get_remaining_balance(env);
+    /// // Check if sufficient funds for next payout
+    /// if available >= prize_amount {
+    ///     // Proceed with payout
+    /// }
+    /// ```
+    pub fn get_remaining_balance(env: Env) -> i128 {
         let program_data: ProgramData = env
             .storage()
             .instance()
