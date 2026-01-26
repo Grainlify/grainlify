@@ -62,6 +62,8 @@ import { AdminPage } from "../admin/pages/AdminPage";
 import { SearchPage } from "./pages/SearchPage";
 import { SettingsTabType } from "../settings/types";
 
+// import { ActivityItem } from './ActivityItem';
+
 export function Dashboard() {
   const { userRole, logout, login } = useAuth();
   const { theme, toggleTheme } = useTheme();
