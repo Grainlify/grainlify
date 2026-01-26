@@ -101,9 +101,6 @@ export function DashboardComplete() {
     { id: 'blog', icon: FileText, label: 'Grainlify Blog' },
   ];
 
-  // Add Admin menu item for all users (requires password)
-  navItems.push({ id: 'admin', icon: Shield, label: 'Admin Panel' });
-
   return (
     <div className={`min-h-screen relative overflow-hidden transition-colors ${
       theme === 'dark'
@@ -171,7 +168,7 @@ export function DashboardComplete() {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => item.id === 'admin' ? handleAdminClick() : setCurrentPage(item.id)}
+                    onClick={() => setCurrentPage(item.id)}
                     className={`group w-full flex items-center rounded-[12px] transition-all duration-300 ${
                       isSidebarCollapsed ? 'justify-center px-0 py-4' : 'justify-start px-3 py-2.5'
                     } ${
@@ -560,90 +557,78 @@ function DiscoverPage() {
           ))}
         </div>
       </div>
-
       {/* Recommended Issues */}
       <div className={`backdrop-blur-[40px] rounded-[24px] border shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 transition-colors ${
         theme === 'dark'
           ? 'bg-white/[0.08] border-white/10'
           : 'bg-white/[0.12] border-white/20'
-      }`}>
-        <h3 className={`text-[24px] font-bold mb-2 transition-colors ${
-          theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-        }`}>Recommended Issues</h3>
-        <p className={`text-[14px] mb-6 transition-colors ${
+  }`}>
+  {/* Section Header */}
+  <div className="mb-6">
+    <h3
+      className={`text-[24px] font-bold transition-colors ${
+        theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
+      }`}
+    >
+      Recommended Issues
+    </h3>
+    <p
+      className={`text-[14px] mt-1 transition-colors ${
+        theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
+      }`}
+    >
+      Issues that match your interests and expertise
+    </p>
+  </div>
+
+  {/* Grid */}
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
+    {/* Issue Card */}
+    <div
+      className={`backdrop-blur-[30px] rounded-[16px] border p-5 transition-all h-full min-h-[180px] flex flex-col ${
+        theme === 'dark'
+          ? 'bg-white/[0.08] border-white/15 hover:bg-white/[0.12]'
+          : 'bg-white/[0.15] border-white/25 hover:bg-white/[0.2]'
+      }`}
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between mb-3 gap-3 min-h-[3.5rem]">
+        <h4
+          className={`text-[16px] font-semibold leading-snug line-clamp-2 ${
+            theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
+          }`}>
+          Add support for new React hooks
+        </h4>
+        <span
+          className={`shrink-0 px-2.5 py-1 rounded-[8px] text-[11px] font-semibold whitespace-nowrap ${
+            theme === 'dark'
+              ? 'bg-green-500/30 border border-green-500/50 text-green-300'
+              : 'bg-green-500/20 border border-green-600/30 text-green-800'
+          }`}>
+          good first issue
+        </span>
+      </div>
+
+      {/* Body */}
+      
+
+      {/* Footer */}
+      <div
+        className={`flex items-center justify-between text-[12px] mt-auto ${
           theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
         }`}>
-          Issues that match your interests and expertise
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className={`backdrop-blur-[30px] rounded-[16px] border p-5 transition-all ${
-            theme === 'dark'
-              ? 'bg-white/[0.08] border-white/15 hover:bg-white/[0.12]'
-              : 'bg-white/[0.15] border-white/25 hover:bg-white/[0.2]'
-          }`}>
-            <div className="flex items-start justify-between mb-3">
-              <h4 className={`text-[16px] font-semibold transition-colors ${
-                theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-              }`}>Add support for new React hooks</h4>
-              <span className={`px-2.5 py-1 rounded-[8px] text-[11px] font-semibold ${
-                theme === 'dark'
-                  ? 'bg-green-500/30 border border-green-500/50 text-green-300'
-                  : 'bg-green-500/20 border border-green-600/30 text-green-800'
-              }`}>
-                good first issue
-              </span>
-            </div>
-            <p className={`text-[13px] mb-3 transition-colors ${
-              theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-            }`}>
-              Implement support for the latest React hooks in the library
-            </p>
-            <div className={`flex items-center space-x-3 text-[12px] transition-colors ${
-              theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-            }`}>
-              <span className="flex items-center space-x-1.5">
-                <LanguageIcon language="TypeScript" className="w-3.5 h-3.5" />
-                <span>TypeScript</span>
-              </span>
-              <span>7 days left</span>
-            </div>
-          </div>
-
-          <div className={`backdrop-blur-[30px] rounded-[16px] border p-5 transition-all ${
-            theme === 'dark'
-              ? 'bg-white/[0.08] border-white/15 hover:bg-white/[0.12]'
-              : 'bg-white/[0.15] border-white/25 hover:bg-white/[0.2]'
-          }`}>
-            <div className="flex items-start justify-between mb-3">
-              <h4 className={`text-[16px] font-semibold transition-colors ${
-                theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-              }`}>Fix memory leak in server components</h4>
-              <span className={`px-2.5 py-1 rounded-[8px] text-[11px] font-semibold ${
-                theme === 'dark'
-                  ? 'bg-red-500/30 border border-red-500/50 text-red-300'
-                  : 'bg-red-500/20 border border-red-600/30 text-red-800'
-              }`}>
-                bug
-              </span>
-            </div>
-            <p className={`text-[13px] mb-3 transition-colors ${
-              theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-            }`}>
-              Resolve memory leak issue in SSR implementation
-            </p>
-            <div className={`flex items-center space-x-3 text-[12px] transition-colors ${
-              theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-            }`}>
-              <span className="flex items-center space-x-1.5">
-                <LanguageIcon language="JavaScript" className="w-3.5 h-3.5" />
-                <span>JavaScript</span>
-              </span>
-              <span>3 days left</span>
-            </div>
-          </div>
-        </div>
+        <span className="flex items-center gap-1.5">
+          <LanguageIcon language="TypeScript" className="w-3.5 h-3.5" />
+          <span>TypeScript</span>
+        </span>
+        <span>7 days left</span>
       </div>
+    </div>
+
+  </div>
+</div>
+
+
     </div>
   );
 }

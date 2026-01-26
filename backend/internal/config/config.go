@@ -55,6 +55,15 @@ type Config struct {
 	DiditAPIKey    string
 	DiditWorkflowID string
 	DiditWebhookSecret string
+
+	// Soroban configuration
+	SorobanRPCURL           string
+	SorobanNetworkPassphrase string
+	SorobanNetwork          string // "testnet" or "mainnet"
+	SorobanSourceSecret     string
+	EscrowContractID        string
+	ProgramEscrowContractID string
+	TokenContractID         string
 }
 
 func Load() Config {
@@ -105,6 +114,15 @@ func Load() Config {
 		DiditAPIKey:        getEnv("DIDIT_API_KEY", ""),
 		DiditWorkflowID:    getEnv("DIDIT_WORKFLOW_ID", ""),
 		DiditWebhookSecret: getEnv("DIDIT_WEBHOOK_SECRET", ""),
+
+		// Soroban configuration
+		SorobanRPCURL:           getEnv("SOROBAN_RPC_URL", ""),
+		SorobanNetworkPassphrase: getEnv("SOROBAN_NETWORK_PASSPHRASE", ""),
+		SorobanNetwork:          getEnv("SOROBAN_NETWORK", "testnet"),
+		SorobanSourceSecret:     getEnv("SOROBAN_SOURCE_SECRET", ""),
+		EscrowContractID:        getEnv("ESCROW_CONTRACT_ID", ""),
+		ProgramEscrowContractID: getEnv("PROGRAM_ESCROW_CONTRACT_ID", ""),
+		TokenContractID:         getEnv("TOKEN_CONTRACT_ID", ""),
 	}
 }
 
