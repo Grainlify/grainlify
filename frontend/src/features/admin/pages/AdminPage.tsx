@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../../../shared/contexts/ThemeContext';
-import { Shield, Globe, Plus, Sparkles, Trash2, ExternalLink, Calendar } from 'lucide-react';
+import { Shield, Globe, Plus, Sparkles, Trash2, ExternalLink, Calendar, Upload } from 'lucide-react';
 import { Modal, ModalFooter, ModalButton, ModalInput, ModalSelect } from '../../../shared/components/ui/Modal';
 import { createEcosystem, getAdminEcosystems, deleteEcosystem, createOpenSourceWeekEvent, getAdminOpenSourceWeekEvents, deleteOpenSourceWeekEvent } from '../../../shared/api/client';
 
@@ -10,6 +10,7 @@ interface Ecosystem {
   name: string;
   description: string | null;
   website_url: string | null;
+  icon_url: string | null;
   status: string;
   project_count: number;
   user_count: number;
@@ -33,6 +34,10 @@ export function AdminPage() {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Icon upload state
+  const [iconUrl, setIconUrl] = useState<string | null>(null);
+  const iconFileInputRef = useRef<HTMLInputElement>(null);
 
   // Open Source Week events
   const [oswEvents, setOswEvents] = useState<Array<{
@@ -176,6 +181,31 @@ export function AdminPage() {
     }
   };
 
+  const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/svg+xml', 'image/png', 'image/jpeg', 'image/jpg', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      alert('Please select a valid image file (SVG, PNG, JPG, or GIF)');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
+      return;
+    }
+
+    // Convert to base64 for preview and submission
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setIconUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -187,6 +217,7 @@ export function AdminPage() {
         description: formData.description || undefined,
         website_url: formData.websiteUrl || undefined,
         status: formData.status as 'active' | 'inactive',
+        icon: iconUrl || undefined,
       });
       
       // Success - close modal and reset form
@@ -197,6 +228,7 @@ export function AdminPage() {
         status: 'active',
         websiteUrl: ''
       });
+      setIconUrl(null);
       
       // Refresh ecosystems list
       await fetchEcosystems();
@@ -394,9 +426,17 @@ export function AdminPage() {
                     }`}
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <div className={`w-12 h-12 rounded-[12px] ${bgColor} flex items-center justify-center text-white font-bold text-lg shadow-lg`}>
-                        {firstLetter}
-                      </div>
+                      {ecosystem.icon_url ? (
+                        <img
+                          src={ecosystem.icon_url}
+                          alt={`${ecosystem.name} icon`}
+                          className="w-12 h-12 rounded-[12px] object-cover shadow-lg"
+                        />
+                      ) : (
+                        <div className={`w-12 h-12 rounded-[12px] ${bgColor} flex items-center justify-center text-white font-bold text-lg shadow-lg`}>
+                          {firstLetter}
+                        </div>
+                      )}
                       <button
                         onClick={() => confirmDelete(ecosystem.id, ecosystem.name)}
                         disabled={deletingId === ecosystem.id}
@@ -604,6 +644,65 @@ export function AdminPage() {
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
+            {/* Icon Upload Section */}
+            <div className="mb-6">
+              <label className={`block text-[14px] font-semibold mb-2 transition-colors ${
+                theme === 'dark' ? 'text-[#f5efe5]' : 'text-[#2d2820]'
+              }`}>
+                Ecosystem Icon
+              </label>
+              <p className={`text-[13px] mb-3 transition-colors ${
+                theme === 'dark' ? 'text-[#b8a898]' : 'text-[#7a6b5a]'
+              }`}>
+                SVG, PNG, JPG or GIF (max 5MB)
+              </p>
+              
+              <div className="flex items-center gap-4">
+                {iconUrl ? (
+                  <img
+                    src={iconUrl}
+                    alt="Ecosystem icon preview"
+                    className="w-16 h-16 rounded-[12px] object-cover shadow-md border border-white/15"
+                  />
+                ) : (
+                  <div className={`w-16 h-16 rounded-[12px] flex items-center justify-center text-white font-bold text-lg shadow-md border border-white/15 bg-gradient-to-br from-[#c9983a] to-[#a67c2e]`}>
+                    {formData.name.charAt(0).toUpperCase() || '?'}
+                  </div>
+                )}
+                
+                <input
+                  type="file"
+                  ref={iconFileInputRef}
+                  onChange={handleIconUpload}
+                  accept="image/svg+xml,image/png,image/jpeg,image/jpg,image/gif"
+                  className="hidden"
+                />
+                
+                <button
+                  type="button"
+                  onClick={() => iconFileInputRef.current?.click()}
+                  className={`px-5 py-2.5 rounded-[12px] backdrop-blur-[30px] border font-medium text-[14px] hover:bg-white/[0.2] transition-all flex items-center gap-2 ${
+                    theme === 'dark'
+                      ? 'bg-[#3d342c]/[0.4] border-white/15 text-[#d4c5b0]'
+                      : 'bg-white/[0.15] border-white/25 text-[#2d2820]'
+                  }`}
+                >
+                  <Upload className="w-4 h-4" />
+                  {iconUrl ? 'Change Icon' : 'Upload Icon'}
+                </button>
+                
+                {iconUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setIconUrl(null)}
+                    className="text-[13px] text-red-500 hover:text-red-600 transition-colors"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+
             <ModalInput
               label="Ecosystem Name"
               value={formData.name}

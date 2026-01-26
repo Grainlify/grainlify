@@ -463,6 +463,7 @@ export const getEcosystems = () =>
       name: string;
       description: string | null;
       website_url: string | null;
+      icon_url: string | null;
       status: string;
       project_count: number;
       user_count: number;
@@ -542,6 +543,7 @@ export const createEcosystem = (data: {
   description?: string;
   website_url?: string;
   status: 'active' | 'inactive';
+  icon?: string;
 }) =>
   apiRequest<{
     id: string;
@@ -568,6 +570,7 @@ export const getAdminEcosystems = () =>
       name: string;
       description: string | null;
       website_url: string | null;
+      icon_url: string | null;
       status: string;
       project_count: number;
       user_count: number;
