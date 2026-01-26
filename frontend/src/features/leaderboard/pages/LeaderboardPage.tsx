@@ -170,7 +170,7 @@ export function LeaderboardPage() {
   const projectTopThree = projectsData.slice(0, 3);
 
   return (
-    <div className="space-y-6 relative">
+    <div className="space-y-6 relative px-4 md:px-0">
       {/* Falling Golden Petals - Full Page */}
       <FallingPetals petals={petals} />
 
