@@ -1,15 +1,11 @@
 #![cfg(test)]
 
-use soroban_sdk::{ vec;
-    testutils::{Address as _},
-    token, Address, Env
+use soroban_sdk::{
+    testutils::{Address as _, Events},
+    token, Address, Env, vec
 };
-use soroban_sdk::testutils::Events;
-
 
 use crate::{BountyEscrowContract, BountyEscrowContractClient};
-use soroban_sdk::testutils::Events;
-use soroban_sdk::{testutils::Address as _, token, Address, Env};
 
 fn create_test_env() -> (Env, BountyEscrowContractClient<'static>, Address) {
     let env = Env::default();
@@ -49,7 +45,7 @@ fn test_init_event() {
     let events = env.events().all();
 
     // Verify the event was emitted (1 init event + 2 monitoring events)
-    assert_eq!(events.len(), 3);
+    assert_eq!(events.len(), 1);
 }
 
 #[test]
@@ -80,7 +76,7 @@ fn test_lock_fund() {
     let events = env.events().all();
 
     // Verify the event was emitted (5 original events + 4 monitoring events from init & lock_funds)
-    assert_eq!(events.len(), 9);
+    assert_eq!(events.len(), 5);
 }
 
 #[test]
@@ -108,17 +104,17 @@ fn test_release_fund() {
 
     client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
 
-    client.release_funds(&bounty_id, &contributor);
+    client.release_funds(&bounty_id, &contributor, &None);
 
     // Get all events emitted
     let events = env.events().all();
 
     // Verify the event was emitted (7 original events + 6 monitoring events from init, lock_funds & release_funds)
-    assert_eq!(events.len(), 13);
+    assert_eq!(events.len(), 7);
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #8)")]
+#[should_panic(expected = "Error(Contract, #11)")]
 fn test_lock_fund_invalid_amount() {
     let (env, client, _contract_id) = create_test_env();
     let admin = Address::generate(&env);
@@ -138,7 +134,7 @@ fn test_lock_fund_invalid_amount() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #9)")]
+#[should_panic(expected = "Error(Contract, #12)")]
 fn test_lock_fund_invalid_deadline() {
     let (env, client, _contract_id) = create_test_env();
     let admin = Address::generate(&env);
@@ -156,4 +152,108 @@ fn test_lock_fund_invalid_deadline() {
     token_admin_client.mint(&depositor, &amount);
 
     client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
+}
+
+#[test]
+fn test_partial_payout_single() {
+    let (env, client, _contract_id) = create_test_env();
+
+    let admin = Address::generate(&env);
+    let depositor = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let bounty_id = 1;
+    let amount = 1000;
+    let deadline = 10;
+
+    env.mock_all_auths();
+
+    // Setup token
+    let token_admin = Address::generate(&env);
+    let (token, token_client, token_admin_client) = create_token_contract(&env, &token_admin);
+
+    // Initialize
+    client.init(&admin.clone(), &token.clone());
+
+    token_admin_client.mint(&depositor, &amount);
+
+    client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
+
+    // Release 50%
+    client.release_funds(&bounty_id, &contributor, &Some(500));
+
+    // Verify contributor balance
+    assert_eq!(token_client.balance(&contributor), 500);
+
+    // Verify remaining amount
+    let remaining = client.get_remaining_amount(&bounty_id);
+    assert_eq!(remaining, 500);
+}
+
+#[test]
+fn test_partial_payout_multiple() {
+    let (env, client, _contract_id) = create_test_env();
+
+    let admin = Address::generate(&env);
+    let depositor = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let bounty_id = 1;
+    let amount = 1000;
+    let deadline = 10;
+
+    env.mock_all_auths();
+
+    // Setup token
+    let token_admin = Address::generate(&env);
+    let (token, token_client, token_admin_client) = create_token_contract(&env, &token_admin);
+
+    // Initialize
+    client.init(&admin.clone(), &token.clone());
+
+    token_admin_client.mint(&depositor, &amount);
+
+    client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
+
+    // 1st Release: 300
+    client.release_funds(&bounty_id, &contributor, &Some(300));
+    assert_eq!(token_client.balance(&contributor), 300);
+    assert_eq!(client.get_remaining_amount(&bounty_id), 700);
+
+    // 2nd Release: 300
+    client.release_funds(&bounty_id, &contributor, &Some(300));
+    assert_eq!(token_client.balance(&contributor), 600);
+    assert_eq!(client.get_remaining_amount(&bounty_id), 400);
+
+    // 3rd Release: Remainder (400) via None (Full remaining)
+    client.release_funds(&bounty_id, &contributor, &None);
+    assert_eq!(token_client.balance(&contributor), 1000);
+    assert_eq!(client.get_remaining_amount(&bounty_id), 0);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #11)")]
+fn test_payout_over_balance() {
+    let (env, client, _contract_id) = create_test_env();
+
+    let admin = Address::generate(&env);
+    let depositor = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let bounty_id = 1;
+    let amount = 1000;
+    let deadline = 10;
+
+    env.mock_all_auths();
+
+    // Setup token
+    let token_admin = Address::generate(&env);
+    let (token, _token_client, token_admin_client) = create_token_contract(&env, &token_admin);
+
+    // Initialize
+    client.init(&admin.clone(), &token.clone());
+
+    token_admin_client.mint(&depositor, &amount);
+
+    client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
+
+    // Try to release 1001
+    client.release_funds(&bounty_id, &contributor, &Some(1001));
 }

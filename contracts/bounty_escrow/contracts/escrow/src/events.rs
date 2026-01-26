@@ -193,6 +193,8 @@ pub struct FundsReleased {
     pub amount: i128,
     pub recipient: Address,
     pub timestamp: u64,
+    pub payout_mode: crate::PayoutMode,
+    pub remaining_amount: i128,
 }
 
 /// Emits a FundsReleased event.
