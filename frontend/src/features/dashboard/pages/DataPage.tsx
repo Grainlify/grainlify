@@ -221,14 +221,22 @@ export function DataPage() {
         </div>
       </div>
 
-      {/* Main Content Grid */}
+      {/* RESTRUCTURED LAYOUT - Issue #142: Main Content Grid */}
+      {/* Changed from: grid-cols-2 with separate top/bottom grids */}
+      {/* Changed to: grid-cols-2 with left column split vertically using flexbox */}
       <div className="grid grid-cols-2 gap-6">
-        {/* Left Column - Project Activity */}
-        <div className={`backdrop-blur-[40px] rounded-[24px] border border-white/20 p-8 transition-colors ${
-          theme === 'dark'
-            ? 'bg-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.12)]'
-            : 'bg-white/[0.12] shadow-[0_8px_32px_rgba(0,0,0,0.08)]'
-        }`}>
+        {/* RESTRUCTURED - Issue #142: Left Column Container */}
+        {/* New: Flex column container to split left column vertically */}
+        {/* Contains: Project Activity (top) + Contributor Activity (bottom) */}
+        <div className="flex flex-col gap-6">
+          {/* RESTRUCTURED - Issue #142: Project Activity moved to top half */}
+          {/* Chart height reduced: 280px → 140px (half height) */}
+          {/* Project Activity - Top Half */}
+          <div className={`backdrop-blur-[40px] rounded-[24px] border border-white/20 p-8 transition-colors ${
+            theme === 'dark'
+              ? 'bg-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.12)]'
+              : 'bg-white/[0.12] shadow-[0_8px_32px_rgba(0,0,0,0.08)]'
+          }`}>
           <div className="flex items-center justify-between mb-6">
             <h2 className={`text-[18px] font-bold transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
               }`}>Project activity</h2>
@@ -328,8 +336,10 @@ export function DataPage() {
             </div>
           </div>
 
+          {/* RESTRUCTURED - Issue #142: Reduced chart height for Project Activity */}
+          {/* Original: h-[280px] mb-6 | Updated: h-[140px] mb-4 */}
           {/* Chart */}
-          <div className="h-[280px] mb-6">
+          <div className="h-[140px] mb-4">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={projectActivityData}>
                 <defs>
@@ -414,8 +424,217 @@ export function DataPage() {
               PR merged
             </button>
           </div>
-        </div>
+          </div>
+          {/* End Project Activity - Issue #142 */}
 
+        {/* RESTRUCTURED - Issue #142: Contributor Activity moved from bottom grid to left column bottom */}
+        {/* Original location: Bottom grid, left column */}
+        {/* New location: Left column, bottom half */}
+        {/* Chart height reduced: 280px → 140px (half height) */}
+        {/* Left Column Bottom - Contributor Activity */}
+        <div className={`backdrop-blur-[40px] rounded-[24px] border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 transition-colors ${
+          theme === 'dark'
+            ? 'bg-white/[0.15]'
+            : 'bg-white/[0.12]'
+        }`}>
+          <div className="flex items-center justify-between mb-4">
+            {/* RESTRUCTURED - Issue #142: Reduced margin */}
+            {/* Original: mb-6 | Updated: mb-4 */}
+            <h2 className={`text-[18px] font-bold transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
+              }`}>Contributor activity</h2>
+            <div className="relative">
+              <button
+                onClick={() => setShowContributorIntervalDropdown(!showContributorIntervalDropdown)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-[10px] backdrop-blur-[20px] border transition-all ${
+                  theme === 'dark'
+                    ? 'bg-white/[0.08] border-white/20 hover:bg-white/[0.12] text-[#f5f5f5]'
+                    : 'bg-white/[0.15] border-white/25 hover:bg-white/[0.2] text-[#2d2820]'
+                }`}
+              >
+                <span className={`text-[13px] font-semibold transition-colors ${
+                  theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
+                }`}>{contributorInterval}</span>
+                <ChevronDown className={`w-4 h-4 transition-colors ${
+                  theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
+                }`} />
+              </button>
+              {showContributorIntervalDropdown && (
+                <div className={`absolute right-0 mt-2 w-[180px] backdrop-blur-[30px] rounded-[12px] shadow-[0_8px_32px_rgba(0,0,0,0.15)] overflow-hidden z-50 ${
+                  theme === 'dark'
+                    ? 'bg-[#2d2820]/[0.95] border-2 border-[#c9983a]/30'
+                    : 'bg-white/[0.55] border-2 border-white/30'
+                }`}>
+                  <button
+                    onClick={() => {
+                      setContributorInterval('Daily interval');
+                      setShowContributorIntervalDropdown(false);
+                    }}
+                    className={`w-full px-4 py-3 text-left text-[13px] font-medium transition-all ${
+                      theme === 'dark'
+                        ? 'text-[#f5f5f5] hover:bg-white/[0.05]'
+                        : 'text-[#2d2820] hover:bg-white/[0.3]'
+                    }`}
+                  >
+                    Daily interval
+                  </button>
+                  <button
+                    onClick={() => {
+                      setContributorInterval('Weekly interval');
+                      setShowContributorIntervalDropdown(false);
+                    }}
+                    className={`w-full px-4 py-3 text-left text-[13px] font-medium transition-all ${
+                      theme === 'dark'
+                        ? 'text-[#f5f5f5] hover:bg-white/[0.05]'
+                        : 'text-[#2d2820] hover:bg-white/[0.3]'
+                    }`}
+                  >
+                    Weekly interval
+                  </button>
+                  <button
+                    onClick={() => {
+                      setContributorInterval('Monthly interval');
+                      setShowContributorIntervalDropdown(false);
+                    }}
+                    className={`w-full px-4 py-3 text-left text-[13px] font-medium transition-all ${
+                      contributorInterval === 'Monthly interval'
+                        ? theme === 'dark'
+                          ? 'bg-[#c9983a]/[0.15] text-[#f5c563] font-bold'
+                          : 'bg-white/[0.35] text-[#2d2820] font-bold'
+                        : theme === 'dark'
+                        ? 'text-[#f5f5f5] hover:bg-white/[0.05]'
+                        : 'text-[#2d2820] hover:bg-white/[0.3]'
+                    }`}
+                  >
+                    Monthly interval
+                  </button>
+                  <button
+                    onClick={() => {
+                      setContributorInterval('Quarterly interval');
+                      setShowContributorIntervalDropdown(false);
+                    }}
+                    className={`w-full px-4 py-3 text-left text-[13px] font-medium transition-all ${
+                      theme === 'dark'
+                        ? 'text-[#f5f5f5] hover:bg-white/[0.05]'
+                        : 'text-[#2d2820] hover:bg-white/[0.3]'
+                    }`}
+                  >
+                    Quarterly interval
+                  </button>
+                  <button
+                    onClick={() => {
+                      setContributorInterval('Yearly interval');
+                      setShowContributorIntervalDropdown(false);
+                    }}
+                    className={`w-full px-4 py-3 text-left text-[13px] font-medium transition-all ${
+                      theme === 'dark'
+                        ? 'text-[#f5f5f5] hover:bg-white/[0.05]'
+                        : 'text-[#2d2820] hover:bg-white/[0.3]'
+                    }`}
+                  >
+                    Yearly interval
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* RESTRUCTURED - Issue #142: Reduced chart height for Contributor Activity */}
+          {/* Original: h-[280px] mb-6 | Updated: h-[140px] mb-4 */}
+          {/* Chart */}
+          <div className="h-[140px] mb-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={contributorActivityData}>
+                <defs>
+                  <linearGradient id="contributorBarGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#c9983a" stopOpacity={0.8} />
+                    <stop offset="100%" stopColor="#d4af37" stopOpacity={0.4} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(122, 107, 90, 0.1)" />
+                <XAxis
+                  dataKey="month"
+                  stroke="#7a6b5a"
+                  tick={{ fill: '#7a6b5a', fontSize: 11, fontWeight: 600 }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                />
+                <YAxis stroke="#7a6b5a" tick={{ fill: '#7a6b5a', fontSize: 11, fontWeight: 600 }} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar
+                  dataKey="value"
+                  fill="url(#contributorBarGradient)"
+                  radius={[8, 8, 0, 0]}
+                  maxBarSize={40}
+                />
+                <RechartsLine
+                  type="monotone"
+                  dataKey="trend"
+                  stroke="#2d2820"
+                  strokeWidth={3}
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => toggleContributorFilter('new')}
+              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${contributorFilters.new
+                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
+                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
+                }`}
+            >
+              New
+            </button>
+            <button
+              onClick={() => toggleContributorFilter('reactivated')}
+              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${contributorFilters.reactivated
+                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
+                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
+                }`}
+            >
+              Reactivated
+            </button>
+            <button
+              onClick={() => toggleContributorFilter('active')}
+              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${contributorFilters.active
+                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
+                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
+                }`}
+            >
+              Active
+            </button>
+            <button
+              onClick={() => toggleContributorFilter('churned')}
+              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${contributorFilters.churned
+                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
+                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
+                }`}
+            >
+              Churned
+            </button>
+            <button
+              onClick={() => toggleContributorFilter('prMerged')}
+              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${contributorFilters.prMerged
+                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
+                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
+                }`}
+            >
+              PR merged
+            </button>
+          </div>
+        </div>
+        {/* End Contributor Activity - Issue #142 */}
+        </div>
+        {/* End Left Column - Issue #142: Vertical split complete */}
+
+        {/* RESTRUCTURED - Issue #142: Right Column - Contributors Map */}
+        {/* Updated: Map now spans full height of both sections above */}
+        {/* Map height: 580px (140px + 140px + 24px gap spacing + padding adjustments) */}
+        {/* Removed: row-span-2 class (no longer needed with 2-column layout) */}
         {/* Right Column - Contributors Map */}
         <div className={`backdrop-blur-[40px] rounded-[24px] border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 transition-colors ${
           theme === 'dark'
@@ -425,8 +644,11 @@ export function DataPage() {
           <h2 className={`text-[18px] font-bold mb-6 transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
             }`}>Contributors map</h2>
 
+          {/* RESTRUCTURED - Issue #142: Full height map */}
+          {/* Height: 580px (matches combined left column sections: 140px + 140px + gap + padding) */}
+          {/* Original map height: 280px */}
           {/* World Map Visualization */}
-          <div className="relative h-[280px] mb-6 rounded-[16px] backdrop-blur-[20px] bg-gradient-to-br from-[#2d2820]/80 via-[#1a1410]/70 to-[#2d2820]/80 border border-white/10 overflow-hidden">
+          <div className="relative h-[580px] mb-6 rounded-[16px] backdrop-blur-[20px] bg-gradient-to-br from-[#2d2820]/80 via-[#1a1410]/70 to-[#2d2820]/80 border border-white/10 overflow-hidden">
             {/* Map Background Pattern */}
             <div className="absolute inset-0 opacity-20">
               <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
@@ -579,202 +801,8 @@ export function DataPage() {
         </div>
       </div>
 
-      {/* Bottom Grid */}
-      <div className="grid grid-cols-2 gap-6">
-        {/* Contributor Activity */}
-        <div className={`backdrop-blur-[40px] rounded-[24px] border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 transition-colors ${
-          theme === 'dark'
-            ? 'bg-white/[0.15]'
-            : 'bg-white/[0.12]'
-        }`}>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className={`text-[18px] font-bold transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-              }`}>Contributor activity</h2>
-            <div className="relative">
-              <button
-                onClick={() => setShowContributorIntervalDropdown(!showContributorIntervalDropdown)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-[10px] backdrop-blur-[20px] border transition-all ${
-                  theme === 'dark'
-                    ? 'bg-white/[0.08] border-white/20 hover:bg-white/[0.12] text-[#f5f5f5]'
-                    : 'bg-white/[0.15] border-white/25 hover:bg-white/[0.2] text-[#2d2820]'
-                }`}
-              >
-                <span className={`text-[13px] font-semibold transition-colors ${
-                  theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-                }`}>{contributorInterval}</span>
-                <ChevronDown className={`w-4 h-4 transition-colors ${
-                  theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                }`} />
-              </button>
-              {showContributorIntervalDropdown && (
-                <div className={`absolute right-0 mt-2 w-[180px] backdrop-blur-[30px] rounded-[12px] shadow-[0_8px_32px_rgba(0,0,0,0.15)] overflow-hidden z-50 ${
-                  theme === 'dark'
-                    ? 'bg-[#2d2820]/[0.95] border-2 border-[#c9983a]/30'
-                    : 'bg-white/[0.55] border-2 border-white/30'
-                }`}>
-                  <button
-                    onClick={() => {
-                      setContributorInterval('Daily interval');
-                      setShowContributorIntervalDropdown(false);
-                    }}
-                    className={`w-full px-4 py-3 text-left text-[13px] font-medium transition-all ${
-                      theme === 'dark'
-                        ? 'text-[#f5f5f5] hover:bg-white/[0.05]'
-                        : 'text-[#2d2820] hover:bg-white/[0.3]'
-                    }`}
-                  >
-                    Daily interval
-                  </button>
-                  <button
-                    onClick={() => {
-                      setContributorInterval('Weekly interval');
-                      setShowContributorIntervalDropdown(false);
-                    }}
-                    className={`w-full px-4 py-3 text-left text-[13px] font-medium transition-all ${
-                      theme === 'dark'
-                        ? 'text-[#f5f5f5] hover:bg-white/[0.05]'
-                        : 'text-[#2d2820] hover:bg-white/[0.3]'
-                    }`}
-                  >
-                    Weekly interval
-                  </button>
-                  <button
-                    onClick={() => {
-                      setContributorInterval('Monthly interval');
-                      setShowContributorIntervalDropdown(false);
-                    }}
-                    className={`w-full px-4 py-3 text-left text-[13px] font-medium transition-all ${
-                      contributorInterval === 'Monthly interval'
-                        ? theme === 'dark'
-                          ? 'bg-[#c9983a]/[0.15] text-[#f5c563] font-bold'
-                          : 'bg-white/[0.35] text-[#2d2820] font-bold'
-                        : theme === 'dark'
-                        ? 'text-[#f5f5f5] hover:bg-white/[0.05]'
-                        : 'text-[#2d2820] hover:bg-white/[0.3]'
-                    }`}
-                  >
-                    Monthly interval
-                  </button>
-                  <button
-                    onClick={() => {
-                      setContributorInterval('Quarterly interval');
-                      setShowContributorIntervalDropdown(false);
-                    }}
-                    className={`w-full px-4 py-3 text-left text-[13px] font-medium transition-all ${
-                      theme === 'dark'
-                        ? 'text-[#f5f5f5] hover:bg-white/[0.05]'
-                        : 'text-[#2d2820] hover:bg-white/[0.3]'
-                    }`}
-                  >
-                    Quarterly interval
-                  </button>
-                  <button
-                    onClick={() => {
-                      setContributorInterval('Yearly interval');
-                      setShowContributorIntervalDropdown(false);
-                    }}
-                    className={`w-full px-4 py-3 text-left text-[13px] font-medium transition-all ${
-                      theme === 'dark'
-                        ? 'text-[#f5f5f5] hover:bg-white/[0.05]'
-                        : 'text-[#2d2820] hover:bg-white/[0.3]'
-                    }`}
-                  >
-                    Yearly interval
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Chart */}
-          <div className="h-[280px] mb-6">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={contributorActivityData}>
-                <defs>
-                  <linearGradient id="contributorBarGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#c9983a" stopOpacity={0.8} />
-                    <stop offset="100%" stopColor="#d4af37" stopOpacity={0.4} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(122, 107, 90, 0.1)" />
-                <XAxis
-                  dataKey="month"
-                  stroke="#7a6b5a"
-                  tick={{ fill: '#7a6b5a', fontSize: 11, fontWeight: 600 }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                />
-                <YAxis stroke="#7a6b5a" tick={{ fill: '#7a6b5a', fontSize: 11, fontWeight: 600 }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar
-                  dataKey="value"
-                  fill="url(#contributorBarGradient)"
-                  radius={[8, 8, 0, 0]}
-                  maxBarSize={40}
-                />
-                <RechartsLine
-                  type="monotone"
-                  dataKey="trend"
-                  stroke="#2d2820"
-                  strokeWidth={3}
-                  dot={false}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => toggleContributorFilter('new')}
-              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${contributorFilters.new
-                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
-                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
-                }`}
-            >
-              New
-            </button>
-            <button
-              onClick={() => toggleContributorFilter('reactivated')}
-              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${contributorFilters.reactivated
-                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
-                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
-                }`}
-            >
-              Reactivated
-            </button>
-            <button
-              onClick={() => toggleContributorFilter('active')}
-              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${contributorFilters.active
-                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
-                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
-                }`}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => toggleContributorFilter('churned')}
-              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${contributorFilters.churned
-                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
-                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
-                }`}
-            >
-              Churned
-            </button>
-            <button
-              onClick={() => toggleContributorFilter('prMerged')}
-              className={`px-4 py-2 rounded-[10px] text-[13px] font-semibold transition-all ${contributorFilters.prMerged
-                  ? 'bg-[#c9983a] text-white shadow-[0_3px_12px_rgba(201,152,58,0.3)]'
-                  : 'backdrop-blur-[20px] bg-white/[0.15] border border-white/25 text-[#2d2820] hover:bg-white/[0.2]'
-                }`}
-            >
-              PR merged
-            </button>
-          </div>
-        </div>
-
-        {/* Information Panel */}
+      {/* Bottom Grid - Information Panel */}
+      <div className="grid grid-cols-1 gap-6">
         <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8">
           <h2 className={`text-[18px] font-bold mb-6 transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
             }`}>Information</h2>
