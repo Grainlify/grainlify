@@ -144,6 +144,37 @@ use soroban_sdk::{
     Vec,
 };
 
+// ==================== PAUSE EVENT TYPES ====================
+
+/// Event emitted when the contract is paused.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ContractPaused {
+    pub admin: Address,
+    pub timestamp: u64,
+    pub reason: Option<String>,
+}
+
+/// Event emitted when the contract is unpaused.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ContractUnpaused {
+    pub admin: Address,
+    pub timestamp: u64,
+    pub reason: Option<String>,
+}
+
+/// Event emitted during emergency withdrawal.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct EmergencyWithdrawal {
+    pub admin: Address,
+    pub recipient: Address,
+    pub amount: i128,
+    pub timestamp: u64,
+    pub reason: String,
+}
+
 // ==================== MONITORING MODULE ====================
 mod monitoring {
     use soroban_sdk::{contracttype, symbol_short, Address, Env, String, Symbol};
@@ -661,6 +692,7 @@ pub enum DataKey {
     ReleaseSchedule(String, u64), // program_id, schedule_id -> ProgramReleaseSchedule
     ReleaseHistory(String), // program_id -> Vec<ProgramReleaseHistory>
     NextScheduleId(String), // program_id -> next schedule_id
+    Paused, // Global pause state
 }
 
 // ============================================================================
@@ -810,6 +842,191 @@ impl ProgramEscrowContract {
         program_data
     }
 
+    // ========================================================================
+    // Pause Control Functions
+    // ========================================================================
+
+    /// Pauses all contract operations except emergency withdrawals.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `reason` - Optional reason for pausing (for audit trail)
+    ///
+    /// # Panics
+    /// * If contract is not initialized
+    /// * If caller is not authorized
+    ///
+    /// # State Changes
+    /// - Sets paused state to true in instance storage
+    /// - Emits ContractPaused event
+    pub fn pause(env: Env, reason: Option<String>) {
+        // Get admin from any existing program (they should all have the same admin)
+        let registry: Vec<String> = env.storage().instance().get(&PROGRAM_REGISTRY).unwrap_or(vec![&env]);
+        if registry.is_empty() {
+            panic!("Contract not initialized");
+        }
+
+        let first_program = registry.get(0).unwrap();
+        let program_key = DataKey::Program(first_program.clone());
+        let program_data: ProgramData = env.storage().instance().get(&program_key).unwrap();
+        let admin = program_data.authorized_payout_key;
+
+        // Verify admin authorization
+        admin.require_auth();
+
+        // Set paused state
+        env.storage().instance().set(&DataKey::Paused, &true);
+
+        // Emit pause event
+        env.events().publish(
+            (symbol_short!("paused"),),
+            ContractPaused {
+                admin: admin.clone(),
+                timestamp: env.ledger().timestamp(),
+                reason,
+            },
+        );
+
+        // Track successful operation
+        monitoring::track_operation(&env, symbol_short!("pause"), admin, true);
+    }
+
+    /// Unpauses contract operations, restoring normal functionality.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `reason` - Optional reason for unpausing (for audit trail)
+    ///
+    /// # Panics
+    /// * If contract is not initialized
+    /// * If caller is not authorized
+    ///
+    /// # State Changes
+    /// - Sets paused state to false in instance storage
+    /// - Emits ContractUnpaused event
+    pub fn unpause(env: Env, reason: Option<String>) {
+        // Get admin from any existing program
+        let registry: Vec<String> = env.storage().instance().get(&PROGRAM_REGISTRY).unwrap_or(vec![&env]);
+        if registry.is_empty() {
+            panic!("Contract not initialized");
+        }
+
+        let first_program = registry.get(0).unwrap();
+        let program_key = DataKey::Program(first_program.clone());
+        let program_data: ProgramData = env.storage().instance().get(&program_key).unwrap();
+        let admin = program_data.authorized_payout_key;
+
+        // Verify admin authorization
+        admin.require_auth();
+
+        // Set unpaused state
+        env.storage().instance().set(&DataKey::Paused, &false);
+
+        // Emit unpause event
+        env.events().publish(
+            (symbol_short!("unpaused"),),
+            ContractUnpaused {
+                admin: admin.clone(),
+                timestamp: env.ledger().timestamp(),
+                reason,
+            },
+        );
+
+        // Track successful operation
+        monitoring::track_operation(&env, symbol_short!("unpause"), admin, true);
+    }
+
+    /// Emergency withdrawal of contract funds to authorized address.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `recipient` - Address to receive emergency funds
+    /// * `amount` - Amount to withdraw (0 for all available funds)
+    /// * `reason` - Mandatory reason for emergency withdrawal
+    ///
+    /// # Panics
+    /// * If contract is not initialized
+    /// * If caller is not authorized
+    /// * If contract has insufficient balance
+    /// * If amount is invalid
+    ///
+    /// # State Changes
+    /// - Transfers tokens from contract to recipient
+    /// - Emits EmergencyWithdrawal event
+    pub fn emergency_withdraw(
+        env: Env,
+        recipient: Address,
+        amount: i128,
+        reason: String,
+    ) {
+        // Get admin from any existing program
+        let registry: Vec<String> = env.storage().instance().get(&PROGRAM_REGISTRY).unwrap_or(vec![&env]);
+        if registry.is_empty() {
+            panic!("Contract not initialized");
+        }
+
+        let first_program = registry.get(0).unwrap();
+        let program_key = DataKey::Program(first_program.clone());
+        let program_data: ProgramData = env.storage().instance().get(&program_key).unwrap();
+        let admin = program_data.authorized_payout_key;
+
+        // Verify admin authorization
+        admin.require_auth();
+
+        // Get token contract
+        let token_addr = program_data.token_address;
+        let client = token::Client::new(&env, &token_addr);
+
+        // Get contract balance
+        let contract_balance = client.balance(&env.current_contract_address());
+
+        // Determine withdrawal amount
+        let withdraw_amount = if amount == 0 {
+            contract_balance
+        } else {
+            if amount > contract_balance {
+                panic!("Insufficient funds");
+            }
+            amount
+        };
+
+        if withdraw_amount <= 0 {
+            panic!("Invalid amount");
+        }
+
+        // Transfer funds to recipient
+        client.transfer(&env.current_contract_address(), &recipient, &withdraw_amount);
+
+        // Emit emergency withdrawal event
+        env.events().publish(
+            (symbol_short!("ewd"),),
+            EmergencyWithdrawal {
+                admin: admin.clone(),
+                recipient: recipient.clone(),
+                amount: withdraw_amount,
+                timestamp: env.ledger().timestamp(),
+                reason,
+            },
+        );
+
+        // Track successful operation
+        monitoring::track_operation(&env, symbol_short!("ewd"), admin, true);
+    }
+
+    /// Checks if the contract is currently paused.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    ///
+    /// # Returns
+    /// * `bool` - True if contract is paused, false otherwise
+    pub fn is_paused(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+    }
+
     /// Lists all registered program IDs in the contract.
     ///
     /// # Returns
@@ -930,6 +1147,12 @@ impl ProgramEscrowContract {
 
         let start = env.ledger().timestamp();
         let caller = env.current_contract_address();
+
+        // Check if contract is paused
+        if Self::is_paused(env.clone()) {
+            monitoring::track_operation(&env, symbol_short!("lock"), caller, false);
+            panic!("Contract is paused");
+        }
 
         // Validate amount
         if amount <= 0 {
@@ -1087,6 +1310,11 @@ impl ProgramEscrowContract {
             .get(&program_key)
             .unwrap_or_else(|| panic!("Program not found"));
 
+        // Check if contract is paused
+        if Self::is_paused(env.clone()) {
+            panic!("Contract is paused");
+        }
+
         // Apply rate limiting to the authorized payout key
         anti_abuse::check_rate_limit(&env, program_data.authorized_payout_key.clone());
 
@@ -1230,6 +1458,11 @@ impl ProgramEscrowContract {
             .instance()
             .get(&program_key)
             .unwrap_or_else(|| panic!("Program not found"));
+
+        // Check if contract is paused
+        if Self::is_paused(env.clone()) {
+            panic!("Contract is paused");
+        }
 
         // Apply rate limiting to the authorized payout key
         anti_abuse::check_rate_limit(&env, program_data.authorized_payout_key.clone());
@@ -1597,6 +1830,11 @@ impl ProgramEscrowContract {
         program_id: String,
         schedule_id: u64,
     ) {
+        // Check if contract is paused
+        if Self::is_paused(env.clone()) {
+            panic!("Contract is paused");
+        }
+
         let start = env.ledger().timestamp();
 
         // Get program data
@@ -2812,3 +3050,7 @@ mod test {
         assert_eq!(config.cooldown_period, 120);
     }
 }
+
+#[cfg(test)]
+#[path = "test_pause.rs"]
+mod test_pause;

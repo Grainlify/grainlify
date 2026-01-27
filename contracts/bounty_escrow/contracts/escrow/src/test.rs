@@ -431,7 +431,7 @@ fn test_refund_custom_after_deadline() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #13)")] // RefundNotApproved
+#[should_panic(expected = "Error(Contract, #15)")] // RefundNotApproved
 fn test_refund_custom_before_deadline_without_approval() {
     let setup = TestSetup::new();
     let bounty_id = 1;
@@ -521,7 +521,7 @@ fn test_refund_approval_workflow() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #13)")] // RefundNotApproved
+#[should_panic(expected = "Error(Contract, #15)")] // RefundNotApproved
 fn test_refund_approval_mismatch() {
     let setup = TestSetup::new();
     let bounty_id = 1;
@@ -935,7 +935,7 @@ fn test_batch_lock_funds_duplicate_bounty_id() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #11)")] // DuplicateBountyId
+#[should_panic(expected = "Error(Contract, #12)")] // DuplicateBountyId
 fn test_batch_lock_funds_duplicate_in_batch() {
     let setup = TestSetup::new();
     let deadline = setup.env.ledger().timestamp() + 1000;
@@ -1075,7 +1075,7 @@ fn test_batch_release_funds_already_released() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #11)")] // DuplicateBountyId
+#[should_panic(expected = "Error(Contract, #12)")] // DuplicateBountyId
 fn test_batch_release_funds_duplicate_in_batch() {
     let setup = TestSetup::new();
     let deadline = setup.env.ledger().timestamp() + 1000;

@@ -23,7 +23,7 @@
 //! └─────────────────────────────────────────────────────────────┘
 //! ```
 
-use soroban_sdk::{contracttype, symbol_short, Address, Env};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, String};
 
 // ============================================================================
 // Contract Initialization Event
@@ -310,5 +310,85 @@ pub struct BatchFundsReleased {
 
 pub fn emit_batch_funds_released(env: &Env, event: BatchFundsReleased) {
     let topics = (symbol_short!("b_rel"),);
+    env.events().publish(topics, event.clone());
+}
+
+// ============================================================================
+// Pause Control Events
+// ============================================================================
+
+/// Event emitted when the contract is paused.
+///
+/// # Fields
+/// * `admin` - Address that initiated the pause
+/// * `timestamp` - Unix timestamp of pause
+/// * `reason` - Optional reason for pausing
+///
+/// # Event Topic
+/// Symbol: `paused`
+///
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ContractPaused {
+    pub admin: Address,
+    pub timestamp: u64,
+    pub reason: Option<String>,
+}
+
+/// Event emitted when the contract is unpaused.
+///
+/// # Fields
+/// * `admin` - Address that initiated the unpause
+/// * `timestamp` - Unix timestamp of unpause
+/// * `reason` - Optional reason for unpausing
+///
+/// # Event Topic
+/// Symbol: `unpaused`
+///
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ContractUnpaused {
+    pub admin: Address,
+    pub timestamp: u64,
+    pub reason: Option<String>,
+}
+
+/// Event emitted during emergency withdrawal.
+///
+/// # Fields
+/// * `admin` - Address that initiated the withdrawal
+/// * `recipient` - Address receiving the emergency funds
+/// * `amount` - Amount of tokens withdrawn
+/// * `timestamp` - Unix timestamp of withdrawal
+/// * `reason` - Reason for emergency withdrawal
+///
+/// # Event Topic
+/// Symbol: `emergency_withdraw`
+///
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct EmergencyWithdrawal {
+    pub admin: Address,
+    pub recipient: Address,
+    pub amount: i128,
+    pub timestamp: u64,
+    pub reason: String,
+}
+
+/// Emits a ContractPaused event.
+pub fn emit_contract_paused(env: &Env, event: ContractPaused) {
+    let topics = (symbol_short!("paused"),);
+    env.events().publish(topics, event.clone());
+}
+
+/// Emits a ContractUnpaused event.
+pub fn emit_contract_unpaused(env: &Env, event: ContractUnpaused) {
+    let topics = (symbol_short!("unpaused"),);
+    env.events().publish(topics, event.clone());
+}
+
+/// Emits an EmergencyWithdrawal event.
+pub fn emit_emergency_withdrawal(env: &Env, event: EmergencyWithdrawal) {
+    let topics = (symbol_short!("ewd"),);
     env.events().publish(topics, event.clone());
 }

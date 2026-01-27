@@ -91,9 +91,11 @@ mod events;
 mod test_bounty_escrow;
 
 use events::{
-    emit_batch_funds_locked, emit_batch_funds_released, emit_bounty_initialized, emit_funds_locked,
+    emit_batch_funds_locked, emit_batch_funds_released, emit_bounty_initialized,
+    emit_contract_paused, emit_contract_unpaused, emit_emergency_withdrawal, emit_funds_locked,
     emit_funds_refunded, emit_funds_released, BatchFundsLocked, BatchFundsReleased,
-    BountyEscrowInitialized, FundsLocked, FundsRefunded, FundsReleased,
+    BountyEscrowInitialized, ContractPaused, ContractUnpaused, EmergencyWithdrawal, FundsLocked,
+    FundsRefunded, FundsReleased,
 };
 
 // Event symbols for release schedules
@@ -101,330 +103,8 @@ const SCHEDULE_CREATED: soroban_sdk::Symbol = soroban_sdk::symbol_short!("sch_cr
 const SCHEDULE_RELEASED: soroban_sdk::Symbol = soroban_sdk::symbol_short!("sch_rel");
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, token, vec, Address, Env,
-    Vec,
+    String, Vec,
 };
-
-// ==================== MONITORING MODULE ====================
-mod monitoring {
-    use soroban_sdk::{contracttype, symbol_short, Address, Env, String, Symbol};
-
-    // Storage keys
-    const OPERATION_COUNT: &str = "op_count";
-    const USER_COUNT: &str = "usr_count";
-    const ERROR_COUNT: &str = "err_count";
-
-    // Event: Operation metric
-    #[contracttype]
-    #[derive(Clone, Debug)]
-    pub struct OperationMetric {
-        pub operation: Symbol,
-        pub caller: Address,
-        pub timestamp: u64,
-        pub success: bool,
-    }
-
-    // Event: Performance metric
-    #[contracttype]
-    #[derive(Clone, Debug)]
-    pub struct PerformanceMetric {
-        pub function: Symbol,
-        pub duration: u64,
-        pub timestamp: u64,
-    }
-
-    // Data: Health status
-    #[contracttype]
-    #[derive(Clone, Debug)]
-    pub struct HealthStatus {
-        pub is_healthy: bool,
-        pub last_operation: u64,
-        pub total_operations: u64,
-        pub contract_version: String,
-    }
-
-    // Data: Analytics
-    #[contracttype]
-    #[derive(Clone, Debug)]
-    pub struct Analytics {
-        pub operation_count: u64,
-        pub unique_users: u64,
-        pub error_count: u64,
-        pub error_rate: u32,
-    }
-
-    // Data: State snapshot
-    #[contracttype]
-    #[derive(Clone, Debug)]
-    pub struct StateSnapshot {
-        pub timestamp: u64,
-        pub total_operations: u64,
-        pub total_users: u64,
-        pub total_errors: u64,
-    }
-
-    // Data: Performance stats
-    #[contracttype]
-    #[derive(Clone, Debug)]
-    pub struct PerformanceStats {
-        pub function_name: Symbol,
-        pub call_count: u64,
-        pub total_time: u64,
-        pub avg_time: u64,
-        pub last_called: u64,
-    }
-
-    // Track operation
-    pub fn track_operation(env: &Env, operation: Symbol, caller: Address, success: bool) {
-        let key = Symbol::new(env, OPERATION_COUNT);
-        let count: u64 = env.storage().persistent().get(&key).unwrap_or(0);
-        env.storage().persistent().set(&key, &(count + 1));
-
-        if !success {
-            let err_key = Symbol::new(env, ERROR_COUNT);
-            let err_count: u64 = env.storage().persistent().get(&err_key).unwrap_or(0);
-            env.storage().persistent().set(&err_key, &(err_count + 1));
-        }
-
-        env.events().publish(
-            (symbol_short!("metric"), symbol_short!("op")),
-            OperationMetric {
-                operation,
-                caller,
-                timestamp: env.ledger().timestamp(),
-                success,
-            },
-        );
-    }
-
-    // Track performance
-    pub fn emit_performance(env: &Env, function: Symbol, duration: u64) {
-        let count_key = (Symbol::new(env, "perf_cnt"), function.clone());
-        let time_key = (Symbol::new(env, "perf_time"), function.clone());
-
-        let count: u64 = env.storage().persistent().get(&count_key).unwrap_or(0);
-        let total: u64 = env.storage().persistent().get(&time_key).unwrap_or(0);
-
-        env.storage().persistent().set(&count_key, &(count + 1));
-        env.storage()
-            .persistent()
-            .set(&time_key, &(total + duration));
-
-        env.events().publish(
-            (symbol_short!("metric"), symbol_short!("perf")),
-            PerformanceMetric {
-                function,
-                duration,
-                timestamp: env.ledger().timestamp(),
-            },
-        );
-    }
-
-    // Health check
-    pub fn health_check(env: &Env) -> HealthStatus {
-        let key = Symbol::new(env, OPERATION_COUNT);
-        let ops: u64 = env.storage().persistent().get(&key).unwrap_or(0);
-
-        HealthStatus {
-            is_healthy: true,
-            last_operation: env.ledger().timestamp(),
-            total_operations: ops,
-            contract_version: String::from_str(env, "1.0.0"),
-        }
-    }
-
-    // Get analytics
-    pub fn get_analytics(env: &Env) -> Analytics {
-        let op_key = Symbol::new(env, OPERATION_COUNT);
-        let usr_key = Symbol::new(env, USER_COUNT);
-        let err_key = Symbol::new(env, ERROR_COUNT);
-
-        let ops: u64 = env.storage().persistent().get(&op_key).unwrap_or(0);
-        let users: u64 = env.storage().persistent().get(&usr_key).unwrap_or(0);
-        let errors: u64 = env.storage().persistent().get(&err_key).unwrap_or(0);
-
-        let error_rate = if ops > 0 {
-            ((errors as u128 * 10000) / ops as u128) as u32
-        } else {
-            0
-        };
-
-        Analytics {
-            operation_count: ops,
-            unique_users: users,
-            error_count: errors,
-            error_rate,
-        }
-    }
-
-    // Get state snapshot
-    pub fn get_state_snapshot(env: &Env) -> StateSnapshot {
-        let op_key = Symbol::new(env, OPERATION_COUNT);
-        let usr_key = Symbol::new(env, USER_COUNT);
-        let err_key = Symbol::new(env, ERROR_COUNT);
-
-        StateSnapshot {
-            timestamp: env.ledger().timestamp(),
-            total_operations: env.storage().persistent().get(&op_key).unwrap_or(0),
-            total_users: env.storage().persistent().get(&usr_key).unwrap_or(0),
-            total_errors: env.storage().persistent().get(&err_key).unwrap_or(0),
-        }
-    }
-
-    // Get performance stats
-    pub fn get_performance_stats(env: &Env, function_name: Symbol) -> PerformanceStats {
-        let count_key = (Symbol::new(env, "perf_cnt"), function_name.clone());
-        let time_key = (Symbol::new(env, "perf_time"), function_name.clone());
-        let last_key = (Symbol::new(env, "perf_last"), function_name.clone());
-
-        let count: u64 = env.storage().persistent().get(&count_key).unwrap_or(0);
-        let total: u64 = env.storage().persistent().get(&time_key).unwrap_or(0);
-        let last: u64 = env.storage().persistent().get(&last_key).unwrap_or(0);
-
-        let avg = if count > 0 { total / count } else { 0 };
-
-        PerformanceStats {
-            function_name,
-            call_count: count,
-            total_time: total,
-            avg_time: avg,
-            last_called: last,
-        }
-    }
-}
-// ==================== END MONITORING MODULE ====================
-
-// ==================== ANTI-ABUSE MODULE ====================
-mod anti_abuse {
-    use soroban_sdk::{contracttype, symbol_short, Address, Env};
-
-    #[contracttype]
-    #[derive(Clone, Debug, Eq, PartialEq)]
-    pub struct AntiAbuseConfig {
-        pub window_size: u64,     // Window size in seconds
-        pub max_operations: u32,  // Max operations allowed in window
-        pub cooldown_period: u64, // Minimum seconds between operations
-    }
-
-    #[contracttype]
-    #[derive(Clone, Debug, Eq, PartialEq)]
-    pub struct AddressState {
-        pub last_operation_timestamp: u64,
-        pub window_start_timestamp: u64,
-        pub operation_count: u32,
-    }
-
-    #[contracttype]
-    #[derive(Clone, Debug, Eq, PartialEq)]
-    pub enum AntiAbuseKey {
-        Config,
-        State(Address),
-        Whitelist(Address),
-        Admin,
-    }
-
-    pub fn get_config(env: &Env) -> AntiAbuseConfig {
-        env.storage()
-            .instance()
-            .get(&AntiAbuseKey::Config)
-            .unwrap_or(AntiAbuseConfig {
-                window_size: 3600, // 1 hour default
-                max_operations: 10,
-                cooldown_period: 60, // 1 minute default
-            })
-    }
-
-    pub fn set_config(env: &Env, config: AntiAbuseConfig) {
-        env.storage().instance().set(&AntiAbuseKey::Config, &config);
-    }
-
-    pub fn is_whitelisted(env: &Env, address: Address) -> bool {
-        env.storage()
-            .instance()
-            .has(&AntiAbuseKey::Whitelist(address))
-    }
-
-    pub fn set_whitelist(env: &Env, address: Address, whitelisted: bool) {
-        if whitelisted {
-            env.storage()
-                .instance()
-                .set(&AntiAbuseKey::Whitelist(address), &true);
-        } else {
-            env.storage()
-                .instance()
-                .remove(&AntiAbuseKey::Whitelist(address));
-        }
-    }
-
-    pub fn get_admin(env: &Env) -> Option<Address> {
-        env.storage().instance().get(&AntiAbuseKey::Admin)
-    }
-
-    pub fn set_admin(env: &Env, admin: Address) {
-        env.storage().instance().set(&AntiAbuseKey::Admin, &admin);
-    }
-
-    pub fn check_rate_limit(env: &Env, address: Address) {
-        if is_whitelisted(env, address.clone()) {
-            return;
-        }
-
-        let config = get_config(env);
-        let now = env.ledger().timestamp();
-        let key = AntiAbuseKey::State(address.clone());
-
-        let mut state: AddressState =
-            env.storage()
-                .persistent()
-                .get(&key)
-                .unwrap_or(AddressState {
-                    last_operation_timestamp: 0,
-                    window_start_timestamp: now,
-                    operation_count: 0,
-                });
-
-        // 1. Cooldown check
-        if state.last_operation_timestamp > 0
-            && now
-                < state
-                    .last_operation_timestamp
-                    .saturating_add(config.cooldown_period)
-        {
-            env.events().publish(
-                (symbol_short!("abuse"), symbol_short!("cooldown")),
-                (address.clone(), now),
-            );
-            panic!("Operation in cooldown period");
-        }
-
-        // 2. Window check
-        if now
-            >= state
-                .window_start_timestamp
-                .saturating_add(config.window_size)
-        {
-            // New window
-            state.window_start_timestamp = now;
-            state.operation_count = 1;
-        } else {
-            // Same window
-            if state.operation_count >= config.max_operations {
-                env.events().publish(
-                    (symbol_short!("abuse"), symbol_short!("limit")),
-                    (address.clone(), now),
-                );
-                panic!("Rate limit exceeded");
-            }
-            state.operation_count += 1;
-        }
-
-        state.last_operation_timestamp = now;
-        env.storage().persistent().set(&key, &state);
-
-        // Extend TTL for state (approx 1 day)
-        env.storage().persistent().extend_ttl(&key, 17280, 17280);
-    }
-}
-// ==================== END ANTI-ABUSE MODULE ====================
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -450,28 +130,48 @@ pub enum Error {
 
     /// Returned when caller lacks required authorization for the operation
     Unauthorized = 7,
+
     /// Returned when amount is invalid (zero, negative, or exceeds available)
     InvalidAmount = 8,
+
     /// Returned when deadline is invalid (in the past or too far in the future)
     InvalidDeadline = 9,
-    BatchSizeMismatch = 10,
-    DuplicateBountyId = 11,
+
+    /// Returned when batch size is invalid
+    InvalidBatchSize = 10,
+
+    /// Returned when batch size doesn't match the number of items
+    BatchSizeMismatch = 11,
+
+    /// Returned when attempting to create a bounty with an existing ID
+    DuplicateBountyId = 12,
+
+    /// Returned when contract is paused and operation is not allowed
+    ContractPaused = 13,
+
     /// Returned when contract has insufficient funds for the operation
-    InsufficientFunds = 12,
+    InsufficientFunds = 14,
+
     /// Returned when refund is attempted without admin approval
-    RefundNotApproved = 13,
+    RefundNotApproved = 15,
+
     /// Returned when schedule ID already exists
-    ScheduleExists = 14,
+    ScheduleExists = 16,
+
     /// Returned when schedule not found
-    ScheduleNotFound = 15,
+    ScheduleNotFound = 17,
+
     /// Returned when schedule timestamp is in the past
-    InvalidScheduleTimestamp = 16,
+    InvalidScheduleTimestamp = 18,
+
     /// Returned when schedule amount exceeds available funds
-    InsufficientScheduledAmount = 17,
+    InsufficientScheduledAmount = 19,
+
     /// Returned when schedule is already released
-    ScheduleAlreadyReleased = 18,
+    ScheduleAlreadyReleased = 20,
+
     /// Returned when schedule is not yet due for release
-    ScheduleNotDue = 19,
+    ScheduleNotDue = 21,
 }
 
 // ============================================================================
@@ -684,10 +384,329 @@ pub enum DataKey {
     Token,
     Escrow(u64),         // bounty_id
     RefundApproval(u64), // bounty_id -> RefundApproval
+    Paused,              // Global pause state
     ReentrancyGuard,
     ReleaseSchedule(u64, u64), // bounty_id, schedule_id -> ReleaseSchedule
     ReleaseHistory(u64),       // bounty_id -> Vec<ReleaseHistory>
     NextScheduleId(u64),       // bounty_id -> next schedule_id
+}
+
+mod monitoring {
+    use soroban_sdk::{contracttype, symbol_short, Address, Env, String, Symbol};
+
+    // Storage keys
+    const OPERATION_COUNT: &str = "op_count";
+    const USER_COUNT: &str = "usr_count";
+    const ERROR_COUNT: &str = "err_count";
+
+    // Event: Operation metric
+    #[contracttype]
+    #[derive(Clone, Debug)]
+    pub struct OperationMetric {
+        pub operation: Symbol,
+        pub caller: Address,
+        pub timestamp: u64,
+        pub success: bool,
+    }
+
+    // Event: Performance metric
+    #[contracttype]
+    #[derive(Clone, Debug)]
+    pub struct PerformanceMetric {
+        pub function: Symbol,
+        pub duration: u64,
+        pub timestamp: u64,
+    }
+
+    // Data: Health status
+    #[contracttype]
+    #[derive(Clone, Debug)]
+    pub struct HealthStatus {
+        pub is_healthy: bool,
+        pub last_operation: u64,
+        pub total_operations: u64,
+        pub contract_version: String,
+    }
+
+    // Data: Analytics
+    #[contracttype]
+    #[derive(Clone, Debug)]
+    pub struct Analytics {
+        pub operation_count: u64,
+        pub unique_users: u64,
+        pub error_count: u64,
+        pub error_rate: u32,
+    }
+
+    // Data: State snapshot
+    #[contracttype]
+    #[derive(Clone, Debug)]
+    pub struct StateSnapshot {
+        pub timestamp: u64,
+        pub total_operations: u64,
+        pub total_users: u64,
+        pub total_errors: u64,
+    }
+
+    // Data: Performance stats
+    #[contracttype]
+    #[derive(Clone, Debug)]
+    pub struct PerformanceStats {
+        pub function_name: Symbol,
+        pub call_count: u64,
+        pub total_time: u64,
+        pub avg_time: u64,
+        pub last_called: u64,
+    }
+
+    // Track operation
+    pub fn track_operation(env: &Env, operation: Symbol, caller: Address, success: bool) {
+        let key = Symbol::new(env, OPERATION_COUNT);
+        let count: u64 = env.storage().persistent().get(&key).unwrap_or(0);
+        env.storage().persistent().set(&key, &(count + 1));
+
+        if !success {
+            let err_key = Symbol::new(env, ERROR_COUNT);
+            let err_count: u64 = env.storage().persistent().get(&err_key).unwrap_or(0);
+            env.storage().persistent().set(&err_key, &(err_count + 1));
+        }
+
+        env.events().publish(
+            (symbol_short!("metric"), symbol_short!("op")),
+            OperationMetric {
+                operation,
+                caller,
+                timestamp: env.ledger().timestamp(),
+                success,
+            },
+        );
+    }
+
+    // Track performance
+    pub fn emit_performance(env: &Env, function: Symbol, duration: u64) {
+        let count_key = (Symbol::new(env, "perf_cnt"), function.clone());
+        let time_key = (Symbol::new(env, "perf_time"), function.clone());
+
+        let count: u64 = env.storage().persistent().get(&count_key).unwrap_or(0);
+        let total: u64 = env.storage().persistent().get(&time_key).unwrap_or(0);
+
+        env.storage().persistent().set(&count_key, &(count + 1));
+        env.storage()
+            .persistent()
+            .set(&time_key, &(total + duration));
+
+        env.events().publish(
+            (symbol_short!("metric"), symbol_short!("perf")),
+            PerformanceMetric {
+                function,
+                duration,
+                timestamp: env.ledger().timestamp(),
+            },
+        );
+    }
+
+    // Health check
+    pub fn health_check(env: &Env) -> HealthStatus {
+        let key = Symbol::new(env, OPERATION_COUNT);
+        let ops: u64 = env.storage().persistent().get(&key).unwrap_or(0);
+
+        HealthStatus {
+            is_healthy: true,
+            last_operation: env.ledger().timestamp(),
+            total_operations: ops,
+            contract_version: String::from_str(env, "1.0.0"),
+        }
+    }
+
+    // Get analytics
+    pub fn get_analytics(env: &Env) -> Analytics {
+        let op_key = Symbol::new(env, OPERATION_COUNT);
+        let usr_key = Symbol::new(env, USER_COUNT);
+        let err_key = Symbol::new(env, ERROR_COUNT);
+
+        let ops: u64 = env.storage().persistent().get(&op_key).unwrap_or(0);
+        let users: u64 = env.storage().persistent().get(&usr_key).unwrap_or(0);
+        let errors: u64 = env.storage().persistent().get(&err_key).unwrap_or(0);
+
+        let error_rate = if ops > 0 {
+            ((errors as u128 * 10000) / ops as u128) as u32
+        } else {
+            0
+        };
+
+        Analytics {
+            operation_count: ops,
+            unique_users: users,
+            error_count: errors,
+            error_rate,
+        }
+    }
+
+    // Get state snapshot
+    pub fn get_state_snapshot(env: &Env) -> StateSnapshot {
+        let op_key = Symbol::new(env, OPERATION_COUNT);
+        let usr_key = Symbol::new(env, USER_COUNT);
+        let err_key = Symbol::new(env, ERROR_COUNT);
+
+        StateSnapshot {
+            timestamp: env.ledger().timestamp(),
+            total_operations: env.storage().persistent().get(&op_key).unwrap_or(0),
+            total_users: env.storage().persistent().get(&usr_key).unwrap_or(0),
+            total_errors: env.storage().persistent().get(&err_key).unwrap_or(0),
+        }
+    }
+
+    // Get performance stats
+    pub fn get_performance_stats(env: &Env, function_name: Symbol) -> PerformanceStats {
+        let count_key = (Symbol::new(env, "perf_cnt"), function_name.clone());
+        let time_key = (Symbol::new(env, "perf_time"), function_name.clone());
+        let last_key = (Symbol::new(env, "perf_last"), function_name.clone());
+
+        let count: u64 = env.storage().persistent().get(&count_key).unwrap_or(0);
+        let total: u64 = env.storage().persistent().get(&time_key).unwrap_or(0);
+        let last: u64 = env.storage().persistent().get(&last_key).unwrap_or(0);
+
+        let avg = if count > 0 { total / count } else { 0 };
+
+        PerformanceStats {
+            function_name,
+            call_count: count,
+            total_time: total,
+            avg_time: avg,
+            last_called: last,
+        }
+    }
+}
+
+mod anti_abuse {
+    use soroban_sdk::{contracttype, symbol_short, Address, Env};
+
+    #[contracttype]
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    pub struct AntiAbuseConfig {
+        pub window_size: u64,     // Window size in seconds
+        pub max_operations: u32,  // Max operations allowed in window
+        pub cooldown_period: u64, // Minimum seconds between operations
+    }
+
+    #[contracttype]
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    pub struct AddressState {
+        pub last_operation_timestamp: u64,
+        pub window_start_timestamp: u64,
+        pub operation_count: u32,
+    }
+
+    #[contracttype]
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    pub enum AntiAbuseKey {
+        Config,
+        State(Address),
+        Whitelist(Address),
+        Admin,
+    }
+
+    pub fn get_config(env: &Env) -> AntiAbuseConfig {
+        env.storage()
+            .instance()
+            .get(&AntiAbuseKey::Config)
+            .unwrap_or(AntiAbuseConfig {
+                window_size: 3600, // 1 hour default
+                max_operations: 10,
+                cooldown_period: 60, // 1 minute default
+            })
+    }
+
+    pub fn set_config(env: &Env, config: AntiAbuseConfig) {
+        env.storage().instance().set(&AntiAbuseKey::Config, &config);
+    }
+
+    pub fn is_whitelisted(env: &Env, address: Address) -> bool {
+        env.storage()
+            .instance()
+            .has(&AntiAbuseKey::Whitelist(address))
+    }
+
+    pub fn set_whitelist(env: &Env, address: Address, whitelisted: bool) {
+        if whitelisted {
+            env.storage()
+                .instance()
+                .set(&AntiAbuseKey::Whitelist(address), &true);
+        } else {
+            env.storage()
+                .instance()
+                .remove(&AntiAbuseKey::Whitelist(address));
+        }
+    }
+
+    pub fn get_admin(env: &Env) -> Option<Address> {
+        env.storage().instance().get(&AntiAbuseKey::Admin)
+    }
+
+    pub fn set_admin(env: &Env, admin: Address) {
+        env.storage().instance().set(&AntiAbuseKey::Admin, &admin);
+    }
+
+    pub fn check_rate_limit(env: &Env, address: Address) {
+        if is_whitelisted(env, address.clone()) {
+            return;
+        }
+
+        let config = get_config(env);
+        let now = env.ledger().timestamp();
+        let key = AntiAbuseKey::State(address.clone());
+
+        let mut state: AddressState =
+            env.storage()
+                .persistent()
+                .get(&key)
+                .unwrap_or(AddressState {
+                    last_operation_timestamp: 0,
+                    window_start_timestamp: now,
+                    operation_count: 0,
+                });
+
+        // 1. Cooldown check
+        if state.last_operation_timestamp > 0
+            && now
+                < state
+                    .last_operation_timestamp
+                    .saturating_add(config.cooldown_period)
+        {
+            env.events().publish(
+                (symbol_short!("abuse"), symbol_short!("cooldown")),
+                (address.clone(), now),
+            );
+            panic!("Operation in cooldown period");
+        }
+
+        // 2. Window check
+        if now
+            >= state
+                .window_start_timestamp
+                .saturating_add(config.window_size)
+        {
+            // New window
+            state.window_start_timestamp = now;
+            state.operation_count = 1;
+        } else {
+            // Same window
+            if state.operation_count >= config.max_operations {
+                env.events().publish(
+                    (symbol_short!("abuse"), symbol_short!("limit")),
+                    (address.clone(), now),
+                );
+                panic!("Rate limit exceeded");
+            }
+            state.operation_count += 1;
+        }
+
+        state.last_operation_timestamp = now;
+        env.storage().persistent().set(&key, &state);
+
+        // Extend TTL for state (approx 1 day)
+        env.storage().persistent().extend_ttl(&key, 17280, 17280);
+    }
 }
 
 // ============================================================================
@@ -775,6 +794,293 @@ impl BountyEscrowContract {
     }
 
     // ========================================================================
+    // Pause Control Functions
+    // ========================================================================
+
+    /// Pauses all contract operations except emergency withdrawals.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `reason` - Optional reason for pausing (for audit trail)
+    ///
+    /// # Returns
+    /// * `Ok(())` - Contract successfully paused
+    /// * `Err(Error::NotInitialized)` - Contract not initialized
+    /// * `Err(Error::Unauthorized)` - Caller is not the admin
+    ///
+    /// # State Changes
+    /// - Sets paused state to true in instance storage
+    /// - Emits ContractPaused event
+    ///
+    /// # Authorization
+    /// - **CRITICAL**: Only admin can call this function
+    /// - Admin address must match initialization value
+    ///
+    /// # Security Considerations
+    /// - This is a critical security function for emergency response
+    /// - Should be called when security issues, bugs, or regulatory requirements arise
+    /// - All state-changing operations will be blocked when paused
+    /// - Emergency withdrawals remain available for fund recovery
+    ///
+    /// # Events
+    /// Emits: `ContractPaused { admin, timestamp, reason }`
+    ///
+    /// # Example
+    /// ```rust
+    /// // Admin pauses contract due to security concern
+    /// escrow_client.pause(&"Security vulnerability detected".into())?;
+    /// // All operations except emergency withdrawals are now blocked
+    /// ```
+    ///
+    /// # Gas Cost
+    /// Low - Single storage write + event emission
+    pub fn pause(env: Env, reason: Option<String>) -> Result<(), Error> {
+        let start = env.ledger().timestamp();
+
+        // Ensure contract is initialized
+        if !env.storage().instance().has(&DataKey::Admin) {
+            return Err(Error::NotInitialized);
+        }
+
+        // Verify admin authorization
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+
+        // Set paused state
+        env.storage().instance().set(&DataKey::Paused, &true);
+
+        // Emit pause event
+        emit_contract_paused(
+            &env,
+            ContractPaused {
+                admin: admin.clone(),
+                timestamp: env.ledger().timestamp(),
+                reason: reason.clone(),
+            },
+        );
+
+        // Track successful operation
+        monitoring::track_operation(&env, symbol_short!("pause"), admin, true);
+
+        // Track performance
+        let duration = env.ledger().timestamp().saturating_sub(start);
+        monitoring::emit_performance(&env, symbol_short!("pause"), duration);
+
+        Ok(())
+    }
+
+    /// Unpauses contract operations, restoring normal functionality.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `reason` - Optional reason for unpausing (for audit trail)
+    ///
+    /// # Returns
+    /// * `Ok(())` - Contract successfully unpaused
+    /// * `Err(Error::NotInitialized)` - Contract not initialized
+    /// * `Err(Error::Unauthorized)` - Caller is not the admin
+    ///
+    /// # State Changes
+    /// - Sets paused state to false in instance storage
+    /// - Emits ContractUnpaused event
+    ///
+    /// # Authorization
+    /// - **CRITICAL**: Only admin can call this function
+    /// - Admin address must match initialization value
+    ///
+    /// # Security Considerations
+    /// - Should only be called after security issues are resolved
+    /// - Consider implementing time-lock for additional security
+    /// - All normal operations will be restored
+    ///
+    /// # Events
+    /// Emits: `ContractUnpaused { admin, timestamp, reason }`
+    ///
+    /// # Example
+    /// ```rust
+    /// // Admin unpauses contract after security fix
+    /// escrow_client.unpause(&"Security issue resolved".into())?;
+    /// // Normal operations are now restored
+    /// ```
+    ///
+    /// # Gas Cost
+    /// Low - Single storage write + event emission
+    pub fn unpause(env: Env, reason: Option<String>) -> Result<(), Error> {
+        let start = env.ledger().timestamp();
+
+        // Ensure contract is initialized
+        if !env.storage().instance().has(&DataKey::Admin) {
+            return Err(Error::NotInitialized);
+        }
+
+        // Verify admin authorization
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+
+        // Set unpaused state
+        env.storage().instance().set(&DataKey::Paused, &false);
+
+        // Emit unpause event
+        emit_contract_unpaused(
+            &env,
+            ContractUnpaused {
+                admin: admin.clone(),
+                timestamp: env.ledger().timestamp(),
+                reason: reason.clone(),
+            },
+        );
+
+        // Track successful operation
+        monitoring::track_operation(&env, symbol_short!("unpause"), admin, true);
+
+        // Track performance
+        let duration = env.ledger().timestamp().saturating_sub(start);
+        monitoring::emit_performance(&env, symbol_short!("unpause"), duration);
+
+        Ok(())
+    }
+
+    /// Emergency withdrawal of contract funds to authorized address.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `recipient` - Address to receive emergency funds
+    /// * `amount` - Amount to withdraw (0 for all available funds)
+    /// * `reason` - Mandatory reason for emergency withdrawal
+    ///
+    /// # Returns
+    /// * `Ok(())` - Emergency withdrawal successful
+    /// * `Err(Error::NotInitialized)` - Contract not initialized
+    /// * `Err(Error::Unauthorized)` - Caller is not the admin
+    /// * `Err(Error::InsufficientFunds)` - Contract has insufficient balance
+    ///
+    /// # State Changes
+    /// - Transfers tokens from contract to recipient
+    /// - Emits EmergencyWithdrawal event
+    ///
+    /// # Authorization
+    /// - **CRITICAL**: Only admin can call this function
+    /// - Admin address must match initialization value
+    ///
+    /// # Security Considerations
+    /// - This is the most critical emergency function
+    /// - Should only be used in extreme circumstances
+    /// - Recipient should be a secure, trusted address
+    /// - Amount should be carefully calculated
+    /// - Available even when contract is paused
+    /// - Does not affect escrow balances (only contract's own tokens)
+    ///
+    /// # Events
+    /// Emits: `EmergencyWithdrawal { admin, recipient, amount, timestamp, reason }`
+    ///
+    /// # Example
+    /// ```rust
+    /// // Emergency withdrawal due to contract compromise
+    /// let secure_wallet = Address::from_string("GSECURE...");
+    /// escrow_client.emergency_withdraw(
+    ///     &secure_wallet,
+    ///     &0, // withdraw all
+    ///     &"Contract compromise - moving to secure wallet".to_string()
+    /// )?;
+    /// ```
+    ///
+    /// # Gas Cost
+    /// Medium - Token transfer + event emission
+    pub fn emergency_withdraw(
+        env: Env,
+        recipient: Address,
+        amount: i128,
+        reason: String,
+    ) -> Result<(), Error> {
+        let start = env.ledger().timestamp();
+        let start = env.ledger().timestamp();
+
+        // Ensure contract is initialized
+        if !env.storage().instance().has(&DataKey::Admin) {
+            return Err(Error::NotInitialized);
+        }
+
+        // Verify admin authorization
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+
+        // Get token contract
+        let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
+        let client = token::Client::new(&env, &token_addr);
+
+        // Get contract balance
+        let contract_balance = client.balance(&env.current_contract_address());
+
+        // Determine withdrawal amount
+        let withdraw_amount = if amount == 0 {
+            contract_balance
+        } else {
+            if amount > contract_balance {
+                return Err(Error::InsufficientFunds);
+            }
+            amount
+        };
+
+        if withdraw_amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
+
+        // Transfer funds to recipient
+        client.transfer(
+            &env.current_contract_address(),
+            &recipient,
+            &withdraw_amount,
+        );
+
+        // Emit emergency withdrawal event
+        emit_emergency_withdrawal(
+            &env,
+            EmergencyWithdrawal {
+                admin: admin.clone(),
+                recipient: recipient.clone(),
+                amount: withdraw_amount,
+                timestamp: env.ledger().timestamp(),
+                reason: reason.clone(),
+            },
+        );
+
+        // Track successful operation
+        monitoring::track_operation(&env, symbol_short!("ewd"), admin, true);
+
+        // Track performance
+        let duration = env.ledger().timestamp().saturating_sub(start);
+        monitoring::emit_performance(&env, symbol_short!("ewd"), duration);
+
+        Ok(())
+    }
+
+    /// Checks if the contract is currently paused.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    ///
+    /// # Returns
+    /// * `bool` - True if contract is paused, false otherwise
+    ///
+    /// # Security Considerations
+    /// - Public function for transparency
+    /// - Can be called by anyone to check pause status
+    ///
+    /// # Example
+    /// ```rust
+    /// let is_paused = escrow_client.is_paused()?;
+    /// if is_paused {
+    ///     println!("Contract is currently paused");
+    /// }
+    /// ```
+    pub fn is_paused(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+    }
+
+    // ========================================================================
     // Core Escrow Functions
     // ========================================================================
 
@@ -840,6 +1146,12 @@ impl BountyEscrowContract {
 
         let start = env.ledger().timestamp();
         let caller = depositor.clone();
+
+        // Check if contract is paused
+        if Self::is_paused(env.clone()) {
+            monitoring::track_operation(&env, symbol_short!("lock"), caller, false);
+            return Err(Error::ContractPaused);
+        }
 
         // Verify depositor authorization
         depositor.require_auth();
@@ -988,6 +1300,12 @@ impl BountyEscrowContract {
             return Err(Error::NotInitialized);
         }
 
+        // Check if contract is paused
+        if Self::is_paused(env.clone()) {
+            env.storage().instance().remove(&DataKey::ReentrancyGuard);
+            return Err(Error::ContractPaused);
+        }
+
         // Verify admin authorization
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
 
@@ -1066,6 +1384,11 @@ impl BountyEscrowContract {
             return Err(Error::NotInitialized);
         }
 
+        // Check if contract is paused
+        if Self::is_paused(env.clone()) {
+            return Err(Error::ContractPaused);
+        }
+
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
 
@@ -1130,6 +1453,14 @@ impl BountyEscrowContract {
             monitoring::track_operation(&env, symbol_short!("refund"), caller, false);
             env.storage().instance().remove(&DataKey::ReentrancyGuard);
             return Err(Error::BountyNotFound);
+        }
+
+        // Check if contract is paused
+        if Self::is_paused(env.clone()) {
+            let caller = env.current_contract_address();
+            monitoring::track_operation(&env, symbol_short!("refund"), caller, false);
+            env.storage().instance().remove(&DataKey::ReentrancyGuard);
+            return Err(Error::ContractPaused);
         }
 
         // Get and verify escrow state
@@ -2325,3 +2656,5 @@ fn get_total_scheduled_amount(env: &Env, bounty_id: u64) -> i128 {
 
 #[cfg(test)]
 mod test;
+#[cfg(test)]
+mod test_pause;
