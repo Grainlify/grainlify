@@ -1393,7 +1393,7 @@
             "data": {
               "vec": [
                 {
-                  "string": "caught panic 'Recipients and amounts vectors must have the same length' from contract function 'Symbol(obj#311)'"
+                  "string": "caught panic 'Recipients and amounts vectors must have the same length' from contract function 'Symbol(obj#309)'"
                 },
                 {
                   "string": "Test"
