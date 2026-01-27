@@ -729,6 +729,9 @@ pub struct ContractStats {
     pub total_bounties: u32,
     pub total_locked_funds: i128,
     pub total_released_funds: i128,
+    ReleaseSchedule(u64, u64), // bounty_id, schedule_id -> ReleaseSchedule
+    ReleaseHistory(u64),       // bounty_id -> Vec<ReleaseHistory>
+    NextScheduleId(u64),       // bounty_id -> next schedule_id
 }
 
 // ============================================================================
