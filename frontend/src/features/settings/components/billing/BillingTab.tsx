@@ -316,6 +316,24 @@ export function BillingTab() {
     setSelectedProfile(updatedProfile);
   };
 
+  const handleUpdatePaymentMethod = (methodId: number, updates: Partial<PaymentMethod>) => {
+    if (!selectedProfile) return;
+
+    const updatedProfile = {
+      ...selectedProfile,
+      paymentMethods: (selectedProfile.paymentMethods || []).map(m =>
+        m.id === methodId ? { ...m, ...updates } : m
+      ),
+    };
+
+    const updatedProfiles = profiles.map(p =>
+      p.id === selectedProfile.id ? updatedProfile : p
+    );
+
+    setProfiles(updatedProfiles);
+    setSelectedProfile(updatedProfile);
+  };
+
   const handleSetDefaultPaymentMethod = (methodId: number) => {
     if (!selectedProfile) return;
 
@@ -693,6 +711,7 @@ export function BillingTab() {
             paymentMethods={selectedProfile.paymentMethods || []}
             onAddPaymentMethod={handleAddPaymentMethod}
             onRemovePaymentMethod={handleRemovePaymentMethod}
+            onUpdatePaymentMethod={handleUpdatePaymentMethod}
             onSetDefault={handleSetDefaultPaymentMethod}
           />
         )}

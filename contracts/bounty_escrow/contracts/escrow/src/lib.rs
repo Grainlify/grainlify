@@ -111,6 +111,7 @@ mod monitoring {
 
     // Storage keys
     const OPERATION_COUNT: &str = "op_count";
+    #[allow(dead_code)]
     const USER_COUNT: &str = "usr_count";
     const ERROR_COUNT: &str = "err_count";
 
@@ -216,6 +217,7 @@ mod monitoring {
         );
     }
 
+    #[allow(dead_code)]
     pub fn _health_check(env: &Env) -> HealthStatus {
         let key = Symbol::new(env, OPERATION_COUNT);
         let ops: u64 = env.storage().persistent().get(&key).unwrap_or(0);
@@ -228,7 +230,9 @@ mod monitoring {
         }
     }
 
-    pub fn _get_analytics(env: &Env) -> Analytics {
+    // Get analytics
+    #[allow(dead_code)]
+    pub fn get_analytics(env: &Env) -> Analytics {
         let op_key = Symbol::new(env, OPERATION_COUNT);
         let usr_key = Symbol::new(env, USER_COUNT);
         let err_key = Symbol::new(env, ERROR_COUNT);
@@ -251,7 +255,9 @@ mod monitoring {
         }
     }
 
-    pub fn _get_state_snapshot(env: &Env) -> StateSnapshot {
+    // Get state snapshot
+    #[allow(dead_code)]
+    pub fn get_state_snapshot(env: &Env) -> StateSnapshot {
         let op_key = Symbol::new(env, OPERATION_COUNT);
         let usr_key = Symbol::new(env, USER_COUNT);
         let err_key = Symbol::new(env, ERROR_COUNT);
@@ -264,7 +270,9 @@ mod monitoring {
         }
     }
 
-    pub fn _get_performance_stats(env: &Env, function_name: Symbol) -> PerformanceStats {
+    // Get performance stats
+    #[allow(dead_code)]
+    pub fn get_performance_stats(env: &Env, function_name: Symbol) -> PerformanceStats {
         let count_key = (Symbol::new(env, "perf_cnt"), function_name.clone());
         let time_key = (Symbol::new(env, "perf_time"), function_name.clone());
         let last_key = (Symbol::new(env, "perf_last"), function_name.clone());
@@ -326,6 +334,7 @@ mod anti_abuse {
             })
     }
 
+    #[allow(dead_code)]
     pub fn _set_config(env: &Env, config: AntiAbuseConfig) {
         env.storage().instance().set(&AntiAbuseKey::Config, &config);
     }
@@ -336,7 +345,8 @@ mod anti_abuse {
             .has(&AntiAbuseKey::Whitelist(address))
     }
 
-    pub fn _set_whitelist(env: &Env, address: Address, whitelisted: bool) {
+    #[allow(dead_code)]
+    pub fn set_whitelist(env: &Env, address: Address, whitelisted: bool) {
         if whitelisted {
             env.storage()
                 .instance()
@@ -348,11 +358,13 @@ mod anti_abuse {
         }
     }
 
-    pub fn _get_admin(env: &Env) -> Option<Address> {
+    #[allow(dead_code)]
+    pub fn get_admin(env: &Env) -> Option<Address> {
         env.storage().instance().get(&AntiAbuseKey::Admin)
     }
 
-    pub fn _set_admin(env: &Env, admin: Address) {
+    #[allow(dead_code)]
+    pub fn set_admin(env: &Env, admin: Address) {
         env.storage().instance().set(&AntiAbuseKey::Admin, &admin);
     }
 
@@ -694,14 +706,14 @@ impl BountyEscrowContract {
         let mut fee_config = Self::get_fee_config_internal(&env);
 
         if let Some(rate) = lock_fee_rate {
-            if rate < 0 || rate > MAX_FEE_RATE {
+            if !(0..=MAX_FEE_RATE).contains(&rate) {
                 return Err(Error::InvalidFeeRate);
             }
             fee_config.lock_fee_rate = rate;
         }
 
         if let Some(rate) = release_fee_rate {
-            if rate < 0 || rate > MAX_FEE_RATE {
+            if !(0..=MAX_FEE_RATE).contains(&rate) {
                 return Err(Error::InvalidFeeRate);
             }
             fee_config.release_fee_rate = rate;
@@ -1704,7 +1716,8 @@ impl BountyEscrowContract {
     // ========================================================================
 
     pub fn batch_lock_funds(env: Env, items: Vec<LockFundsItem>) -> Result<u32, Error> {
-        let batch_size = items.len() as u32;
+        // Validate batch size
+        let batch_size = items.len();
         if batch_size == 0 {
             return Err(Error::InvalidBatchSize);
         }
@@ -1807,7 +1820,8 @@ impl BountyEscrowContract {
     }
 
     pub fn batch_release_funds(env: Env, items: Vec<ReleaseFundsItem>) -> Result<u32, Error> {
-        let batch_size = items.len() as u32;
+        // Validate batch size
+        let batch_size = items.len();
         if batch_size == 0 {
             return Err(Error::InvalidBatchSize);
         }
