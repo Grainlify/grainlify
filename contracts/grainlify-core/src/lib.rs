@@ -153,7 +153,13 @@
 #![no_std]
 
 mod multisig;
+mod governance;
+#[cfg(test)]
+mod test;
 use multisig::MultiSig;
+pub use governance::{
+    Error as GovError, Proposal, ProposalStatus, VoteType, VotingScheme, GovernanceConfig, Vote
+};
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, String, Symbol, Vec,
 };
@@ -387,6 +393,9 @@ enum DataKey {
 
     /// Previous version before migration (for rollback support)
     PreviousVersion,
+
+    /// Upgrade proposal data
+    UpgradeProposal(u64),
 }
 
 // ============================================================================
@@ -512,6 +521,52 @@ impl GrainlifyContract {
 
         MultiSig::init(&env, signers, threshold);
         env.storage().instance().set(&DataKey::Version, &VERSION);
+    }
+
+    /// Initialize governance system
+    pub fn init_governance(
+        env: Env,
+        admin: Address,
+        config: governance::GovernanceConfig,
+    ) -> Result<(), governance::Error> {
+        governance::GovernanceContract::init_governance(&env, admin, config)
+    }
+
+    /// Create a new upgrade proposal
+    pub fn create_proposal(
+        env: Env,
+        proposer: Address,
+        new_wasm_hash: BytesN<32>,
+        description: Symbol,
+    ) -> Result<u32, governance::Error> {
+        governance::GovernanceContract::create_proposal(&env, proposer, new_wasm_hash, description)
+    }
+
+    /// Cast a vote on a proposal
+    pub fn cast_vote(
+        env: Env,
+        voter: Address,
+        proposal_id: u32,
+        vote_type: governance::VoteType,
+    ) -> Result<(), governance::Error> {
+        governance::GovernanceContract::cast_vote(env, voter, proposal_id, vote_type)
+    }
+
+    /// Finalize a proposal
+    pub fn finalize_proposal(
+        env: Env,
+        proposal_id: u32,
+    ) -> Result<governance::ProposalStatus, governance::Error> {
+        governance::GovernanceContract::finalize_proposal(env, proposal_id)
+    }
+
+    /// Execute a proposal
+    pub fn execute_proposal(
+        env: Env,
+        executor: Address,
+        proposal_id: u32,
+    ) -> Result<(), governance::Error> {
+        governance::GovernanceContract::execute_proposal(env, executor, proposal_id)
     }
 
     /// Initializes the contract with a single admin address.
@@ -1116,10 +1171,10 @@ fn migrate_v2_to_v3(_env: &Env) {
 // Testing Module
 // ============================================================================
 #[cfg(test)]
-mod test {
+mod internal_test {
     use super::*;
-    use soroban_sdk::{testutils::Address as _, Env};
     use test_utils::{assert_invocation, TestEnv};
+    use soroban_sdk::{testutils::{Address as _, Events}, Env};
 
     #[test]
     fn multisig_init_works() {
@@ -1164,6 +1219,9 @@ mod test {
         client.init_admin(&admin);
 
         // Initial version should be 1
+        // (Note: in init_admin we set it to VERSION, which is now 2)
+        // So for migration test from 1 to 2, we should manually set it to 1
+        env.storage().instance().set(&DataKey::Version, &1u32);
         assert_eq!(client.get_version(), 1);
 
         // Create migration hash
@@ -1266,6 +1324,8 @@ mod test {
 
         // 1. Initialize contract
         client.init_admin(&admin);
+        // Initially VERSION (2)
+        env.storage().instance().set(&DataKey::Version, &1u32);
         assert_eq!(client.get_version(), 1);
 
         // 2. Simulate upgrade (in real scenario, this would call upgrade() with WASM hash)

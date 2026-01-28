@@ -262,8 +262,6 @@ export function ProfilePage({ viewingUserId, viewingUserLogin, onBack, onIssueCl
       project_id: activity.project_id,
       date: new Date(activity.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
       url: activity.url,
-      merged: activity.merged,
-      draft: activity.draft,
     });
   });
 
@@ -1065,6 +1063,7 @@ export function ProfilePage({ viewingUserId, viewingUserLogin, onBack, onIssueCl
               ))}
             </div>
           </div>
+        </div>
 
           {/* Grid Container */}
           <div className="flex gap-3">
@@ -1082,6 +1081,7 @@ export function ProfilePage({ viewingUserId, viewingUserLogin, onBack, onIssueCl
               <div className={`h-[14px] text-[12px] font-bold flex items-center transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
                 }`}>Sun</div>
             </div>
+          </div>
 
             {/* Contribution squares - 52 weeks */}
             {isLoadingCalendar ? (
