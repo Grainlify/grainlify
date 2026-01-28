@@ -10,16 +10,19 @@ fn create_token_contract<'a>(
     e: &Env,
     admin: &Address,
 ) -> (token::Client<'a>, token::StellarAssetClient<'a>) {
-    let contract_address = e.register_stellar_asset_contract(admin.clone());
+    let contract_address = e
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     (
         token::Client::new(e, &contract_address),
         token::StellarAssetClient::new(e, &contract_address),
     )
 }
 
-fn create_escrow_contract<'a>(e: &Env) -> BountyEscrowContractClient<'a> {
+fn create_escrow_contract<'a>(e: &Env) -> (BountyEscrowContractClient<'a>, Address) {
     let contract_id = e.register_contract(None, BountyEscrowContract);
-    BountyEscrowContractClient::new(e, &contract_id)
+    let client = BountyEscrowContractClient::new(e, &contract_id);
+    (client, contract_id)
 }
 
 struct TestSetup<'a> {
@@ -30,6 +33,7 @@ struct TestSetup<'a> {
     token: token::Client<'a>,
     token_admin: token::StellarAssetClient<'a>,
     escrow: BountyEscrowContractClient<'a>,
+    escrow_address: Address,
 }
 
 impl<'a> TestSetup<'a> {
@@ -42,7 +46,7 @@ impl<'a> TestSetup<'a> {
         let contributor = Address::generate(&env);
 
         let (token, token_admin) = create_token_contract(&env, &admin);
-        let escrow = create_escrow_contract(&env);
+        let (escrow, escrow_address) = create_escrow_contract(&env);
 
         escrow.init(&admin, &token.address);
 
@@ -57,6 +61,7 @@ impl<'a> TestSetup<'a> {
             token,
             token_admin,
             escrow,
+            escrow_address,
         }
     }
 }
@@ -74,14 +79,16 @@ fn test_lock_funds_success() {
         .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
 
     // Verify stored escrow data
+    // Note: amount stores net_amount (after fee), but fees are disabled by default
     let stored_escrow = setup.escrow.get_escrow_info(&bounty_id);
     assert_eq!(stored_escrow.depositor, setup.depositor);
-    assert_eq!(stored_escrow.amount, amount);
+    assert_eq!(stored_escrow.amount, amount); // net_amount = amount when fees disabled
+    assert_eq!(stored_escrow.remaining_amount, amount); // remaining_amount stores original
     assert_eq!(stored_escrow.status, EscrowStatus::Locked);
     assert_eq!(stored_escrow.deadline, deadline);
 
     // Verify contract balance
-    assert_eq!(setup.token.balance(&setup.escrow.address), amount);
+    assert_eq!(setup.token.balance(&setup.escrow_address), amount);
 }
 
 #[test]
@@ -145,7 +152,7 @@ fn test_release_funds_success() {
         .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
 
     // Verify initial balances
-    assert_eq!(setup.token.balance(&setup.escrow.address), amount);
+    assert_eq!(setup.token.balance(&setup.escrow_address), amount);
     assert_eq!(setup.token.balance(&setup.contributor), 0);
 
     // Release funds
@@ -155,8 +162,8 @@ fn test_release_funds_success() {
     let stored_escrow = setup.escrow.get_escrow_info(&bounty_id);
     assert_eq!(stored_escrow.status, EscrowStatus::Released);
 
-    // Verify balances after release
-    assert_eq!(setup.token.balance(&setup.escrow.address), 0);
+    // Verify balances after release (fees disabled by default, so net_amount = amount)
+    assert_eq!(setup.token.balance(&setup.escrow_address), 0);
     assert_eq!(setup.token.balance(&setup.contributor), amount);
 }
 
@@ -206,7 +213,6 @@ fn test_refund_full_after_deadline() {
 
     // Initial balances
     let initial_depositor_balance = setup.token.balance(&setup.depositor);
-    let initial_contract_balance = setup.token.balance(&setup.escrow.address);
 
     // Full refund (no amount/recipient specified, mode = Full)
     setup.escrow.refund(
@@ -222,7 +228,7 @@ fn test_refund_full_after_deadline() {
     assert_eq!(stored_escrow.remaining_amount, 0);
 
     // Verify balances
-    assert_eq!(setup.token.balance(&setup.escrow.address), 0);
+    assert_eq!(setup.token.balance(&setup.escrow_address), 0);
     assert_eq!(
         setup.token.balance(&setup.depositor),
         initial_depositor_balance + amount
@@ -296,7 +302,7 @@ fn test_refund_partial_after_deadline() {
 
     // Verify balances
     assert_eq!(
-        setup.token.balance(&setup.escrow.address),
+        setup.token.balance(&setup.escrow_address),
         total_amount - refund_amount
     );
     assert_eq!(
@@ -431,7 +437,7 @@ fn test_refund_custom_after_deadline() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #13)")] // RefundNotApproved
+#[should_panic(expected = "Error(Contract, #17)")] // RefundNotApproved
 fn test_refund_custom_before_deadline_without_approval() {
     let setup = TestSetup::new();
     let bounty_id = 1;
@@ -521,7 +527,7 @@ fn test_refund_approval_workflow() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #13)")] // RefundNotApproved
+#[should_panic(expected = "Error(Contract, #17)")] // RefundNotApproved
 fn test_refund_approval_mismatch() {
     let setup = TestSetup::new();
     let bounty_id = 1;
@@ -586,7 +592,7 @@ fn test_refund_history_tracking() {
     let total_amount = 1000;
     let refund1 = 200;
     let refund2 = 300;
-    let refund3 = 400;
+    let _refund3 = 400;
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
@@ -693,7 +699,7 @@ fn test_refund_history_with_custom_recipients() {
 // ============================================================================
 
 #[test]
-#[should_panic(expected = "Error(Contract, #8)")] // InvalidAmount
+#[should_panic(expected = "Error(Contract, #13)")] // InvalidAmount
 fn test_refund_invalid_amount_zero() {
     let setup = TestSetup::new();
     let bounty_id = 1;
@@ -713,7 +719,7 @@ fn test_refund_invalid_amount_zero() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #8)")] // InvalidAmount
+#[should_panic(expected = "Error(Contract, #13)")] // InvalidAmount
 fn test_refund_invalid_amount_exceeds_remaining() {
     let setup = TestSetup::new();
     let bounty_id = 1;
@@ -737,7 +743,7 @@ fn test_refund_invalid_amount_exceeds_remaining() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #8)")] // InvalidAmount
+#[should_panic(expected = "Error(Contract, #13)")] // InvalidAmount
 fn test_refund_custom_missing_amount() {
     let setup = TestSetup::new();
     let bounty_id = 1;
@@ -761,7 +767,7 @@ fn test_refund_custom_missing_amount() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #8)")] // InvalidAmount
+#[should_panic(expected = "Error(Contract, #13)")] // InvalidAmount
 fn test_refund_custom_missing_recipient() {
     let setup = TestSetup::new();
     let bounty_id = 1;
@@ -896,7 +902,7 @@ fn test_batch_lock_funds_success() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #8)")] // InvalidBatchSize
+#[should_panic(expected = "Error(Contract, #10)")] // InvalidBatchSize
 fn test_batch_lock_funds_empty() {
     let setup = TestSetup::new();
     let items: Vec<LockFundsItem> = vec![&setup.env];
@@ -935,7 +941,7 @@ fn test_batch_lock_funds_duplicate_bounty_id() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #11)")] // DuplicateBountyId
+#[should_panic(expected = "Error(Contract, #12)")] // DuplicateBountyId
 fn test_batch_lock_funds_duplicate_in_batch() {
     let setup = TestSetup::new();
     let deadline = setup.env.ledger().timestamp() + 1000;
@@ -1015,7 +1021,7 @@ fn test_batch_release_funds_success() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #8)")] // InvalidBatchSize
+#[should_panic(expected = "Error(Contract, #10)")] // InvalidBatchSize
 fn test_batch_release_funds_empty() {
     let setup = TestSetup::new();
     let items: Vec<ReleaseFundsItem> = vec![&setup.env];
@@ -1075,7 +1081,7 @@ fn test_batch_release_funds_already_released() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #11)")] // DuplicateBountyId
+#[should_panic(expected = "Error(Contract, #12)")] // DuplicateBountyId
 fn test_batch_release_funds_duplicate_in_batch() {
     let setup = TestSetup::new();
     let deadline = setup.env.ledger().timestamp() + 1000;

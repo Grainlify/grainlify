@@ -262,8 +262,6 @@ export function ProfilePage({ viewingUserId, viewingUserLogin, onBack, onIssueCl
       project_id: activity.project_id,
       date: new Date(activity.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
       url: activity.url,
-      merged: activity.merged,
-      draft: activity.draft,
     });
   });
 

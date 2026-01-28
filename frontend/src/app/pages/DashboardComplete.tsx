@@ -524,7 +524,7 @@ function DiscoverPage() {
               }`}>{project.name}</h4>
               <p className={`text-[13px] mb-4 line-clamp-2 transition-colors ${
                 theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-              }`}>{project.description}</p>
+              }`}>{project.description?.trim() || "No description"}</p>
 
               <div className={`flex items-center space-x-4 text-[13px] mb-4 transition-colors ${
                 theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
