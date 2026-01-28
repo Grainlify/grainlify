@@ -769,7 +769,11 @@ impl BountyEscrowContract {
             .unwrap_or(0);
 
         if time_lock_duration > 0 {
-            let action_id: u64 = env.storage().instance().get(&DataKey::NextActionId).unwrap();
+            let action_id: u64 = env
+                .storage()
+                .instance()
+                .get(&DataKey::NextActionId)
+                .unwrap();
             let execution_time = env.ledger().timestamp() + time_lock_duration;
 
             let action = AdminAction {
@@ -949,8 +953,7 @@ impl BountyEscrowContract {
                 );
             }
             AdminActionType::UpdatePayoutKey(new_key) => {
-                let old_key: Option<Address> =
-                    env.storage().instance().get(&DataKey::PayoutKey);
+                let old_key: Option<Address> = env.storage().instance().get(&DataKey::PayoutKey);
                 env.storage().instance().set(&DataKey::PayoutKey, &new_key);
 
                 emit_payout_key_updated(
