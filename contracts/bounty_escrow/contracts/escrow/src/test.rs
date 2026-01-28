@@ -156,7 +156,9 @@ fn test_release_funds_success() {
     assert_eq!(setup.token.balance(&setup.contributor), 0);
 
     // Release funds
-    setup.escrow.release_funds(&bounty_id, &setup.contributor);
+    setup
+        .escrow
+        .release_funds(&bounty_id, &setup.contributor, &None::<i128>);
 
     // Verify updated state
     let stored_escrow = setup.escrow.get_escrow_info(&bounty_id);
@@ -178,10 +180,14 @@ fn test_release_funds_already_released() {
     setup
         .escrow
         .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
-    setup.escrow.release_funds(&bounty_id, &setup.contributor);
+    setup
+        .escrow
+        .release_funds(&bounty_id, &setup.contributor, &None::<i128>);
 
     // Try to release again
-    setup.escrow.release_funds(&bounty_id, &setup.contributor);
+    setup
+        .escrow
+        .release_funds(&bounty_id, &setup.contributor, &None::<i128>);
 }
 
 #[test]
@@ -189,7 +195,9 @@ fn test_release_funds_already_released() {
 fn test_release_funds_not_found() {
     let setup = TestSetup::new();
     let bounty_id = 1;
-    setup.escrow.release_funds(&bounty_id, &setup.contributor);
+    setup
+        .escrow
+        .release_funds(&bounty_id, &setup.contributor, &None::<i128>);
 }
 
 // ============================================================================
@@ -1055,7 +1063,9 @@ fn test_batch_release_funds_already_released() {
     setup
         .escrow
         .lock_funds(&setup.depositor, &1, &1000, &deadline);
-    setup.escrow.release_funds(&1, &setup.contributor);
+    setup
+        .escrow
+        .release_funds(&1, &setup.contributor, &None::<i128>);
 
     // Lock another bounty
     setup
