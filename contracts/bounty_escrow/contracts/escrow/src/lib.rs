@@ -108,6 +108,7 @@ mod monitoring {
 
     // Storage keys
     const OPERATION_COUNT: &str = "op_count";
+    #[allow(dead_code)]
     const USER_COUNT: &str = "usr_count";
     const ERROR_COUNT: &str = "err_count";
 
@@ -218,6 +219,7 @@ mod monitoring {
     }
 
     // Health check
+    #[allow(dead_code)]
     pub fn health_check(env: &Env) -> HealthStatus {
         let key = Symbol::new(env, OPERATION_COUNT);
         let ops: u64 = env.storage().persistent().get(&key).unwrap_or(0);
@@ -231,6 +233,7 @@ mod monitoring {
     }
 
     // Get analytics
+    #[allow(dead_code)]
     pub fn get_analytics(env: &Env) -> Analytics {
         let op_key = Symbol::new(env, OPERATION_COUNT);
         let usr_key = Symbol::new(env, USER_COUNT);
@@ -255,6 +258,7 @@ mod monitoring {
     }
 
     // Get state snapshot
+    #[allow(dead_code)]
     pub fn get_state_snapshot(env: &Env) -> StateSnapshot {
         let op_key = Symbol::new(env, OPERATION_COUNT);
         let usr_key = Symbol::new(env, USER_COUNT);
@@ -269,6 +273,7 @@ mod monitoring {
     }
 
     // Get performance stats
+    #[allow(dead_code)]
     pub fn get_performance_stats(env: &Env, function_name: Symbol) -> PerformanceStats {
         let count_key = (Symbol::new(env, "perf_cnt"), function_name.clone());
         let time_key = (Symbol::new(env, "perf_time"), function_name.clone());
@@ -331,6 +336,7 @@ mod anti_abuse {
             })
     }
 
+    #[allow(dead_code)]
     pub fn set_config(env: &Env, config: AntiAbuseConfig) {
         env.storage().instance().set(&AntiAbuseKey::Config, &config);
     }
@@ -341,6 +347,7 @@ mod anti_abuse {
             .has(&AntiAbuseKey::Whitelist(address))
     }
 
+    #[allow(dead_code)]
     pub fn set_whitelist(env: &Env, address: Address, whitelisted: bool) {
         if whitelisted {
             env.storage()
@@ -353,10 +360,12 @@ mod anti_abuse {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_admin(env: &Env) -> Option<Address> {
         env.storage().instance().get(&AntiAbuseKey::Admin)
     }
 
+    #[allow(dead_code)]
     pub fn set_admin(env: &Env, admin: Address) {
         env.storage().instance().set(&AntiAbuseKey::Admin, &admin);
     }
@@ -748,14 +757,14 @@ impl BountyEscrowContract {
         let mut fee_config = Self::get_fee_config_internal(&env);
 
         if let Some(rate) = lock_fee_rate {
-            if rate < 0 || rate > MAX_FEE_RATE {
+            if !(0..=MAX_FEE_RATE).contains(&rate) {
                 return Err(Error::InvalidFeeRate);
             }
             fee_config.lock_fee_rate = rate;
         }
 
         if let Some(rate) = release_fee_rate {
-            if rate < 0 || rate > MAX_FEE_RATE {
+            if !(0..=MAX_FEE_RATE).contains(&rate) {
                 return Err(Error::InvalidFeeRate);
             }
             fee_config.release_fee_rate = rate;
@@ -1632,7 +1641,7 @@ impl BountyEscrowContract {
     /// This operation is atomic - if any item fails, the entire transaction reverts.
     pub fn batch_lock_funds(env: Env, items: Vec<LockFundsItem>) -> Result<u32, Error> {
         // Validate batch size
-        let batch_size = items.len() as u32;
+        let batch_size = items.len();
         if batch_size == 0 {
             return Err(Error::InvalidBatchSize);
         }
@@ -1766,7 +1775,7 @@ impl BountyEscrowContract {
     /// This operation is atomic - if any item fails, the entire transaction reverts.
     pub fn batch_release_funds(env: Env, items: Vec<ReleaseFundsItem>) -> Result<u32, Error> {
         // Validate batch size
-        let batch_size = items.len() as u32;
+        let batch_size = items.len();
         if batch_size == 0 {
             return Err(Error::InvalidBatchSize);
         }

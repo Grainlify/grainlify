@@ -145,6 +145,7 @@ use soroban_sdk::{
 };
 
 // Event types
+#[allow(dead_code)]
 const PROGRAM_INITIALIZED: Symbol = symbol_short!("ProgInit");
 const FUNDS_LOCKED: Symbol = symbol_short!("FundLock");
 const BATCH_PAYOUT: Symbol = symbol_short!("BatchPay");
@@ -665,7 +666,6 @@ pub struct ProgramScheduleReleased {
 ///     token_address: usdc_token_address,
 /// };
 /// ```
-
 /// Complete program state and configuration.
 ///
 /// # Storage Key
@@ -781,7 +781,8 @@ impl ProgramEscrowContract {
     ///
     /// # Gas Cost
     /// Low - Initial storage writes
-
+    #[allow(clippy::empty_line_after_outer_attr)]
+    //
     // ========================================================================
     // Pause and Emergency Functions
     // ========================================================================
@@ -801,7 +802,7 @@ impl ProgramEscrowContract {
 
     /// Pause the contract (authorized payout key only)
     /// Prevents new fund locking, payouts, and schedule releases
-    pub fn pause(env: Env) -> () {
+    pub fn pause(env: Env) {
         // For program-escrow, pause is triggered by the first authorized key that calls it
         // In a multi-program setup, this would need to be per-program
 
@@ -817,7 +818,7 @@ impl ProgramEscrowContract {
 
     /// Unpause the contract (authorized payout key only)
     /// Resumes normal operations
-    pub fn unpause(env: Env) -> () {
+    pub fn unpause(env: Env) {
         if !Self::is_paused_internal(&env) {
             return; // Already unpaused, idempotent
         }
@@ -876,7 +877,7 @@ impl ProgramEscrowContract {
         let caller = authorized_payout_key.clone();
 
         // Validate program_id
-        if program_id.len() == 0 {
+        if program_id.is_empty() {
             monitoring::track_operation(&env, symbol_short!("init_prg"), caller, false);
             panic!("Program ID cannot be empty");
         }
@@ -1075,12 +1076,11 @@ impl ProgramEscrowContract {
     /// - Forgetting to transfer tokens before calling
     /// -  Locking amount that exceeds actual contract balance
     /// -  Not verifying contract received the tokens
-
     pub fn lock_program_funds(env: Env, program_id: String, amount: i128) -> ProgramData {
         // Apply rate limiting
         anti_abuse::check_rate_limit(&env, env.current_contract_address());
 
-        let start = env.ledger().timestamp();
+        let _start = env.ledger().timestamp();
         let caller = env.current_contract_address();
 
         // Check if contract is paused
@@ -1370,7 +1370,7 @@ impl ProgramEscrowContract {
             (BATCH_PAYOUT,),
             (
                 program_id,
-                recipients.len() as u32,
+                recipients.len(),
                 total_payout,
                 updated_data.remaining_balance,
             ),
@@ -2051,7 +2051,7 @@ impl ProgramEscrowContract {
         let mut fee_config = Self::get_fee_config_internal(&env);
 
         if let Some(rate) = lock_fee_rate {
-            if rate < 0 || rate > MAX_FEE_RATE {
+            if !(0..=MAX_FEE_RATE).contains(&rate) {
                 panic!(
                     "Invalid lock fee rate: must be between 0 and {}",
                     MAX_FEE_RATE
@@ -2061,7 +2061,7 @@ impl ProgramEscrowContract {
         }
 
         if let Some(rate) = payout_fee_rate {
-            if rate < 0 || rate > MAX_FEE_RATE {
+            if !(0..=MAX_FEE_RATE).contains(&rate) {
                 panic!(
                     "Invalid payout fee rate: must be between 0 and {}",
                     MAX_FEE_RATE
