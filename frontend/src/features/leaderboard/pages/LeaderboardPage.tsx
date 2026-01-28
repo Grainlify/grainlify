@@ -61,6 +61,8 @@ export function LeaderboardPage() {
             trendValue: item.trendValue,
             contributions: item.contributions,
             ecosystems: item.ecosystems || [],
+            first_name: item.first_name,
+            last_name: item.last_name,
           }));
           setLeaderboardData(transformedData);
           setHasMore(data.length === 10); // If we got 10 items, there might be more
@@ -112,6 +114,8 @@ export function LeaderboardPage() {
         trendValue: item.trendValue,
         contributions: item.contributions,
         ecosystems: item.ecosystems || [],
+        first_name: item.first_name,
+        last_name: item.last_name,
       }));
 
       setLeaderboardData((prev) => [...prev, ...transformedData]);
@@ -200,9 +204,8 @@ export function LeaderboardPage() {
           !isLoading &&
           leaderboardData.length === 0 && (
             <div
-              className={`text-center py-8 transition-colors ${
-                theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
-              }`}
+              className={`text-center py-8 transition-colors ${theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
+                }`}
             >
               No contributors yet. Be the first to contribute!
             </div>
