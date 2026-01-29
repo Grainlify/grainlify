@@ -93,12 +93,10 @@ export function BrowsePage({ onProjectClick }: BrowsePageProps) {
   const {
     data: projects,
     isLoading,
-    hasError,
     fetchData: fetchProjects,
   } = useOptimisticData<Project[]>([], { cacheDuration: 30000 });
 
   const [ecosystems, setEcosystems] = useState<Array<{ name: string }>>([]);
-  const [isLoadingEcosystems, setIsLoadingEcosystems] = useState(true);
 
   // Filter options data
   const filterOptions = {
@@ -131,7 +129,6 @@ export function BrowsePage({ onProjectClick }: BrowsePageProps) {
   // Fetch ecosystems from API
   useEffect(() => {
     const fetchEcosystems = async () => {
-      setIsLoadingEcosystems(true);
       try {
         const response = await getEcosystems();
         // Handle different response structures
@@ -166,8 +163,6 @@ export function BrowsePage({ onProjectClick }: BrowsePageProps) {
         console.error("BrowsePage: Failed to fetch ecosystems:", err);
         // Fallback to empty array on error
         setEcosystems([]);
-      } finally {
-        setIsLoadingEcosystems(false);
       }
     };
 
@@ -188,13 +183,6 @@ export function BrowsePage({ onProjectClick }: BrowsePageProps) {
       ...prev,
       [filterType]: prev[filterType].filter((v) => v !== value),
     }));
-  };
-
-  const getFilteredOptions = (filterType: string) => {
-    const searchTerm = searchTerms[filterType].toLowerCase();
-    return filterOptions[filterType as keyof typeof filterOptions].filter(
-      (option: any) => option.name.toLowerCase().includes(searchTerm),
-    );
   };
 
   // Fetch projects from API
@@ -259,7 +247,25 @@ export function BrowsePage({ onProjectClick }: BrowsePageProps) {
               };
             });
 
-          console.log('BrowsePage: Mapped projects', { count: mappedProjects.length });
+          // Simulation: Inject a dummy project if no real projects are found
+          if (mappedProjects.length === 0) {
+            console.log('BrowsePage: No real projects found, injecting dummy project for simulation');
+            mappedProjects.push({
+              id: "dummy-project-id",
+              name: "Grainlify-Test-Project",
+              icon: "https://www.grainlify.com/logo.png",
+              stars: "1.2K",
+              forks: "450",
+              contributors: 25,
+              openIssues: 12,
+              prs: 5,
+              description: "A simulated project to test navigation features. Click me to see project details and then navigate to Issues!",
+              tags: ["test", "simulation"],
+              color: "from-blue-500 to-cyan-500",
+            });
+          }
+
+          console.log('BrowsePage: Final project list', { count: mappedProjects.length });
           return mappedProjects;
         } catch (err) {
           console.error('BrowsePage: Failed to fetch projects:', err);
