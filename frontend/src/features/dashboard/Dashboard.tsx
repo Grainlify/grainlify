@@ -92,6 +92,8 @@ export function Dashboard() {
     "contributor" | "maintainer" | "admin"
   >("contributor");
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   const [viewingUserLogin, setViewingUserLogin] = useState<string | null>(null);
   const [settingsInitialTab, setSettingsInitialTab] =
@@ -187,6 +189,17 @@ export function Dashboard() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Close mobile menu on page change
   const handleNavigation = (page: string) => {
     setCurrentPage(page);
     setSelectedProjectId(null);
@@ -195,6 +208,9 @@ export function Dashboard() {
     setSelectedEcosystemName(null);
     setSelectedEventId(null);
     setSelectedEventName(null);
+    if (isMobile) {
+      setIsMobileMenuOpen(false);
+    }
   };
 
   const handleLogout = () => {
@@ -330,6 +346,14 @@ export function Dashboard() {
           }`}
         />
       </div>
+
+      {/* Mobile Sidebar Overlay Backdrop */}
+      {isMobile && isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] transition-opacity duration-300"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
 
       {/* Sidebar */}
       <aside
