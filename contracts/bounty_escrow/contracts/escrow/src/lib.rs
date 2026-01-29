@@ -89,6 +89,8 @@
 #![no_std]
 mod events;
 mod test_bounty_escrow;
+#[cfg(test)]
+mod test_query;
 
 use events::{
     emit_batch_funds_locked, emit_batch_funds_released, emit_bounty_initialized,
@@ -103,6 +105,7 @@ use soroban_sdk::{
 };
 
 // ==================== MONITORING MODULE ====================
+#[allow(dead_code)]
 mod monitoring {
     use soroban_sdk::{contracttype, symbol_short, Address, Env, String, Symbol};
 
@@ -297,6 +300,7 @@ mod monitoring {
 // ==================== END MONITORING MODULE ====================
 
 // ==================== ANTI-ABUSE MODULE ====================
+#[allow(dead_code)]
 mod anti_abuse {
     use soroban_sdk::{contracttype, symbol_short, Address, Env};
 
@@ -496,20 +500,29 @@ pub enum Error {
 /// - Once in Released or Refunded state, no further transitions allowed
 /// - Only Locked state allows state changes
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EscrowStatus {
     Locked,
     Released,
     Refunded,
     PartiallyRefunded,
+    PartiallyReleased,
 }
 
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RefundMode {
     Full,
     Partial,
     Custom,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PayoutRecord {
+    pub amount: i128,
+    pub recipient: Address,
+    pub timestamp: u64,
 }
 
 #[contracttype]
@@ -561,6 +574,7 @@ pub struct Escrow {
     pub status: EscrowStatus,
     pub deadline: u64,
     pub refund_history: Vec<RefundRecord>,
+    pub payout_history: Vec<PayoutRecord>,
     pub remaining_amount: i128,
 }
 
@@ -615,7 +629,35 @@ pub enum DataKey {
     FeeConfig,           // Fee configuration
     RefundApproval(u64), // bounty_id -> RefundApproval
     ReentrancyGuard,
-    IsPaused, // Contract pause state
+    IsPaused,       // Contract pause state
+    BountyRegistry, // Vec<u64> of all bounty IDs
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EscrowFilter {
+    pub status: Option<u32>, // Using u32 to avoid Option<Enum> XDR issues
+    pub depositor: Option<Address>,
+    pub min_amount: Option<i128>,
+    pub max_amount: Option<i128>,
+    pub start_time: Option<u64>, // Filter by deadline (>= start_time)
+    pub end_time: Option<u64>,   // Filter by deadline (<= end_time)
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Pagination {
+    pub start_index: u64,
+    pub limit: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EscrowStats {
+    pub total_bounties: u64,
+    pub total_locked_amount: i128,
+    pub total_released_amount: i128,
+    pub total_refunded_amount: i128,
 }
 
 // ============================================================================
@@ -1057,6 +1099,7 @@ impl BountyEscrowContract {
             status: EscrowStatus::Locked,
             deadline,
             refund_history: vec![&env],
+            payout_history: vec![&env],
             remaining_amount: amount,
         };
 
@@ -1064,6 +1107,17 @@ impl BountyEscrowContract {
         env.storage()
             .persistent()
             .set(&DataKey::Escrow(bounty_id), &escrow);
+
+        // Update registry
+        let mut registry: Vec<u64> = env
+            .storage()
+            .instance()
+            .get(&DataKey::BountyRegistry)
+            .unwrap_or(vec![&env]);
+        registry.push_back(bounty_id);
+        env.storage()
+            .instance()
+            .set(&DataKey::BountyRegistry, &registry);
 
         // Emit event for off-chain indexing
         emit_funds_locked(
@@ -1140,7 +1194,12 @@ impl BountyEscrowContract {
     /// 3. Log release decisions in backend system
     /// 4. Monitor release events for anomalies
     /// 5. Consider implementing release delays for high-value bounties
-    pub fn release_funds(env: Env, bounty_id: u64, contributor: Address) -> Result<(), Error> {
+    pub fn release_funds(
+        env: Env,
+        bounty_id: u64,
+        contributor: Address,
+        amount: Option<i128>, // Optional partial amount
+    ) -> Result<(), Error> {
         let start = env.ledger().timestamp();
 
         // Ensure contract is initialized
@@ -1184,28 +1243,60 @@ impl BountyEscrowContract {
             .get(&DataKey::Escrow(bounty_id))
             .unwrap();
 
-        if escrow.status != EscrowStatus::Locked {
+        // Allow release from Locked or PartiallyReleased states
+        if escrow.status != EscrowStatus::Locked && escrow.status != EscrowStatus::PartiallyReleased
+        {
             monitoring::track_operation(&env, symbol_short!("release"), admin.clone(), false);
             env.storage().instance().remove(&DataKey::ReentrancyGuard);
             return Err(Error::FundsNotLocked);
         }
 
+        // Determine payout amount and validate
+        let payout_amount = match amount {
+            Some(amt) => {
+                if amt <= 0 {
+                    monitoring::track_operation(
+                        &env,
+                        symbol_short!("release"),
+                        admin.clone(),
+                        false,
+                    );
+                    env.storage().instance().remove(&DataKey::ReentrancyGuard);
+                    return Err(Error::InvalidAmount);
+                }
+                if amt > escrow.remaining_amount {
+                    monitoring::track_operation(
+                        &env,
+                        symbol_short!("release"),
+                        admin.clone(),
+                        false,
+                    );
+                    env.storage().instance().remove(&DataKey::ReentrancyGuard);
+                    return Err(Error::InvalidAmount); // Attempt to over-pay
+                }
+                amt
+            }
+            None => escrow.remaining_amount, // Release full remaining amount
+        };
+
         // Transfer funds to contributor
         let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let client = token::Client::new(&env, &token_addr);
-        escrow.status = EscrowStatus::Released;
-        env.storage()
-            .persistent()
-            .set(&DataKey::Escrow(bounty_id), &escrow);
 
         // Calculate and collect fee if enabled
         let fee_config = Self::get_fee_config_internal(&env);
         let fee_amount = if fee_config.fee_enabled && fee_config.release_fee_rate > 0 {
-            Self::calculate_fee(escrow.amount, fee_config.release_fee_rate)
+            Self::calculate_fee(payout_amount, fee_config.release_fee_rate)
         } else {
             0
         };
-        let net_amount = escrow.amount - fee_amount;
+        let net_amount = payout_amount - fee_amount;
+
+        // Ensure contract has sufficient funds
+        let contract_balance = client.balance(&env.current_contract_address());
+        if contract_balance < net_amount + fee_amount {
+            return Err(Error::InsufficientFunds);
+        }
 
         // Transfer net amount to contributor
         client.transfer(&env.current_contract_address(), &contributor, &net_amount);
@@ -1229,9 +1320,24 @@ impl BountyEscrowContract {
             );
         }
 
-        // Update escrow state - mark as released and set remaining_amount to 0
-        escrow.status = EscrowStatus::Released;
-        escrow.remaining_amount = 0;
+        // Update escrow state
+        escrow.remaining_amount -= payout_amount;
+
+        // Add to payout history
+        let payout_record = PayoutRecord {
+            amount: payout_amount,
+            recipient: contributor.clone(),
+            timestamp: env.ledger().timestamp(),
+        };
+        escrow.payout_history.push_back(payout_record);
+
+        // Update status
+        if escrow.remaining_amount == 0 {
+            escrow.status = EscrowStatus::Released; // Fully released
+        } else {
+            escrow.status = EscrowStatus::PartiallyReleased; // Partially released
+        }
+
         env.storage()
             .persistent()
             .set(&DataKey::Escrow(bounty_id), &escrow);
@@ -1241,9 +1347,10 @@ impl BountyEscrowContract {
             &env,
             FundsReleased {
                 bounty_id,
-                amount: net_amount, // Emit net amount (after fee)
+                amount: net_amount,
                 recipient: contributor.clone(),
                 timestamp: env.ledger().timestamp(),
+                remaining_amount: escrow.remaining_amount,
             },
         );
 
@@ -1297,7 +1404,7 @@ impl BountyEscrowContract {
             bounty_id,
             amount,
             recipient: recipient.clone(),
-            mode: mode.clone(),
+            mode,
             approved_by: admin.clone(),
             approved_at: env.ledger().timestamp(),
         };
@@ -1436,7 +1543,7 @@ impl BountyEscrowContract {
         let refund_record = RefundRecord {
             amount: refund_amount,
             recipient: refund_recipient.clone(),
-            mode: mode.clone(),
+            mode,
             timestamp: env.ledger().timestamp(),
         };
         escrow.refund_history.push_back(refund_record);
@@ -1460,7 +1567,7 @@ impl BountyEscrowContract {
                 amount: refund_amount,
                 refund_to: refund_recipient,
                 timestamp: env.ledger().timestamp(),
-                refund_mode: mode.clone(),
+                refund_mode: mode,
                 remaining_amount: escrow.remaining_amount,
             },
         );
@@ -1564,6 +1671,27 @@ impl BountyEscrowContract {
         Ok(escrow.refund_history)
     }
 
+    /// Retrieves the payout history for a specific bounty.
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `bounty_id` - The bounty to query
+    ///
+    /// # Returns
+    /// * `Ok(Vec<PayoutRecord>)` - The payout history
+    /// * `Err(Error::BountyNotFound)` - Bounty doesn't exist
+    pub fn get_payout_history(env: Env, bounty_id: u64) -> Result<Vec<PayoutRecord>, Error> {
+        if !env.storage().persistent().has(&DataKey::Escrow(bounty_id)) {
+            return Err(Error::BountyNotFound);
+        }
+        let escrow: Escrow = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Escrow(bounty_id))
+            .unwrap();
+        Ok(escrow.payout_history)
+    }
+
     /// Gets refund eligibility information for a bounty.
     ///
     /// # Arguments
@@ -1621,6 +1749,158 @@ impl BountyEscrowContract {
             escrow.remaining_amount,
             approval,
         ))
+    }
+
+    // ========================================================================
+    // Query Functions
+    // ========================================================================
+
+    /// Query bounties with filtering and pagination.
+    ///
+    /// # Performance
+    /// This function iterates through the registry. For large datasets, use small `pagination.limit` values
+    /// to prevent gas limit errors. This is designed for off-chain indexing.
+    pub fn get_bounties(
+        env: Env,
+        filter: EscrowFilter,
+        pagination: Pagination,
+    ) -> Vec<(u64, Escrow)> {
+        let registry: Vec<u64> = env
+            .storage()
+            .instance()
+            .get(&DataKey::BountyRegistry)
+            .unwrap_or(vec![&env]);
+
+        let mut result = vec![&env];
+        let mut count: u32 = 0;
+        let mut skipped: u64 = 0;
+
+        for i in 0..registry.len() {
+            // Check pagination limit
+            if count >= pagination.limit {
+                break;
+            }
+
+            let bounty_id = registry.get(i).unwrap();
+
+            // Skip invalid IDs/missing data
+            if !env.storage().persistent().has(&DataKey::Escrow(bounty_id)) {
+                continue;
+            }
+
+            let escrow: Escrow = env
+                .storage()
+                .persistent()
+                .get(&DataKey::Escrow(bounty_id))
+                .unwrap();
+
+            // Apply Filters
+
+            // Status filter
+            if let Some(status_val) = filter.status {
+                if (escrow.status as u32) != status_val {
+                    continue;
+                }
+            }
+
+            // Depositor filter
+            if let Some(depositor) = &filter.depositor {
+                if &escrow.depositor != depositor {
+                    continue;
+                }
+            }
+
+            // Amount range filter
+            if let Some(min) = filter.min_amount {
+                if escrow.amount < min {
+                    continue;
+                }
+            }
+            if let Some(max) = filter.max_amount {
+                if escrow.amount > max {
+                    continue;
+                }
+            }
+
+            // Date range filter (using deadline)
+            if let Some(start) = filter.start_time {
+                if escrow.deadline < start {
+                    continue;
+                }
+            }
+            if let Some(end) = filter.end_time {
+                if escrow.deadline > end {
+                    continue;
+                }
+            }
+
+            // Apply Pagination Skip
+            if skipped < pagination.start_index {
+                skipped += 1;
+                continue;
+            }
+
+            // Add to result
+            result.push_back((bounty_id, escrow));
+            count += 1;
+        }
+
+        result
+    }
+
+    /// Get aggregate statistics for the contract.
+    ///
+    /// # Performance
+    /// This function iterates over ALL bounties. It is O(N) and may fail on-chain if N is large.
+    /// Use primarily for off-chain monitoring/indexing.
+    pub fn get_stats(env: Env) -> EscrowStats {
+        let registry: Vec<u64> = env
+            .storage()
+            .instance()
+            .get(&DataKey::BountyRegistry)
+            .unwrap_or(vec![&env]);
+
+        let mut total_locked: i128 = 0;
+        let mut total_released: i128 = 0;
+        let mut total_refunded: i128 = 0;
+
+        for i in 0..registry.len() {
+            let bounty_id = registry.get(i).unwrap();
+            if env.storage().persistent().has(&DataKey::Escrow(bounty_id)) {
+                let escrow: Escrow = env
+                    .storage()
+                    .persistent()
+                    .get(&DataKey::Escrow(bounty_id))
+                    .unwrap();
+
+                match escrow.status {
+                    EscrowStatus::Locked => {
+                        total_locked += escrow.remaining_amount;
+                    }
+                    EscrowStatus::Released => {
+                        total_released += escrow.amount;
+                    }
+                    EscrowStatus::Refunded => {
+                        for record in escrow.refund_history.iter() {
+                            total_refunded += record.amount;
+                        }
+                    }
+                    EscrowStatus::PartiallyRefunded => {
+                        total_locked += escrow.remaining_amount;
+                        for record in escrow.refund_history.iter() {
+                            total_refunded += record.amount;
+                        }
+                    }
+                }
+            }
+        }
+
+        EscrowStats {
+            total_bounties: registry.len() as u64,
+            total_locked_amount: total_locked,
+            total_released_amount: total_released,
+            total_refunded_amount: total_refunded,
+        }
     }
 
     /// Batch lock funds for multiple bounties in a single transaction.
@@ -1721,9 +2001,9 @@ impl BountyEscrowContract {
                 status: EscrowStatus::Locked,
                 deadline: item.deadline,
                 refund_history: vec![&env],
+                payout_history: vec![&env],
                 remaining_amount: item.amount,
             };
-
             // Store escrow
             env.storage()
                 .persistent()
@@ -1865,6 +2145,7 @@ impl BountyEscrowContract {
                     amount: escrow.amount,
                     recipient: item.contributor.clone(),
                     timestamp,
+                    remaining_amount: escrow.remaining_amount,
                 },
             );
 
