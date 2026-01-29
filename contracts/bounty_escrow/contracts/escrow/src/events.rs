@@ -52,6 +52,7 @@ pub struct FundsReleased {
     pub amount: i128,
     pub recipient: Address,
     pub timestamp: u64,
+    pub remaining_amount: i128,
 }
 
 pub fn emit_funds_released(env: &Env, event: FundsReleased) {
