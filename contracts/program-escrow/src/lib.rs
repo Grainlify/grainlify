@@ -152,7 +152,6 @@ const BATCH_PAYOUT: Symbol = symbol_short!("BatchPay");
 const PAYOUT: Symbol = symbol_short!("Payout");
 
 // Storage keys
-const PROGRAM_DATA: Symbol = symbol_short!("ProgData");
 const FEE_CONFIG: Symbol = symbol_short!("FeeCfg");
 
 // Fee rate is stored in basis points (1 basis point = 0.01%)
@@ -2048,23 +2047,26 @@ impl ProgramEscrowContract {
     /// Update fee configuration (admin only - uses authorized_payout_key)
     ///
     /// # Arguments
+    /// * `program_id` - The program ID to verify authorization against
     /// * `lock_fee_rate` - Optional new lock fee rate (basis points)
     /// * `payout_fee_rate` - Optional new payout fee rate (basis points)
     /// * `fee_recipient` - Optional new fee recipient address
     /// * `fee_enabled` - Optional fee enable/disable flag
     pub fn update_fee_config(
         env: Env,
+        program_id: String,
         lock_fee_rate: Option<i128>,
         payout_fee_rate: Option<i128>,
         fee_recipient: Option<Address>,
         fee_enabled: Option<bool>,
     ) {
-        // Verify authorization
+        // Verify authorization using the specified program's authorized_payout_key
+        let program_key = DataKey::Program(program_id);
         let program_data: ProgramData = env
             .storage()
             .instance()
-            .get(&PROGRAM_DATA)
-            .unwrap_or_else(|| panic!("Program not initialized"));
+            .get(&program_key)
+            .unwrap_or_else(|| panic!("Program not found"));
 
         // Note: In Soroban, we check authorization by requiring auth from the authorized key
         // For this function, we'll require auth from the authorized_payout_key
