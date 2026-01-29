@@ -367,8 +367,8 @@ VALUES ($1, 'sync_issues', 'pending', now()),
 		}
 
 		err = h.db.Pool.QueryRow(ctx, `
-INSERT INTO projects (owner_user_id, github_full_name, ecosystem_id, language, tags, status, github_app_installation_id)
-VALUES ($1, $2, $3, $4, $5, 'pending_verification', $6)
+INSERT INTO projects (owner_user_id, github_full_name, ecosystem_id, language, tags, status, github_app_installation_id, needs_metadata)
+VALUES ($1, $2, $3, $4, $5, 'pending_verification', $6, true)
 ON CONFLICT (github_full_name) DO UPDATE SET
   owner_user_id = EXCLUDED.owner_user_id,
   github_app_installation_id = EXCLUDED.github_app_installation_id,

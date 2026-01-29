@@ -6,8 +6,9 @@ import { DashboardTab } from '../components/dashboard/DashboardTab';
 import { IssuesTab } from '../components/issues/IssuesTab';
 import { PullRequestsTab } from '../components/pull-requests/PullRequestsTab';
 import { TabType } from '../types';
-import { getMyProjects } from '../../../shared/api/client';
+import { getMyProjects, getPendingProjects } from '../../../shared/api/client';
 import { InstallGitHubAppModal } from '../components/InstallGitHubAppModal';
+import { NewProjectSetupModal, PendingProject } from '../components/NewProjectSetupModal';
 
 interface MaintainersPageProps {
   onNavigate: (page: string) => void;
@@ -47,6 +48,10 @@ export function MaintainersPage({ onNavigate }: MaintainersPageProps) {
   const [targetIssueId, setTargetIssueId] = useState<string | undefined>(undefined);
   const [targetProjectId, setTargetProjectId] = useState<string | undefined>(undefined);
 
+  const [pendingProjects, setPendingProjects] = useState<PendingProject[]>([]);
+  const [currentPendingIndex, setCurrentPendingIndex] = useState(0);
+  const [showNewProjectSetupModal, setShowNewProjectSetupModal] = useState(false);
+
   useEffect(() => {
   if (projects && projects.length > 0) {
     // Extraemos los IDs de todos los proyectos cargados
@@ -65,20 +70,31 @@ export function MaintainersPage({ onNavigate }: MaintainersPageProps) {
 
   const tabs: TabType[] = ['Dashboard', 'Issues', 'Pull Requests'];
 
-  // Fetch projects from API
+  // Fetch projects and check for pending project setup (e.g. after GitHub App install)
   useEffect(() => {
     loadProjects();
 
-    // Check if we're returning from GitHub App installation
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('github_app_installed') === 'true') {
-      // Refresh projects after a short delay to allow backend to sync
-      setTimeout(() => {
-        loadProjects();
-      }, 3000); // Increased delay to allow backend sync to complete
-      // Clean up URL
+    const fromGitHubInstall = urlParams.get('github_app_installed') === 'true';
+    if (fromGitHubInstall) {
       window.history.replaceState({}, '', window.location.pathname);
     }
+
+    const delay = fromGitHubInstall ? 2500 : 500;
+    const t = setTimeout(async () => {
+      if (fromGitHubInstall) loadProjects();
+      try {
+        const { projects: pending } = await getPendingProjects();
+        if (pending && pending.length > 0) {
+          setPendingProjects(pending);
+          setCurrentPendingIndex(0);
+          setShowNewProjectSetupModal(true);
+        }
+      } catch {
+        // Ignore; user may not be authenticated or endpoint not available
+      }
+    }, delay);
+    return () => clearTimeout(t);
   }, []);
 
   // Expose refresh function for child components
@@ -187,6 +203,29 @@ export function MaintainersPage({ onNavigate }: MaintainersPageProps) {
     setTargetIssueId(issueId);
     setTargetProjectId(projectId);
     setActiveTab('Issues');
+  };
+
+  const currentPendingProject =
+    pendingProjects.length > 0 && currentPendingIndex < pendingProjects.length
+      ? pendingProjects[currentPendingIndex]
+      : null;
+
+  const handleNewProjectSetupSaved = () => {
+    refreshAll();
+    setPendingProjects((prev) => {
+      const next = prev.filter((_, i) => i !== currentPendingIndex);
+      if (next.length === 0) setShowNewProjectSetupModal(false);
+      else setCurrentPendingIndex(0);
+      return next;
+    });
+  };
+
+  const handleNewProjectSetupSkipped = () => {
+    if (currentPendingIndex + 1 < pendingProjects.length) {
+      setCurrentPendingIndex((i) => i + 1);
+    } else {
+      setShowNewProjectSetupModal(false);
+    }
   };
 
   return (
@@ -431,6 +470,15 @@ export function MaintainersPage({ onNavigate }: MaintainersPageProps) {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSuccess={refreshAll}
+      />
+
+      {/* New Project Setup Modal (after GitHub App install) */}
+      <NewProjectSetupModal
+        isOpen={showNewProjectSetupModal}
+        project={currentPendingProject}
+        onClose={() => setShowNewProjectSetupModal(false)}
+        onSaved={handleNewProjectSetupSaved}
+        onSkip={handleNewProjectSetupSkipped}
       />
     </div>
   );

@@ -745,6 +745,30 @@ export const createProject = (data: {
     body: JSON.stringify(data),
   });
 
+export const getPendingProjects = () =>
+  apiRequest<{
+    projects: Array<{
+      id: string;
+      github_full_name: string;
+      ecosystem_name: string | null;
+    }>;
+  }>("/projects/pending", { requiresAuth: true });
+
+export const updateProjectMetadata = (
+  projectId: string,
+  data: {
+    description?: string;
+    ecosystem_name?: string;
+    tags?: string[];
+    category?: string;
+  }
+) =>
+  apiRequest<{ ok: boolean }>(`/projects/${projectId}/metadata`, {
+    requiresAuth: true,
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+
 export const verifyProject = (projectId: string) =>
   apiRequest<{
     id: string;

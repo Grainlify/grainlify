@@ -2,6 +2,10 @@
 
 This is a code bundle for Glassmorphism Landing Page. The original project is available at https://www.figma.com/design/Q7mcDMFYoct92SkOWFAoCP/Glassmorphism-Landing-Page.
 
+## StelloPay Dashboard Designs
+
+High-fidelity designs for the StelloPay Account Summary, Agreements, and Transactions pages are available in Figma: https://www.figma.com/design/74oIRaFdQHOJ1A2hXMOnll/Stellopay?node-id=0-1&p=f&t=UdOvEZFmdxnp7D1E-0
+
 ## Prerequisites
 
 - **Node.js**: Latest LTS version (recommended: v20.x or higher)

@@ -523,6 +523,7 @@ SELECT
   p.language,
   p.tags,
   p.category,
+  p.description,
   p.stars_count,
   p.forks_count,
   (
@@ -573,12 +574,13 @@ LIMIT $%d OFFSET $%d
 			var installationID *string
 			var language, category *string
 			var tagsJSON []byte
+			var projectDescription *string
 			var starsCount, forksCount *int
 			var openIssuesCount, openPRsCount, contributorsCount int
 			var createdAt, updatedAt time.Time
 			var ecosystemName, ecosystemSlug *string
 
-			if err := rows.Scan(&id, &fullName, &installationID, &language, &tagsJSON, &category, &starsCount, &forksCount, &openIssuesCount, &openPRsCount, &contributorsCount, &createdAt, &updatedAt, &ecosystemName, &ecosystemSlug); err != nil {
+			if err := rows.Scan(&id, &fullName, &installationID, &language, &tagsJSON, &category, &projectDescription, &starsCount, &forksCount, &openIssuesCount, &openPRsCount, &contributorsCount, &createdAt, &updatedAt, &ecosystemName, &ecosystemSlug); err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "projects_list_failed", "details": err.Error()})
 			}
 
@@ -598,9 +600,12 @@ LIMIT $%d OFFSET $%d
 				forks = *forksCount
 			}
 
-			// Get repo description from GitHub (best effort).
+			// Use maintainer-set description if present; otherwise get from GitHub (best effort).
 			// IMPORTANT: Do NOT drop projects if GitHub enrichment fails (rate limits, transient errors).
-			var description string
+			description := ""
+			if projectDescription != nil && strings.TrimSpace(*projectDescription) != "" {
+				description = strings.TrimSpace(*projectDescription)
+			}
 			token := ""
 			if installationID != nil {
 				token = h.installationToken(ctx, *installationID)
@@ -621,7 +626,9 @@ LIMIT $%d OFFSET $%d
 					)
 					continue // Skip this project
 				}
-				description = repo.Description
+				if description == "" {
+					description = repo.Description
+				}
 				// If stars or forks are 0, update them from GitHub
 				if stars == 0 {
 					stars = repo.StargazersCount

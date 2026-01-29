@@ -1,8 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronRight, ExternalLink, Users, FolderGit2, AlertCircle, GitPullRequest } from 'lucide-react';
 import { useTheme } from '../../../shared/contexts/ThemeContext';
 import { ProjectCard, Project } from '../components/ProjectCard';
 import { SearchWithFilter } from '../components/SearchWithFilter';
+import { getPublicProjects } from '../../../shared/api/client';
+import { isValidProject, getRepoName } from '../../../shared/utils/projectFilter';
+import { ProjectCardSkeleton } from '../components/ProjectCardSkeleton';
+
+const formatNumber = (num: number): string => {
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+  return num.toString();
+};
+
+const getProjectIcon = (githubFullName: string): string => {
+  const [owner] = githubFullName.split('/');
+  return `https://github.com/${owner}.png?size=40`;
+};
+
+const getProjectColor = (name: string): string => {
+  const colors = ['from-blue-500 to-cyan-500', 'from-purple-500 to-pink-500', 'from-green-500 to-emerald-500', 'from-red-500 to-pink-500', 'from-orange-500 to-red-500', 'from-gray-600 to-gray-800', 'from-green-600 to-green-800', 'from-cyan-500 to-blue-600'];
+  const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return colors[hash % colors.length];
+};
+
+const truncateDescription = (description: string | undefined | null, maxLength: number = 80): string => {
+  if (!description || description.trim() === '') return '';
+  const firstLine = description.split('\n')[0].trim();
+  if (firstLine.length > maxLength) return firstLine.substring(0, maxLength).trim() + '...';
+  return firstLine;
+};
 
 interface EcosystemDetailPageProps {
   ecosystemId: string;
@@ -18,7 +45,50 @@ export function EcosystemDetailPage({ ecosystemId, ecosystemName, onBack, onProj
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
-  // Mock data - in real app this would come from API
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeTab !== 'projects') return;
+    let cancelled = false;
+    const load = async () => {
+      setIsLoadingProjects(true);
+      setProjectsError(null);
+      try {
+        const response = await getPublicProjects({ ecosystem: ecosystemName });
+        if (cancelled) return;
+        const raw = response?.projects ?? [];
+        const mapped: Project[] = raw
+          .filter(isValidProject)
+          .map((p: any) => {
+            const repoName = getRepoName(p.github_full_name);
+            return {
+              id: p.id,
+              name: repoName,
+              icon: getProjectIcon(p.github_full_name),
+              stars: formatNumber(p.stars_count ?? 0),
+              forks: formatNumber(p.forks_count ?? 0),
+              contributors: p.contributors_count ?? 0,
+              openIssues: p.open_issues_count ?? 0,
+              prs: p.open_prs_count ?? 0,
+              description: truncateDescription(p.description) || `${p.language || 'Project'} repository${p.category ? ` - ${p.category}` : ''}`,
+              tags: Array.isArray(p.tags) ? p.tags : [],
+              color: getProjectColor(repoName),
+            };
+          });
+        setProjects(mapped);
+      } catch (err) {
+        if (!cancelled) setProjectsError(err instanceof Error ? err.message : 'Failed to load projects');
+        if (!cancelled) setProjects([]);
+      } finally {
+        if (!cancelled) setIsLoadingProjects(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [activeTab, ecosystemName]);
+
   const ecosystemData = {
     name: ecosystemName,
     logo: ecosystemName.charAt(0).toUpperCase(),
@@ -54,64 +124,9 @@ export function EcosystemDetailPage({ ecosystemId, ecosystemName, onBack, onProj
     ],
   };
 
-  const projectsData: Project[] = [
-    {
-      id: '1',
-      name: 'React Ecosystem',
-      icon: '⚛️',
-      stars: '4.9M',
-      forks: '2.6M',
-      contributors: 45,
-      openIssues: 12,
-      prs: 0,
-      description: 'A modern React framework for building user interfaces with TypeScript support',
-      tags: ['TypeScript', 'good first issue'],
-      color: 'from-blue-500 to-cyan-500',
-    },
-    {
-      id: '2',
-      name: 'Nextjs Framework',
-      icon: '▲',
-      stars: '120K',
-      forks: '24K',
-      contributors: 78,
-      openIssues: 20,
-      prs: 0,
-      description: 'The React framework for production with server-side rendering',
-      tags: ['Frontend'],
-      color: 'from-purple-500 to-pink-500',
-    },
-    {
-      id: '3',
-      name: 'Vue.js',
-      icon: 'V',
-      stars: '214K',
-      forks: '36K',
-      contributors: 94,
-      openIssues: 8,
-      prs: 0,
-      description: 'Progressive JavaScript framework for building user interfaces',
-      tags: ['Framework'],
-      color: 'from-green-500 to-emerald-500',
-    },
-    {
-      id: '4',
-      name: 'Angular',
-      icon: 'A',
-      stars: '93.5K',
-      forks: '24K',
-      contributors: 120,
-      openIssues: 35,
-      prs: 0,
-      description: 'A platform and framework for building single-page client applications',
-      tags: ['Frontend', 'TypeScript'],
-      color: 'from-red-500 to-pink-500',
-    },
-  ];
-
-  const filteredProjects = projectsData.filter(project =>
+  const filteredProjects = projects.filter(project =>
     project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    project.description.toLowerCase().includes(searchQuery.toLowerCase())
+    (project.description || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const isDark = theme === 'dark';
@@ -478,11 +493,33 @@ export function EcosystemDetailPage({ ecosystemId, ecosystemName, onBack, onProj
               />
 
               {/* Projects Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
-                {filteredProjects.map(project => (
-                  <ProjectCard key={project.id} project={project} onClick={onProjectClick} />
-                ))}
-              </div>
+              {isLoadingProjects ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
+                  {[1, 2, 3, 4].map((i) => (
+                    <ProjectCardSkeleton key={i} />
+                  ))}
+                </div>
+              ) : projectsError ? (
+                <div className={`backdrop-blur-[40px] rounded-[16px] md:rounded-[24px] border bg-white/[0.12] border-white/20 p-6 md:p-8 text-center`}>
+                  <AlertCircle className={`w-10 h-10 md:w-12 md:h-12 mx-auto mb-3 md:mb-4 ${isDark ? 'text-red-400' : 'text-red-600'}`} />
+                  <p className={`text-[12px] md:text-[14px] ${isDark ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'}`}>
+                    {projectsError}
+                  </p>
+                </div>
+              ) : filteredProjects.length === 0 ? (
+                <div className={`backdrop-blur-[40px] rounded-[16px] md:rounded-[24px] border bg-white/[0.12] border-white/20 p-6 md:p-8 text-center`}>
+                  <FolderGit2 className={`w-10 h-10 md:w-12 md:h-12 mx-auto mb-3 md:mb-4 ${isDark ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'}`} />
+                  <p className={`text-[12px] md:text-[14px] ${isDark ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'}`}>
+                    No projects found for this ecosystem yet.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
+                  {filteredProjects.map(project => (
+                    <ProjectCard key={project.id} project={project} onClick={onProjectClick} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
