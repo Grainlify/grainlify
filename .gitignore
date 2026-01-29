@@ -4,6 +4,9 @@
 !.elasticbeanstalk/*.global.yml
 wasm_hash.txt
 
+# Test Artifacts
+**/test_snapshots/test_bounty_escrow/
+**/test_snapshots/tests_external/
 # Node modules
 node_modules/
 
