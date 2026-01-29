@@ -431,6 +431,8 @@ proptest! {
              client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
         }
     }
+}
+
 // ============================================================================
 // Integration Tests: Batch Operations
 // ============================================================================
