@@ -425,7 +425,7 @@ export function DataPage() {
       {/* Main Content Grid */}
       <div className="grid grid-cols-2 gap-6">
         {/* Left Column - Project Activity */}
-        <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 p-8">
+        <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 p-8 relative group">
           <div className="flex items-center justify-between mb-6">
             <h2 className={`text-[18px] font-bold transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
               }`}>Project activity</h2>
@@ -583,7 +583,7 @@ export function DataPage() {
         </div>
 
         {/* Right Column - Contributors Map */}
-        <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8">
+        <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8 relative group transition-all duration-300 will-change-transform transform-gpu">
           <h2 className={`text-[18px] font-bold mb-6 transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
             }`}>Contributors map</h2>
 
@@ -902,12 +902,12 @@ export function DataPage() {
         </div>
 
         {/* Information Panel */}
-        <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8">
+        <div className="glass-container backdrop-blur-[40px] bg-white/[0.12] rounded-[24px] border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-8">
           <h2 className={`text-[18px] font-bold mb-6 transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
             }`}>Information</h2>
 
           {/* Info Text */}
-          <div className="mb-6 p-5 rounded-[16px] backdrop-blur-[20px] bg-white/[0.15] border border-white/25">
+          <div className="glass-container mb-6 p-5 rounded-[16px] backdrop-blur-[20px] bg-white/[0.15] border border-white/25">
             <div className="flex items-start gap-3">
               <Info className="w-5 h-5 text-[#c9983a] flex-shrink-0 mt-0.5" />
               <p className={`text-[14px] leading-relaxed transition-colors ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#4a3f2f]'
@@ -919,12 +919,15 @@ export function DataPage() {
 
           {/* Contributor Stats */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-6 rounded-[16px] backdrop-blur-[25px] bg-gradient-to-br from-white/[0.2] to-white/[0.12] border-2 border-white/30 shadow-[0_6px_24px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_32px_rgba(201,152,58,0.15)] transition-all group">
+            <div className="glass-card flex items-center justify-between p-6 rounded-[16px] group cursor-pointer">
               <div>
                 <h3 className={`text-[14px] font-bold uppercase tracking-wider mb-2 transition-colors ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
                   }`}>Contributors with billing profile</h3>
-                <div className={`text-[42px] font-black leading-none transition-colors ${theme === 'dark' ? 'text-[#f5f5f5]' : 'bg-gradient-to-r from-[#2d2820] to-[#c9983a] bg-clip-text text-transparent'
-                  }`}>
+                <div 
+                  className={`text-[42px] font-black leading-none transition-colors will-change-colors ${theme === 'dark' ? 'text-[#f5f5f5] group-hover:text-[#c9983a]' : 'text-[#2d2820] group-hover:text-[#c9983a]'
+                  }`}
+                  style={{ transform: 'translate3d(0, 0, 0)' }}
+                >
                   0 / 0
                 </div>
               </div>
@@ -937,17 +940,27 @@ export function DataPage() {
 
             {/* Additional Stats Placeholder */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="p-5 rounded-[14px] backdrop-blur-[20px] bg-white/[0.15] border border-white/25 hover:bg-white/[0.2] transition-all group cursor-pointer">
+              <div className="glass-card p-5 rounded-[14px] group cursor-pointer">
                 <div className={`text-[11px] font-bold uppercase tracking-wider mb-2 transition-colors ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
                   }`}>Active</div>
-                <div className={`text-[28px] font-black transition-colors ${theme === 'dark' ? 'text-[#f5f5f5] group-hover:text-[#c9983a]' : 'text-[#2d2820] group-hover:text-[#c9983a]'
-                  }`}>0</div>
+                <div 
+                  className={`text-[28px] font-black transition-colors will-change-colors ${theme === 'dark' ? 'text-[#f5f5f5] group-hover:text-[#c9983a]' : 'text-[#2d2820] group-hover:text-[#c9983a]'
+                  }`}
+                  style={{ transform: 'translate3d(0, 0, 0)' }}
+                >
+                  0
+                </div>
               </div>
-              <div className="p-5 rounded-[14px] backdrop-blur-[20px] bg-white/[0.15] border border-white/25 hover:bg-white/[0.2] transition-all group cursor-pointer">
+              <div className="glass-card p-5 rounded-[14px] group cursor-pointer">
                 <div className={`text-[11px] font-bold uppercase tracking-wider mb-2 transition-colors ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
                   }`}>Total</div>
-                <div className={`text-[28px] font-black transition-colors ${theme === 'dark' ? 'text-[#f5f5f5] group-hover:text-[#c9983a]' : 'text-[#2d2820] group-hover:text-[#c9983a]'
-                  }`}>0</div>
+                <div 
+                  className={`text-[28px] font-black transition-colors will-change-colors ${theme === 'dark' ? 'text-[#f5f5f5] group-hover:text-[#c9983a]' : 'text-[#2d2820] group-hover:text-[#c9983a]'
+                  }`}
+                  style={{ transform: 'translate3d(0, 0, 0)' }}
+                >
+                  0
+                </div>
               </div>
             </div>
           </div>
