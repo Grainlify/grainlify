@@ -1,10 +1,10 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from '../shared/contexts/AuthContext';
-import { ThemeProvider } from '../shared/contexts/ThemeContext';
-import { LandingPage } from '../features/landing';
-import { SignInPage, SignUpPage, AuthCallbackPage } from '../features/auth';
-import { Dashboard } from '../features/dashboard';
-import Toast from '../shared/components/Toast';
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "../shared/contexts/AuthContext";
+import { ThemeProvider } from "../shared/contexts/ThemeContext";
+import { LandingPage } from "../features/landing";
+import { SignInPage, SignUpPage, AuthCallbackPage } from "../features/auth";
+import { Dashboard } from "../features/dashboard";
+import Toast from "../shared/components/Toast";
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -18,21 +18,23 @@ export default function App() {
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/signin" element={<SignInPage />} />
-            <Route path="/signup" element={<SignUpPage />} />
-            <Route path="/auth/callback" element={<AuthCallbackPage />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-          <Toast />
+          <div className="overflow-x-hidden">
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/signin" element={<SignInPage />} />
+              <Route path="/signup" element={<SignUpPage />} />
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+            <Toast />
+          </div>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
