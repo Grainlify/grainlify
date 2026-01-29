@@ -4,6 +4,7 @@ import { ThemeProvider } from "../shared/contexts/ThemeContext";
 import { LandingPage } from "../features/landing";
 import { SignInPage, SignUpPage, AuthCallbackPage } from "../features/auth";
 import { Dashboard } from "../features/dashboard";
+import { BlogPage } from "../features/blog/pages/BlogPage";
 import Toast from "../shared/components/Toast";
 // import { Activity } from "lucide-react";
 
@@ -23,6 +24,7 @@ export default function App() {
             {/* <Dashboard /> */}
             <Routes>
               <Route path="/" element={<LandingPage />} />
+              <Route path="/blog" element={<BlogPage />} />
               <Route path="/signin" element={<SignInPage />} />
               <Route path="/signup" element={<SignUpPage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
