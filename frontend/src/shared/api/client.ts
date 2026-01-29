@@ -573,11 +573,7 @@ export const createOpenSourceWeekEvent = (data: {
 }) =>
   apiRequest<{ id: string }>('/admin/open-source-week/events', {
     requiresAuth: true,
-    method: 'POST',import { useState, useEffect } from 'react';
-import { useTheme } from '../../../shared/contexts/ThemeContext';
-import { Shield, Globe, Plus, Sparkles, Trash2, ExternalLink, Calendar, Pencil } from 'lucide-react';
-import { toast } from 'sonner';
-import { Modal, ModalFooter, ModalButton, ModalInput, ModalSelect } from '../..
+    method: 'POST',
     body: JSON.stringify(data),
   });
 
