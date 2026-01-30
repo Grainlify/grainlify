@@ -1,17 +1,25 @@
 #![no_std]
+mod events;
+
+use events::{
+    emit_batch_payout, emit_funds_locked, emit_payout, emit_program_initialized, emit_update_admin,
+    emit_update_authorized_key, BatchPayoutEvent, FundsLockedEvent, PayoutEvent,
+    ProgramInitializedEvent, UpdateAdminEvent, UpdateAuthorizedKeyEvent,
+};
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, vec, Address, Env, String, Symbol, Vec,
-    token,
+    contract, contractimpl, contracttype, symbol_short, token, vec, Address, Env, String, Symbol,
+    Vec,
 };
 
-// Event types
-const PROGRAM_INITIALIZED: Symbol = symbol_short!("ProgramInit");
-const FUNDS_LOCKED: Symbol = symbol_short!("FundsLocked");
-const BATCH_PAYOUT: Symbol = symbol_short!("BatchPayout");
-const PAYOUT: Symbol = symbol_short!("Payout");
-
 // Storage keys
-const PROGRAM_DATA: Symbol = symbol_short!("ProgramData");
+const PROGRAM_DATA: Symbol = symbol_short!("p_data");
+const ADMIN_UPDATE_TIMELOCK: u64 = 1 * 24 * 60 * 60;
+
+#[contracttype]
+pub enum DataKey {
+    Admin,
+    LastAdminUpdate,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -38,16 +46,17 @@ pub struct ProgramEscrowContract;
 #[contractimpl]
 impl ProgramEscrowContract {
     /// Initialize a new program escrow
-    /// 
+    ///
     /// # Arguments
     /// * `program_id` - Unique identifier for the program/hackathon
     /// * `authorized_payout_key` - Address authorized to trigger payouts (backend)
     /// * `token_address` - Address of the token contract to use for transfers
-    /// 
+    ///
     /// # Returns
     /// The initialized ProgramData
     pub fn init_program(
         env: Env,
+        admin: Address,
         program_id: String,
         authorized_payout_key: Address,
         token_address: Address,
@@ -56,6 +65,7 @@ impl ProgramEscrowContract {
         if env.storage().instance().has(&PROGRAM_DATA) {
             panic!("Program already initialized");
         }
+        env.storage().instance().set(&DataKey::Admin, &admin);
 
         let contract_address = env.current_contract_address();
         let program_data = ProgramData {
@@ -71,19 +81,24 @@ impl ProgramEscrowContract {
         env.storage().instance().set(&PROGRAM_DATA, &program_data);
 
         // Emit ProgramInitialized event
-        env.events().publish(
-            (PROGRAM_INITIALIZED,),
-            (program_id, authorized_payout_key, token_address, 0i128),
+        emit_program_initialized(
+            &env,
+            ProgramInitializedEvent {
+                admin,
+                program_id,
+                total_funds: 0,
+                timestamp: env.ledger().timestamp(),
+            },
         );
 
         program_data
     }
 
     /// Lock initial funds into the program escrow
-    /// 
+    ///
     /// # Arguments
     /// * `amount` - Amount of funds to lock (in native token units)
-    /// 
+    ///
     /// # Returns
     /// Updated ProgramData with locked funds
     pub fn lock_program_funds(env: Env, amount: i128) -> ProgramData {
@@ -105,28 +120,30 @@ impl ProgramEscrowContract {
         env.storage().instance().set(&PROGRAM_DATA, &program_data);
 
         // Emit FundsLocked event
-        env.events().publish(
-            (FUNDS_LOCKED,),
-            (
-                program_data.program_id.clone(),
+        emit_funds_locked(
+            &env,
+            FundsLockedEvent {
+                program_id: program_data.program_id.clone(),
                 amount,
-                program_data.remaining_balance,
-            ),
+                remaining_balance: program_data.remaining_balance,
+                timestamp: env.ledger().timestamp(),
+            },
         );
 
         program_data
     }
 
     /// Execute batch payouts to multiple recipients
-    /// 
+    ///
     /// # Arguments
     /// * `recipients` - Vector of recipient addresses
     /// * `amounts` - Vector of amounts (must match recipients length)
-    /// 
+    ///
     /// # Returns
     /// Updated ProgramData after payouts
     pub fn batch_payout(
         env: Env,
+        caller: Address,
         recipients: Vec<Address>,
         amounts: Vec<i128>,
     ) -> ProgramData {
@@ -137,7 +154,6 @@ impl ProgramEscrowContract {
             .get(&PROGRAM_DATA)
             .unwrap_or_else(|| panic!("Program not initialized"));
 
-        let caller = env.invoker();
         if caller != program_data.authorized_payout_key {
             panic!("Unauthorized: only authorized payout key can trigger payouts");
         }
@@ -154,18 +170,20 @@ impl ProgramEscrowContract {
         // Calculate total payout amount
         let mut total_payout: i128 = 0;
         for amount in amounts.iter() {
-            if *amount <= 0 {
+            if amount <= 0 {
                 panic!("All amounts must be greater than zero");
             }
             total_payout = total_payout
-                .checked_add(*amount)
+                .checked_add(amount)
                 .unwrap_or_else(|| panic!("Payout amount overflow"));
         }
 
         // Validate sufficient balance
         if total_payout > program_data.remaining_balance {
-            panic!("Insufficient balance: requested {}, available {}", 
-                total_payout, program_data.remaining_balance);
+            panic!(
+                "Insufficient balance: requested {}, available {}",
+                total_payout, program_data.remaining_balance
+            );
         }
 
         // Execute transfers
@@ -175,15 +193,15 @@ impl ProgramEscrowContract {
         let token_client = token::Client::new(&env, &program_data.token_address);
 
         for (i, recipient) in recipients.iter().enumerate() {
-            let amount = amounts.get(i).unwrap();
-            
+            let amount = amounts.get(i as u32).unwrap();
+
             // Transfer funds from contract to recipient
-            token_client.transfer(&contract_address, recipient, amount);
+            token_client.transfer(&contract_address, &recipient, &amount);
 
             // Record payout
             let payout_record = PayoutRecord {
                 recipient: recipient.clone(),
-                amount: *amount,
+                amount: amount,
                 timestamp,
             };
             updated_history.push_back(payout_record);
@@ -198,28 +216,33 @@ impl ProgramEscrowContract {
         env.storage().instance().set(&PROGRAM_DATA, &updated_data);
 
         // Emit BatchPayout event
-        env.events().publish(
-            (BATCH_PAYOUT,),
-            (
-                updated_data.program_id.clone(),
-                recipients.len() as u32,
-                total_payout,
-                updated_data.remaining_balance,
-            ),
+        emit_batch_payout(
+            &env,
+            BatchPayoutEvent {
+                program_id: updated_data.program_id.clone(),
+                amounts,
+                recipients,
+                timestamp: env.ledger().timestamp(),
+            },
         );
 
         updated_data
     }
 
     /// Execute a single payout to one recipient
-    /// 
+    ///
     /// # Arguments
     /// * `recipient` - Address of the recipient
     /// * `amount` - Amount to transfer
-    /// 
+    ///
     /// # Returns
     /// Updated ProgramData after payout
-    pub fn single_payout(env: Env, recipient: Address, amount: i128) -> ProgramData {
+    pub fn single_payout(
+        env: Env,
+        caller: Address,
+        recipient: Address,
+        amount: i128,
+    ) -> ProgramData {
         // Verify authorization
         let program_data: ProgramData = env
             .storage()
@@ -227,7 +250,6 @@ impl ProgramEscrowContract {
             .get(&PROGRAM_DATA)
             .unwrap_or_else(|| panic!("Program not initialized"));
 
-        let caller = env.invoker();
         if caller != program_data.authorized_payout_key {
             panic!("Unauthorized: only authorized payout key can trigger payouts");
         }
@@ -239,8 +261,10 @@ impl ProgramEscrowContract {
 
         // Validate sufficient balance
         if amount > program_data.remaining_balance {
-            panic!("Insufficient balance: requested {}, available {}", 
-                amount, program_data.remaining_balance);
+            panic!(
+                "Insufficient balance: requested {}, available {}",
+                amount, program_data.remaining_balance
+            );
         }
 
         // Transfer funds from contract to recipient
@@ -268,21 +292,21 @@ impl ProgramEscrowContract {
         env.storage().instance().set(&PROGRAM_DATA, &updated_data);
 
         // Emit Payout event
-        env.events().publish(
-            (PAYOUT,),
-            (
-                updated_data.program_id.clone(),
-                recipient,
+        emit_payout(
+            &env,
+            PayoutEvent {
+                program_id: updated_data.program_id.clone(),
                 amount,
-                updated_data.remaining_balance,
-            ),
+                recipient,
+                timestamp: env.ledger().timestamp(),
+            },
         );
 
         updated_data
     }
 
     /// Get program information
-    /// 
+    ///
     /// # Returns
     /// ProgramData containing all program information
     pub fn get_program_info(env: Env) -> ProgramData {
@@ -293,7 +317,7 @@ impl ProgramEscrowContract {
     }
 
     /// Get remaining balance
-    /// 
+    ///
     /// # Returns
     /// Current remaining balance
     pub fn get_remaining_balance(env: Env) -> i128 {
@@ -304,6 +328,99 @@ impl ProgramEscrowContract {
             .unwrap_or_else(|| panic!("Program not initialized"));
 
         program_data.remaining_balance
+    }
+
+    pub fn get_admin(env: &Env) -> Address {
+        env.storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic!("no admin"))
+    }
+
+    /// Update Admin
+    ///
+    /// # Arguments
+    /// * `new_admin` - New Admin address
+    /// Admin Require Auth
+    pub fn update_admin(env: Env, new_admin: Address) {
+        let current_admin = Self::get_admin(&env);
+        current_admin.require_auth();
+
+        let last_update: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::LastAdminUpdate)
+            .unwrap_or(0);
+        let current_time = env.ledger().timestamp();
+        if current_time < last_update + ADMIN_UPDATE_TIMELOCK {
+            panic!("TimeLock");
+        }
+
+        env.storage().instance().set(&DataKey::Admin, &new_admin);
+        env.storage()
+            .instance()
+            .set(&DataKey::LastAdminUpdate, &current_time);
+
+        emit_update_admin(
+            &env,
+            UpdateAdminEvent {
+                admin: current_admin,
+                new_admin,
+                timestamp: current_time,
+            },
+        );
+    }
+
+    /// Update Authorized Payout Key
+    ///
+    /// # Arguments
+    /// * `new_admin` - New Authorized Payout Key address
+    /// Admin Require Auth
+    pub fn update_authorized_payout_key(env: Env, authorized_payout_key: Address) {
+        let current_admin = Self::get_admin(&env);
+        current_admin.require_auth();
+
+        let mut program_data: ProgramData = env
+            .storage()
+            .instance()
+            .get(&PROGRAM_DATA)
+            .unwrap_or_else(|| panic!("Program not initialized"));
+
+        program_data.authorized_payout_key = authorized_payout_key.clone();
+
+        env.storage().instance().set(&PROGRAM_DATA, &program_data);
+        emit_update_authorized_key(
+            &env,
+            UpdateAuthorizedKeyEvent {
+                old_authorized_payout_key: program_data.authorized_payout_key,
+                new_authorized_payout_key: authorized_payout_key,
+                timestamp: env.ledger().timestamp(),
+            },
+        );
+    }
+
+    /// Get All contract state information
+    ///
+    /// # Returns
+    /// ProgramData containing all program information, Current Admin and LastAdminUpdate
+    /// Admin Require Auth
+    pub fn get_contract_state(env: Env) -> (ProgramData, Address, u64) {
+        let admin = Self::get_admin(&env);
+        admin.require_auth();
+
+        let program_data: ProgramData = env
+            .storage()
+            .instance()
+            .get(&PROGRAM_DATA)
+            .unwrap_or_else(|| panic!("Program not initialized"));
+
+        let last_admin_update = env
+            .storage()
+            .instance()
+            .get(&DataKey::LastAdminUpdate)
+            .unwrap_or(0);
+
+        (program_data, admin, last_admin_update)
     }
 }
 

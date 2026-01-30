@@ -3,7 +3,10 @@ mod events;
 mod test_bounty_escrow;
 
 use soroban_sdk::{contract, contracterror, contractimpl, contracttype, token, Address, Env};
-use events::{BountyEscrowInitialized, FundsLocked, FundsReleased, FundsRefunded, emit_bounty_initialized, emit_funds_locked, emit_funds_released, emit_funds_refunded};
+use events::{BountyEscrowInitialized, FundsLocked, FundsReleased, FundsRefunded, UpdateAdminEvent,
+    emit_bounty_initialized, emit_funds_locked, emit_funds_released, emit_funds_refunded, emit_update_admin};
+
+pub const ADMIN_UPDATE_TIMELOCK :u64 = 1 * 24 * 60 * 60;
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -16,6 +19,7 @@ pub enum Error {
     FundsNotLocked = 5,
     DeadlineNotPassed = 6,
     Unauthorized = 7,
+    TimeLock = 8,
 }
 
 #[contracttype]
@@ -40,6 +44,7 @@ pub enum DataKey {
     Admin,
     Token,
     Escrow(u64), // bounty_id
+    LastAdminUpdate
 }
 
 #[contract]
@@ -219,5 +224,30 @@ impl BountyEscrowContract {
         let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let client = token::Client::new(&env, &token_addr);
         Ok(client.balance(&env.current_contract_address()))
+    }
+
+    pub fn update_admin(env: Env, new_admin:Address) -> Result<(), Error> {
+        let current_admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        current_admin.require_auth();
+
+        let last_update: u64 = env.storage().instance().get(&DataKey::LastAdminUpdate).unwrap_or(0);
+        let current_time = env.ledger().timestamp();
+        if current_time < last_update + ADMIN_UPDATE_TIMELOCK {
+            return Err(Error::TimeLock);
+        }
+
+
+        env.storage().instance().set(&DataKey::Admin, &new_admin);
+        env.storage().instance().set(&DataKey::LastAdminUpdate, &current_time);
+
+        emit_update_admin(
+            &env,
+            UpdateAdminEvent {
+                admin: current_admin,
+                new_admin,
+                timestamp: current_time
+            },
+        );
+        Ok(())
     }
 }

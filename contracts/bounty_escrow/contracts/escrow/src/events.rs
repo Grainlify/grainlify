@@ -54,3 +54,16 @@ pub fn emit_funds_refunded(env: &Env, event: FundsRefunded) {
     let topics = (symbol_short!("f_ref"), event.bounty_id);
     env.events().publish(topics, event.clone());
 }
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct UpdateAdminEvent {
+    pub admin: Address,
+    pub new_admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn emit_update_admin(env: &Env, event: UpdateAdminEvent) {
+    let topics = (symbol_short!("upd_adm"), );
+    env.events().publish(topics, event.clone());
+}
