@@ -1,6 +1,6 @@
 #![cfg(test)]
 use super::*;
-use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec, map};
+use soroban_sdk::{map, testutils::Address as _, Address, Env, String, Vec};
 
 #[test]
 fn test_program_metadata_basic_operations() {
@@ -12,8 +12,10 @@ fn test_program_metadata_basic_operations() {
     let program_id = String::from_str(&env, "Hackathon2024");
     let authorized_key = Address::generate(&env);
     let token = Address::generate(&env);
-    
-    client.init_program(&program_id, &authorized_key, &token).unwrap();
+
+    client
+        .init_program(&program_id, &authorized_key, &token)
+        .unwrap();
 
     // Set metadata
     let metadata = ProgramMetadata {
@@ -30,8 +32,14 @@ fn test_program_metadata_basic_operations() {
         ],
         custom_fields: map![
             &env,
-            (String::from_str(&env, "track_count"), String::from_str(&env, "5")),
-            (String::from_str(&env, "expected_participants"), String::from_str(&env, "500")),
+            (
+                String::from_str(&env, "track_count"),
+                String::from_str(&env, "5")
+            ),
+            (
+                String::from_str(&env, "expected_participants"),
+                String::from_str(&env, "500")
+            ),
         ],
     };
 
@@ -59,8 +67,10 @@ fn test_program_metadata_authorization() {
     let authorized_key = Address::generate(&env);
     let unauthorized_key = Address::generate(&env);
     let token = Address::generate(&env);
-    
-    client.init_program(&program_id, &authorized_key, &token).unwrap();
+
+    client
+        .init_program(&program_id, &authorized_key, &token)
+        .unwrap();
 
     // Set metadata with unauthorized key should fail
     let metadata = ProgramMetadata {
@@ -75,7 +85,7 @@ fn test_program_metadata_authorization() {
 
     // Switch to unauthorized caller
     env.mock_all_auths_allowing_non_root_auth();
-    
+
     // This should return an error due to authorization failure
     let result = client.try_set_program_metadata(&metadata);
     assert!(result.is_err());
@@ -92,8 +102,10 @@ fn test_program_metadata_size_limits() {
     let program_id = String::from_str(&env, "Hackathon2024");
     let authorized_key = Address::generate(&env);
     let token = Address::generate(&env);
-    
-    client.init_program(&program_id, &authorized_key, &token).unwrap();
+
+    client
+        .init_program(&program_id, &authorized_key, &token)
+        .unwrap();
 
     // Test tags limit (should be <= 30)
     let mut tags = Vec::new(&env);
@@ -127,8 +139,10 @@ fn test_program_metadata_optional_fields() {
     let program_id = String::from_str(&env, "Hackathon2024");
     let authorized_key = Address::generate(&env);
     let token = Address::generate(&env);
-    
-    client.init_program(&program_id, &authorized_key, &token).unwrap();
+
+    client
+        .init_program(&program_id, &authorized_key, &token)
+        .unwrap();
 
     // Metadata with only some fields set
     let partial_metadata = ProgramMetadata {

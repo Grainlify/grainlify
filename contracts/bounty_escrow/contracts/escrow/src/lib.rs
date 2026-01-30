@@ -589,7 +589,7 @@ pub struct Escrow {
 ///     repo_id: Some(String::from_str(&env, "stellar/rs-soroban-sdk")),
 ///     issue_id: Some(String::from_str(&env, "123")),
 ///     bounty_type: Some(String::from_str(&env, "bug")),
-///     tags: vec![&env, 
+///     tags: vec![&env,
 ///         String::from_str(&env, "priority-high"),
 ///         String::from_str(&env, "security")
 ///     ],
@@ -1197,7 +1197,7 @@ impl BountyEscrowContract {
     ///     tags: vec![&env, String::from_str(&env, "priority-high")],
     ///     custom_fields: map![&env],
     /// };
-    /// 
+    ///
     /// escrow_client.set_escrow_metadata(&42, &metadata)?;
     /// ```
     pub fn set_escrow_metadata(
@@ -1211,7 +1211,11 @@ impl BountyEscrowContract {
         }
 
         // Get escrow to verify depositor authorization
-        let escrow: Escrow = env.storage().persistent().get(&DataKey::Escrow(bounty_id)).unwrap();
+        let escrow: Escrow = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Escrow(bounty_id))
+            .unwrap();
         escrow.depositor.require_auth();
 
         // Validate metadata size limits
@@ -1220,17 +1224,19 @@ impl BountyEscrowContract {
         }
 
         // Store metadata
-        env.storage().persistent().set(&DataKey::EscrowMetadata(bounty_id), &metadata);
+        env.storage()
+            .persistent()
+            .set(&DataKey::EscrowMetadata(bounty_id), &metadata);
 
         // Extend TTL for both escrow and metadata
         env.storage().persistent().extend_ttl(
             &DataKey::Escrow(bounty_id),
-            1000000, // Minimum
+            1000000,  // Minimum
             10000000, // Maximum
         );
         env.storage().persistent().extend_ttl(
             &DataKey::EscrowMetadata(bounty_id),
-            1000000, // Minimum
+            1000000,  // Minimum
             10000000, // Maximum
         );
 
@@ -1689,9 +1695,12 @@ impl BountyEscrowContract {
         if !env.storage().persistent().has(&DataKey::Escrow(bounty_id)) {
             return Err(Error::BountyNotFound);
         }
-        
+
         // Get metadata if it exists
-        let metadata: Option<EscrowMetadata> = env.storage().persistent().get(&DataKey::EscrowMetadata(bounty_id));
+        let metadata: Option<EscrowMetadata> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::EscrowMetadata(bounty_id));
         Ok(metadata)
     }
 
@@ -1713,7 +1722,7 @@ impl BountyEscrowContract {
     /// let escrow_view = escrow_client.get_escrow_with_metadata(&42)?;
     /// println!("Amount: {}", escrow_view.escrow.amount);
     /// println!("Status: {:?}", escrow_view.escrow.status);
-    /// 
+    ///
     /// if let Some(meta) = escrow_view.metadata {
     ///     println!("Repository: {:?}", meta.repo_id);
     ///     println!("Issue: {:?}", meta.issue_id);
@@ -1722,14 +1731,11 @@ impl BountyEscrowContract {
     pub fn get_escrow_with_metadata(env: Env, bounty_id: u64) -> Result<EscrowWithMetadata, Error> {
         // Get core escrow data
         let escrow = Self::get_escrow_info(env.clone(), bounty_id)?;
-        
+
         // Get metadata if it exists
         let metadata = Self::get_escrow_metadata(env, bounty_id)?;
-        
-        Ok(EscrowWithMetadata {
-            escrow,
-            metadata,
-        })
+
+        Ok(EscrowWithMetadata { escrow, metadata })
     }
 
     /// Returns the current token balance held by the contract.

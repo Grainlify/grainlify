@@ -2017,11 +2017,7 @@ impl ProgramEscrowContract {
         fee_enabled: Option<bool>,
     ) {
         // Verify authorization
-        let program_data: ProgramData = env
-            .storage()
-            .instance()
-            .get(&PROGRAM_DATA)
-            .unwrap();
+        let program_data: ProgramData = env.storage().instance().get(&PROGRAM_DATA).unwrap();
 
         // Note: In Soroban, we check authorization by requiring auth from the authorized key
         // For this function, we'll require auth from the authorized_payout_key

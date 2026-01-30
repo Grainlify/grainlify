@@ -1,6 +1,6 @@
 #![cfg(test)]
 use super::*;
-use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec, map};
+use soroban_sdk::{map, testutils::Address as _, Address, Env, String, Vec};
 
 #[test]
 fn test_escrow_metadata_basic_operations() {
@@ -18,7 +18,7 @@ fn test_escrow_metadata_basic_operations() {
     let bounty_id = 42u64;
     let amount = 1000_0000000i128;
     let deadline = env.ledger().timestamp() + 2592000; // 30 days
-    
+
     client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
 
     // Set metadata
@@ -33,8 +33,14 @@ fn test_escrow_metadata_basic_operations() {
         ],
         custom_fields: map![
             &env,
-            (String::from_str(&env, "difficulty"), String::from_str(&env, "medium")),
-            (String::from_str(&env, "estimated_hours"), String::from_str(&env, "20"))
+            (
+                String::from_str(&env, "difficulty"),
+                String::from_str(&env, "medium")
+            ),
+            (
+                String::from_str(&env, "estimated_hours"),
+                String::from_str(&env, "20")
+            )
         ],
     };
 
@@ -68,7 +74,7 @@ fn test_escrow_metadata_authorization() {
     let bounty_id = 42u64;
     let amount = 1000_0000000i128;
     let deadline = env.ledger().timestamp() + 2592000;
-    
+
     client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
 
     // Set metadata with wrong depositor should fail
@@ -101,7 +107,7 @@ fn test_escrow_metadata_size_limits() {
     let bounty_id = 42u64;
     let amount = 1000_0000000i128;
     let deadline = env.ledger().timestamp() + 2592000;
-    
+
     client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
 
     // Test tags limit (should be <= 20)
@@ -140,7 +146,7 @@ fn test_escrow_metadata_optional_fields() {
     let bounty_id = 42u64;
     let amount = 1000_0000000i128;
     let deadline = env.ledger().timestamp() + 2592000;
-    
+
     client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
 
     // Metadata with only some fields set
