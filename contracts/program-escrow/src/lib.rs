@@ -680,6 +680,25 @@ pub struct ProgramData {
     pub token_address: Address,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DisputeStatus {
+    Open,
+    ResolvedRelease,
+    ResolvedRefund,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Dispute {
+    pub opener: Address,
+    pub reason: String,
+    pub status: DisputeStatus,
+    pub opened_at: u64,
+    pub resolver: Option<Address>,
+    pub resolved_at: Option<u64>,
+}
+
 /// Storage key type for individual programs
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -689,6 +708,8 @@ pub enum DataKey {
     ReleaseHistory(String),       // program_id -> Vec<ProgramReleaseHistory>
     NextScheduleId(String),       // program_id -> next schedule_id
     IsPaused,                     // Global contract pause state
+    ProgramDispute(String),       // program_id -> Dispute
+    Arbitrator,                   // Optional arbitrator address (instance storage)
 }
 
 // ============================================================================
@@ -801,6 +822,105 @@ impl ProgramEscrowContract {
     /// Get pause status (view function)
     pub fn is_paused(env: Env) -> bool {
         Self::is_paused_internal(&env)
+    }
+
+    /// Set an arbitrator address (authorized caller must sign). Stored as instance key.
+    pub fn set_arbitrator(env: Env, arbitrator: Address) {
+        arbitrator.require_auth();
+        env.storage().instance().set(&DataKey::Arbitrator, &arbitrator);
+    }
+
+    /// Open a dispute for a program. `opener` must authorize the call.
+    pub fn open_dispute(env: Env, opener: Address, program_id: String, reason: String) {
+        opener.require_auth();
+
+        let key = DataKey::Program(program_id.clone());
+        if !env.storage().instance().has(&key) && !env.storage().persistent().has(&key) {
+            panic!("Program not found");
+        }
+
+        if env.storage().persistent().has(&DataKey::ProgramDispute(program_id.clone())) {
+            let existing: Dispute = env
+                .storage()
+                .persistent()
+                .get(&DataKey::ProgramDispute(program_id.clone()))
+                .unwrap();
+            if existing.status == DisputeStatus::Open {
+                panic!("Dispute already open");
+            }
+        }
+
+        let dispute = Dispute {
+            opener: opener.clone(),
+            reason: reason.clone(),
+            status: DisputeStatus::Open,
+            opened_at: env.ledger().timestamp(),
+            resolver: None,
+            resolved_at: None,
+        };
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::ProgramDispute(program_id.clone()), &dispute);
+
+        env.events().publish((symbol_short!("dopen_pg"), program_id.clone()), dispute.clone());
+    }
+
+    /// Resolve a program dispute. If arbitrator is set, it must match `resolver`.
+    pub fn resolve_dispute(env: Env, resolver: Address, program_id: String, outcome: DisputeStatus) {
+        resolver.require_auth();
+
+        if env.storage().instance().has(&DataKey::Arbitrator) {
+            let arb: Address = env.storage().instance().get(&DataKey::Arbitrator).unwrap();
+            if arb != resolver {
+                panic!("Arbitrator unauthorized");
+            }
+        }
+
+        if !env.storage().persistent().has(&DataKey::ProgramDispute(program_id.clone())) {
+            panic!("Dispute not found");
+        }
+
+        let mut dispute: Dispute = env
+            .storage()
+            .persistent()
+            .get(&DataKey::ProgramDispute(program_id.clone()))
+            .unwrap();
+
+        if dispute.status != DisputeStatus::Open {
+            panic!("Dispute not open");
+        }
+
+        // Load program data
+        let program_key = DataKey::Program(program_id.clone());
+        let mut program_data: ProgramData = env
+            .storage()
+            .instance()
+            .get(&program_key)
+            .unwrap_or_else(|| panic!("Program not found"));
+
+        // If refund outcome, return remaining balance to authorized payout key
+        if outcome == DisputeStatus::ResolvedRefund {
+            let token_addr = program_data.token_address.clone();
+            let client = token::Client::new(&env, &token_addr);
+            let amount = program_data.remaining_balance;
+            if amount > 0 {
+                client.transfer(&env.current_contract_address(), &program_data.authorized_payout_key, &amount);
+                program_data.remaining_balance = 0;
+            }
+        }
+
+        dispute.status = outcome;
+        dispute.resolver = Some(resolver.clone());
+        dispute.resolved_at = Some(env.ledger().timestamp());
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::ProgramDispute(program_id.clone()), &dispute);
+
+        env.storage().instance().set(&program_key, &program_data);
+
+        env.events().publish((symbol_short!("dres_pg"), program_id.clone()), dispute.clone());
     }
 
     /// Pause the contract (authorized payout key only)
@@ -1149,6 +1269,15 @@ impl ProgramEscrowContract {
             ),
         );
 
+
+        // Note: Caller is responsible for transferring actual tokens to the contract
+        // before calling this function. This function only records the locked amount
+        // in the program state. Use token_client.transfer() to move tokens separately.
+
+        program_data
+
+        Ok(program_data)
+
         program_data
     }
 
@@ -1253,6 +1382,21 @@ impl ProgramEscrowContract {
         recipients: Vec<Address>,
         amounts: Vec<i128>,
     ) -> ProgramData {
+        // Block payouts while a dispute is open for this program
+        if env
+            .storage()
+            .persistent()
+            .has(&DataKey::ProgramDispute(program_id.clone()))
+        {
+            let dispute: Dispute = env
+                .storage()
+                .persistent()
+                .get(&DataKey::ProgramDispute(program_id.clone()))
+                .unwrap();
+            if dispute.status == DisputeStatus::Open {
+                panic!("Dispute open for program");
+            }
+        }
         // Check if contract is paused
         if Self::is_paused_internal(&env) {
             panic!("Contract is paused");
@@ -1671,7 +1815,11 @@ impl ProgramEscrowContract {
         monitoring::emit_performance(&env, symbol_short!("create_p"), duration);
 
         // Return updated program data
-        let updated_data: ProgramData = env.storage().instance().get(&program_key).unwrap();
+        let updated_data: ProgramData = env
+            .storage()
+            .instance()
+            .get(&program_key)
+            .expect("Program data missing after schedule creation");
         updated_data
     }
 
@@ -2343,7 +2491,8 @@ mod test {
 
     // Test helper to create a mock token contract
     fn create_token_contract<'a>(env: &Env, admin: &Address) -> token::Client<'a> {
-        let token_address = env.register_stellar_asset_contract(admin.clone());
+        let token_contract = env.register_stellar_asset_contract_v2(admin.clone());
+        let token_address = token_contract.address();
         token::Client::new(env, &token_address)
     }
 
@@ -2353,29 +2502,27 @@ mod test {
 
     fn setup_program_with_schedule(
         env: &Env,
+        contract_id: &Address,
         client: &ProgramEscrowContractClient<'static>,
         authorized_key: &Address,
-        token: &Address,
+        _token: &Address,
         program_id: &String,
         total_amount: i128,
         winner: &Address,
         release_timestamp: u64,
     ) {
-        // Register program
-        client.initialize_program(program_id, authorized_key, token);
-
-        // Create and fund token
+        // Create and fund token first, then register the program with the real token address
         let token_client = create_token_contract(env, authorized_key);
         let token_admin = token::StellarAssetClient::new(env, &token_client.address);
         token_admin.mint(authorized_key, &total_amount);
 
-        // Lock funds for program
-        token_client.approve(
-            authorized_key,
-            &env.current_contract_address(),
-            &total_amount,
-            &1000,
-        );
+        // Register program using the created token contract address
+        client.initialize_program(program_id, authorized_key, &token_client.address);
+
+        // Transfer tokens to contract first
+        token_client.transfer(authorized_key, contract_id, &total_amount);
+
+        // Lock funds for program (records the amount in program state)
         client.lock_program_funds(program_id, &total_amount);
 
         // Create release schedule
@@ -2405,6 +2552,7 @@ mod test {
         // Setup program with schedule
         setup_program_with_schedule(
             &env,
+            &contract_id,
             &client,
             &authorized_key,
             &token,
@@ -2454,13 +2602,10 @@ mod test {
         let token_admin = token::StellarAssetClient::new(&env, &token_client.address);
         token_admin.mint(&authorized_key, &total_amount);
 
+        // Transfer tokens to contract first
+        token_client.transfer(&authorized_key, &contract_id, &total_amount);
+
         // Lock funds for program
-        token_client.approve(
-            &authorized_key,
-            &env.current_contract_address(),
-            &total_amount,
-            &1000,
-        );
         client.lock_program_funds(&program_id, &total_amount);
 
         // Create first release schedule
@@ -2512,6 +2657,7 @@ mod test {
         // Setup program with schedule
         setup_program_with_schedule(
             &env,
+            &contract_id,
             &client,
             &authorized_key,
             &token,
@@ -2536,7 +2682,7 @@ mod test {
         let schedule = client.get_program_release_schedule(&program_id, &1);
         assert!(schedule.released);
         assert_eq!(schedule.released_at, Some(1001));
-        assert_eq!(schedule.released_by, Some(env.current_contract_address()));
+        assert_eq!(schedule.released_by, Some(contract_id.clone()));
 
         // Check no pending schedules
         let pending = client.get_pending_program_schedules(&program_id);
@@ -2568,6 +2714,7 @@ mod test {
         // Setup program with schedule
         setup_program_with_schedule(
             &env,
+            &contract_id,
             &client,
             &authorized_key,
             &token,
@@ -2604,7 +2751,6 @@ mod test {
         let authorized_key = Address::generate(&env);
         let winner1 = Address::generate(&env);
         let winner2 = Address::generate(&env);
-        let token = Address::generate(&env);
         let program_id = String::from_str(&env, "Hackathon2024");
         let amount1 = 600_0000000;
         let amount2 = 400_0000000;
@@ -2612,21 +2758,18 @@ mod test {
 
         env.mock_all_auths();
 
-        // Register program
-        client.initialize_program(&program_id, &authorized_key, &token);
-
-        // Create and fund token
+        // Create and fund token FIRST
         let token_client = create_token_contract(&env, &authorized_key);
         let token_admin = token::StellarAssetClient::new(&env, &token_client.address);
         token_admin.mint(&authorized_key, &total_amount);
 
+        // Register program with REAL token address
+        client.initialize_program(&program_id, &authorized_key, &token_client.address);
+
+        // Transfer tokens to contract first
+        token_client.transfer(&authorized_key, &contract_id, &total_amount);
+
         // Lock funds for program
-        token_client.approve(
-            &authorized_key,
-            &env.current_contract_address(),
-            &total_amount,
-            &1000,
-        );
         client.lock_program_funds(&program_id, &total_amount);
 
         // Create first schedule
@@ -2681,7 +2824,6 @@ mod test {
         let winner1 = Address::generate(&env);
         let winner2 = Address::generate(&env);
         let winner3 = Address::generate(&env);
-        let token = Address::generate(&env);
         let program_id = String::from_str(&env, "Hackathon2024");
         let amount1 = 300_0000000;
         let amount2 = 300_0000000;
@@ -2691,21 +2833,18 @@ mod test {
 
         env.mock_all_auths();
 
-        // Register program
-        client.initialize_program(&program_id, &authorized_key, &token);
-
-        // Create and fund token
+        // Create and fund token FIRST
         let token_client = create_token_contract(&env, &authorized_key);
         let token_admin = token::StellarAssetClient::new(&env, &token_client.address);
         token_admin.mint(&authorized_key, &total_amount);
 
+        // Register program with REAL token address
+        client.initialize_program(&program_id, &authorized_key, &token_client.address);
+
+        // Transfer tokens to contract first
+        token_client.transfer(&authorized_key, &contract_id, &total_amount);
+
         // Lock funds for program
-        token_client.approve(
-            &authorized_key,
-            &env.current_contract_address(),
-            &total_amount,
-            &1000,
-        );
         client.lock_program_funds(&program_id, &total_amount);
 
         // Create overlapping schedules (all at same timestamp)

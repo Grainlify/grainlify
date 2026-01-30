@@ -92,6 +92,7 @@ mod indexed;
 mod test_bounty_escrow;
 
 use events::{
+
     emit_batch_funds_locked, emit_batch_funds_released, emit_contract_paused,
     emit_contract_unpaused, emit_emergency_withdrawal, BatchFundsLocked, BatchFundsReleased,
     ContractPaused, ContractUnpaused, EmergencyWithdrawal,
@@ -99,10 +100,17 @@ use events::{
 use indexed::{
     _emit_bounty_initialized, on_funds_locked, on_funds_refunded, on_funds_released,
     BountyEscrowInitialized,
+
+    emit_batch_funds_locked, emit_batch_funds_released, emit_bounty_initialized,
+    emit_contract_paused, emit_contract_unpaused, emit_emergency_withdrawal, emit_funds_locked,
+    emit_funds_refunded, emit_funds_released, BatchFundsLocked, BatchFundsReleased,
+    BountyEscrowInitialized, ContractPaused, ContractUnpaused, EmergencyWithdrawal, FundsLocked,
+    FundsRefunded, FundsReleased, emit_dispute_opened, emit_dispute_resolved, DisputeOpened,
+    DisputeResolved, DisputeStatus,
 };
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, token, vec, Address, Env,
-    Vec,
+    Vec, String,
 };
 
 // ==================== MONITORING MODULE ====================
@@ -475,6 +483,12 @@ pub enum Error {
     /// Returned when refund is attempted without admin approval
     RefundNotApproved = 17,
     BatchSizeMismatch = 18,
+    /// Returned when an operation is blocked due to an open dispute
+    DisputeOpen = 19,
+    /// Returned when attempting to operate on a non-existent dispute
+    DisputeNotFound = 20,
+    /// Returned when caller is not authorized as arbitrator
+    ArbitratorUnauthorized = 21,
 }
 
 // ============================================================================
@@ -533,6 +547,17 @@ pub struct RefundApproval {
     pub mode: RefundMode,
     pub approved_by: Address,
     pub approved_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Dispute {
+    pub opener: Address,
+    pub reason: String,
+    pub status: DisputeStatus,
+    pub opened_at: u64,
+    pub resolver: Option<Address>,
+    pub resolved_at: Option<u64>,
 }
 
 /// Complete escrow record for a bounty.
@@ -692,6 +717,8 @@ pub enum DataKey {
     RefundApproval(u64), // bounty_id -> RefundApproval
     ReentrancyGuard,
     IsPaused, // Contract pause state
+    Dispute(u64), // bounty_id -> Dispute state
+    Arbitrator,   // Optional arbitrator address (instance storage)
 }
 
 // ============================================================================
@@ -885,6 +912,205 @@ impl BountyEscrowContract {
     /// Get current fee configuration (view function)
     pub fn get_fee_config(env: Env) -> FeeConfig {
         Self::get_fee_config_internal(&env)
+    }
+
+    /// Set an arbitrator address (admin only). If set, only this address may
+    /// resolve disputes. If not set, admin retains dispute resolution ability.
+    pub fn set_arbitrator(env: Env, arbitrator: Address) -> Result<(), Error> {
+        if !env.storage().instance().has(&DataKey::Admin) {
+            return Err(Error::NotInitialized);
+        }
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Arbitrator, &arbitrator);
+        Ok(())
+    }
+
+    /// Open a dispute for a bounty. The `opener` must authorize the call.
+    /// Disputes can only be opened while funds are locked.
+    pub fn open_dispute(env: Env, opener: Address, bounty_id: u64, reason: String) -> Result<(), Error> {
+        opener.require_auth();
+
+        if !env.storage().persistent().has(&DataKey::Escrow(bounty_id)) {
+            return Err(Error::BountyNotFound);
+        }
+
+        let escrow: Escrow = env.storage().persistent().get(&DataKey::Escrow(bounty_id)).unwrap();
+        if escrow.status != EscrowStatus::Locked && escrow.status != EscrowStatus::PartiallyRefunded {
+            return Err(Error::FundsNotLocked);
+        }
+
+        if env.storage().persistent().has(&DataKey::Dispute(bounty_id)) {
+            let existing: Dispute = env.storage().persistent().get(&DataKey::Dispute(bounty_id)).unwrap();
+            if existing.status == DisputeStatus::Open {
+                return Err(Error::DisputeOpen);
+            }
+        }
+
+        let dispute = Dispute {
+            opener: opener.clone(),
+            reason: reason.clone(),
+            status: DisputeStatus::Open,
+            opened_at: env.ledger().timestamp(),
+            resolver: None,
+            resolved_at: None,
+        };
+
+        env.storage().persistent().set(&DataKey::Dispute(bounty_id), &dispute);
+
+        emit_dispute_opened(
+            &env,
+            DisputeOpened {
+                bounty_id,
+                opener: opener.clone(),
+                reason: reason.clone(),
+                timestamp: env.ledger().timestamp(),
+            },
+        );
+
+        Ok(())
+    }
+
+    /// Resolve a dispute. `resolver` must authorize the call. If an arbitrator
+    /// is configured, only the arbitrator may resolve; otherwise admin may.
+    /// `outcome` must be one of `DisputeStatus::ResolvedRelease` or
+    /// `DisputeStatus::ResolvedRefund`. For release, a `recipient` must be
+    /// provided which will receive the funds.
+    pub fn resolve_dispute(
+        env: Env,
+        resolver: Address,
+        bounty_id: u64,
+        outcome: DisputeStatus,
+        recipient: Option<Address>,
+    ) -> Result<(), Error> {
+        // Authorization
+        if !env.storage().instance().has(&DataKey::Admin) {
+            return Err(Error::NotInitialized);
+        }
+
+        // If arbitrator set, only arbitrator can resolve
+        if env.storage().instance().has(&DataKey::Arbitrator) {
+            let arb: Address = env.storage().instance().get(&DataKey::Arbitrator).unwrap();
+            if arb != resolver {
+                return Err(Error::ArbitratorUnauthorized);
+            }
+        } else {
+            // otherwise admin must resolve
+            let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+            if admin != resolver {
+                return Err(Error::ArbitratorUnauthorized);
+            }
+        }
+
+        resolver.require_auth();
+
+        if !env.storage().persistent().has(&DataKey::Dispute(bounty_id)) {
+            return Err(Error::DisputeNotFound);
+        }
+
+        let mut dispute: Dispute = env.storage().persistent().get(&DataKey::Dispute(bounty_id)).unwrap();
+        if dispute.status != DisputeStatus::Open {
+            return Err(Error::DisputeNotFound);
+        }
+
+        if !env.storage().persistent().has(&DataKey::Escrow(bounty_id)) {
+            return Err(Error::BountyNotFound);
+        }
+
+        // Apply reentrancy guard similar to other critical functions
+        if env.storage().instance().has(&DataKey::ReentrancyGuard) {
+            panic!("Reentrancy detected");
+        }
+        env.storage().instance().set(&DataKey::ReentrancyGuard, &true);
+
+        let mut escrow: Escrow = env.storage().persistent().get(&DataKey::Escrow(bounty_id)).unwrap();
+
+        // Perform resolution action
+        let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
+        let client = token::Client::new(&env, &token_addr);
+
+        match outcome {
+            DisputeStatus::ResolvedRelease => {
+                let recip = recipient.ok_or(Error::InvalidAmount)?;
+
+                // Calculate and collect fee if enabled
+                let fee_config = Self::get_fee_config_internal(&env);
+                let fee_amount = if fee_config.fee_enabled && fee_config.release_fee_rate > 0 {
+                    Self::calculate_fee(escrow.amount, fee_config.release_fee_rate)
+                } else {
+                    0
+                };
+                let net_amount = escrow.amount - fee_amount;
+
+                // Transfer net amount to recipient
+                client.transfer(&env.current_contract_address(), &recip, &net_amount);
+
+                if fee_amount > 0 {
+                    client.transfer(&env.current_contract_address(), &fee_config.fee_recipient, &fee_amount);
+                }
+
+                escrow.status = EscrowStatus::Released;
+                escrow.remaining_amount = 0;
+
+                // Emit release event
+                emit_funds_released(
+                    &env,
+                    FundsReleased {
+                        bounty_id,
+                        amount: escrow.amount - fee_amount,
+                        recipient: recip.clone(),
+                        timestamp: env.ledger().timestamp(),
+                    },
+                );
+            }
+            DisputeStatus::ResolvedRefund => {
+                let refund_amount = escrow.remaining_amount;
+                // Transfer funds back to depositor
+                client.transfer(&env.current_contract_address(), &escrow.depositor, &refund_amount);
+
+                escrow.remaining_amount = 0;
+                escrow.status = EscrowStatus::Refunded;
+
+                // Emit refund event
+                emit_funds_refunded(
+                    &env,
+                    FundsRefunded {
+                        bounty_id,
+                        amount: refund_amount,
+                        refund_to: escrow.depositor.clone(),
+                        timestamp: env.ledger().timestamp(),
+                        refund_mode: RefundMode::Full,
+                        remaining_amount: 0,
+                    },
+                );
+            }
+            _ => {
+                env.storage().instance().remove(&DataKey::ReentrancyGuard);
+                return Err(Error::InvalidAmount);
+            }
+        }
+
+        // Persist updated escrow and dispute
+        dispute.status = outcome.clone();
+        dispute.resolver = Some(resolver.clone());
+        dispute.resolved_at = Some(env.ledger().timestamp());
+
+        env.storage().persistent().set(&DataKey::Escrow(bounty_id), &escrow);
+        env.storage().persistent().set(&DataKey::Dispute(bounty_id), &dispute);
+
+        emit_dispute_resolved(
+            &env,
+            DisputeResolved {
+                bounty_id,
+                resolver: resolver.clone(),
+                outcome: outcome.clone(),
+                timestamp: env.ledger().timestamp(),
+            },
+        );
+
+        env.storage().instance().remove(&DataKey::ReentrancyGuard);
+
+        Ok(())
     }
 
     // ========================================================================
@@ -1359,6 +1585,20 @@ impl BountyEscrowContract {
             return Err(Error::FundsNotLocked);
         }
 
+        // Block release while a dispute is open for this bounty
+        if env.storage().persistent().has(&DataKey::Dispute(bounty_id)) {
+            let dispute: Dispute = env
+                .storage()
+                .persistent()
+                .get(&DataKey::Dispute(bounty_id))
+                .unwrap();
+            if dispute.status == DisputeStatus::Open {
+                monitoring::track_operation(&env, symbol_short!("release"), admin.clone(), false);
+                env.storage().instance().remove(&DataKey::ReentrancyGuard);
+                return Err(Error::DisputeOpen);
+            }
+        }
+
         // Transfer funds to contributor
         let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let client = token::Client::new(&env, &token_addr);
@@ -1466,6 +1706,18 @@ impl BountyEscrowContract {
         if escrow.status != EscrowStatus::Locked && escrow.status != EscrowStatus::PartiallyRefunded
         {
             return Err(Error::FundsNotLocked);
+        }
+
+        // Block refund while a dispute is open for this bounty
+        if env.storage().persistent().has(&DataKey::Dispute(bounty_id)) {
+            let dispute: Dispute = env
+                .storage()
+                .persistent()
+                .get(&DataKey::Dispute(bounty_id))
+                .unwrap();
+            if dispute.status == DisputeStatus::Open {
+                return Err(Error::DisputeOpen);
+            }
         }
 
         if amount <= 0 || amount > escrow.remaining_amount {

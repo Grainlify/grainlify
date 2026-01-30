@@ -24,6 +24,7 @@
 //! ```
 
 use soroban_sdk::{contracttype, symbol_short, Address, Env};
+use soroban_sdk::String;
 
 // ============================================================================
 // Contract Initialization Event
@@ -391,5 +392,45 @@ pub struct EmergencyWithdrawal {
 
 pub fn emit_emergency_withdrawal(env: &Env, event: EmergencyWithdrawal) {
     let topics = (symbol_short!("ewith"),);
+    env.events().publish(topics, event.clone());
+}
+
+// ============================================================================
+// Dispute Events
+// ============================================================================
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DisputeStatus {
+    Open,
+    ResolvedRelease,
+    ResolvedRefund,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct DisputeOpened {
+    pub bounty_id: u64,
+    pub opener: Address,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
+pub fn emit_dispute_opened(env: &Env, event: DisputeOpened) {
+    let topics = (symbol_short!("d_open"), event.bounty_id);
+    env.events().publish(topics, event.clone());
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct DisputeResolved {
+    pub bounty_id: u64,
+    pub resolver: Address,
+    pub outcome: DisputeStatus,
+    pub timestamp: u64,
+}
+
+pub fn emit_dispute_resolved(env: &Env, event: DisputeResolved) {
+    let topics = (symbol_short!("d_res"), event.bounty_id);
     env.events().publish(topics, event.clone());
 }
