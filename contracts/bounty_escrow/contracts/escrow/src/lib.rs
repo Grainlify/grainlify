@@ -697,7 +697,6 @@ const MAX_FEE_RATE: i128 = 1_000; // Maximum 10% fee
 pub enum DataKey {
     Admin,
     Token,
-    EscrowMetadata(u64),
     Escrow(u64),         // bounty_id
     EscrowMetadata(u64), // bounty_id -> EscrowMetadata
     FeeConfig,           // Fee configuration
