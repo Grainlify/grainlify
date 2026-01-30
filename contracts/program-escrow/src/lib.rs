@@ -142,7 +142,7 @@
 mod pause_tests;
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, token, vec, Address, Env, String, Symbol,
+    contract, contracterror, contractimpl, contracttype, symbol_short, token, vec, Address, Env, String, Symbol,
     Vec,
 };
 
@@ -694,6 +694,15 @@ pub enum DataKey {
 // ============================================================================
 // Contract Implementation
 // ============================================================================
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum Error {
+    BatchMismatch = 1,
+    InsufficientBalance = 2,
+    InvalidAmount = 3,
+}
 
 #[contract]
 pub struct ProgramEscrowContract;
@@ -1278,7 +1287,7 @@ impl ProgramEscrowContract {
         // Calculate total with overflow protection
         let mut total_payout: i128 = 0;
         for i in 0..amounts.len() {
-            let amount = amounts.get(i).unwrap();
+            let amount = amounts.get(i as u32).unwrap();
             if amount <= 0 {
                 panic!("All amounts must be greater than zero");
             }
@@ -1306,8 +1315,8 @@ impl ProgramEscrowContract {
         let token_client = token::Client::new(&env, &program_data.token_address);
 
         for i in 0..recipients.len() {
-            let recipient = recipients.get(i).unwrap();
-            let amount = amounts.get(i).unwrap();
+            let recipient = recipients.get(i as u32).unwrap();
+            let amount = amounts.get(i as u32).unwrap();
 
             // Calculate fee for this payout
             let fee_amount = if fee_config.fee_enabled && fee_config.payout_fee_rate > 0 {
