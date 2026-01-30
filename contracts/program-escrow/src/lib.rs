@@ -1453,6 +1453,14 @@ impl ProgramEscrowContract {
     /// - Individual prize awards
     /// - Bonus payments
     /// - Late additions to prize pool distribution
+    /// Executes a single payout to one recipient.
+    ///
+    /// # MEV/Front-Running Considerations
+    /// - **Risk**: Large single payouts visible in mempool could be front-run
+    /// - **Mitigation**: Requires authorized_payout_key auth (backend-controlled)
+    /// - **Mitigation**: Rate limiting prevents rapid-fire attacks
+    /// - **Recommendation**: Use private mempools for large payouts
+    ///
     pub fn single_payout(
         env: Env,
         program_id: String,

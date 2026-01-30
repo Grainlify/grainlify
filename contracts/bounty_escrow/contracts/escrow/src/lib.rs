@@ -558,6 +558,9 @@ pub struct ConfigLimits {
     pub min_bounty_amount: Option<i128>,
     pub max_deadline_duration: Option<u64>,
     pub min_deadline_duration: Option<u64>,
+    /// Maximum payout amount per transaction to mitigate MEV/front-running risks
+    /// If set, individual payouts exceeding this amount will be rejected
+    pub max_payout_per_transaction: Option<i128>,
 }
 
 // FIXED: Refactored AdminActionType to carry the data, removing problematic Options from AdminAction
@@ -682,6 +685,7 @@ impl BountyEscrowContract {
             min_bounty_amount: None,
             max_deadline_duration: None,
             min_deadline_duration: None,
+            max_payout_per_transaction: None, // No limit by default
         };
         env.storage()
             .instance()
@@ -897,6 +901,7 @@ impl BountyEscrowContract {
         min_bounty_amount: Option<i128>,
         max_deadline_duration: Option<u64>,
         min_deadline_duration: Option<u64>,
+        max_payout_per_transaction: Option<i128>,
     ) -> Result<(), Error> {
         if !env.storage().instance().has(&DataKey::Admin) {
             return Err(Error::NotInitialized);
@@ -910,6 +915,7 @@ impl BountyEscrowContract {
             min_bounty_amount,
             max_deadline_duration,
             min_deadline_duration,
+            max_payout_per_transaction,
         };
 
         env.storage()
@@ -1124,6 +1130,7 @@ impl BountyEscrowContract {
                 min_bounty_amount: None,
                 max_deadline_duration: None,
                 min_deadline_duration: None,
+                max_payout_per_transaction: None,
             });
         let is_paused = Self::is_paused_internal(&env);
         let time_lock_duration: u64 = env
@@ -1420,6 +1427,12 @@ impl BountyEscrowContract {
     /// - Recipient address should be verified carefully
     /// - Consider implementing multi-sig for admin
     ///
+    /// # MEV/Front-Running Considerations
+    /// - Large payouts visible in mempool could be front-run
+    /// - Mitigation: Admin-controlled operation reduces risk
+    /// - Mitigation: Payout caps can be configured via `ConfigLimits.max_payout_per_transaction`
+    /// - Recommendation: Use private mempools for large payouts or split into smaller transactions
+    ///
     /// # Events
     /// Emits: `FundsReleased { bounty_id, amount, recipient, timestamp }`
     ///
@@ -1520,6 +1533,32 @@ impl BountyEscrowContract {
             }
             None => escrow.remaining_amount, // Release full remaining amount
         };
+
+        // MEV/Front-running mitigation: Enforce payout cap if configured
+        // This limits the value extractable from front-running large payouts
+        let config_limits: ConfigLimits = env
+            .storage()
+            .instance()
+            .get(&DataKey::ConfigLimits)
+            .unwrap_or(ConfigLimits {
+                max_bounty_amount: None,
+                min_bounty_amount: None,
+                max_deadline_duration: None,
+                min_deadline_duration: None,
+                max_payout_per_transaction: None,
+            });
+        if let Some(max_payout) = config_limits.max_payout_per_transaction {
+            if payout_amount > max_payout {
+                monitoring::track_operation(
+                    &env,
+                    symbol_short!("release"),
+                    admin.clone(),
+                    false,
+                );
+                env.storage().instance().remove(&DataKey::ReentrancyGuard);
+                return Err(Error::InvalidAmount); // Payout exceeds configured limit
+            }
+        }
 
         let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let client = token::Client::new(&env, &token_addr);
@@ -1649,6 +1688,14 @@ impl BountyEscrowContract {
         Ok(())
     }
 
+    /// Refunds funds from an escrow back to the depositor (or approved recipient).
+    ///
+    /// # MEV/Front-Running Considerations
+    /// - **Risk**: After deadline, this function is permissionless and could be front-run
+    /// - **Impact**: Low - funds only go to rightful owner (depositor or approved recipient)
+    /// - **Acceptable Risk**: No value can be extracted, only execution priority
+    /// - **Note**: This permissionless design prevents funds from being stuck if depositor loses key
+    ///
     pub fn refund(
         env: Env,
         bounty_id: u64,
@@ -2024,6 +2071,8 @@ impl BountyEscrowContract {
                     }
                     EscrowStatus::PartiallyReleased => {
                         total_locked += escrow.remaining_amount;
+                        // The released amount is the initial amount minus what is left
+                        total_released += escrow.amount - escrow.remaining_amount;
                     }
                     EscrowStatus::Released => {
                         total_released += escrow.amount;
@@ -2038,11 +2087,6 @@ impl BountyEscrowContract {
                         for record in escrow.refund_history.iter() {
                             total_refunded += record.amount;
                         }
-                    }
-                    EscrowStatus::PartiallyReleased => {
-                        total_locked += escrow.remaining_amount;
-                        // The released amount is the initial amount minus what is left
-                        total_released += escrow.amount - escrow.remaining_amount;
                     }
                 }
             }
@@ -2236,6 +2280,25 @@ impl BountyEscrowContract {
             total_amount = total_amount
                 .checked_add(escrow.amount)
                 .ok_or(Error::InvalidAmount)?;
+        }
+
+        // MEV/Front-running mitigation: Enforce payout cap on batch total if configured
+        // This limits the total value extractable from front-running batch operations
+        let config_limits: ConfigLimits = env
+            .storage()
+            .instance()
+            .get(&DataKey::ConfigLimits)
+            .unwrap_or(ConfigLimits {
+                max_bounty_amount: None,
+                min_bounty_amount: None,
+                max_deadline_duration: None,
+                min_deadline_duration: None,
+                max_payout_per_transaction: None,
+            });
+        if let Some(max_payout) = config_limits.max_payout_per_transaction {
+            if total_amount > max_payout {
+                return Err(Error::InvalidAmount); // Batch total exceeds configured limit
+            }
         }
 
         let mut released_count = 0u32;

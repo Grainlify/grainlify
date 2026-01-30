@@ -46,6 +46,19 @@ This document outlines the security measures implemented in the Bounty Escrow co
 - **Risk**: If a privileged key is compromised, funds can be misdirected or upgrades abused.
 - **Mitigation**: All privileged keys should be backed by multi-sig or secure backend services, and upgrade hashes should be audited before use.
 
+### MEV and Front-Running Risks
+- **Description**: Large payout and refund operations could be front-run by monitoring the mempool.
+- **Risk Assessment**: See `MEV_FRONT_RUNNING.md` for detailed analysis.
+- **Mitigations**:
+  - Payout caps via `ConfigLimits.max_payout_per_transaction` to limit per-transaction value
+  - Admin-controlled operations reduce exposure
+  - Rate limiting prevents rapid-fire attacks
+  - Batch size limits (`MAX_BATCH_SIZE = 100`) cap exposure
+- **Recommendations**:
+  - Use private mempools for large payouts
+  - Split large payouts into smaller transactions
+  - Configure appropriate payout caps based on risk tolerance
+
 ## Audit Checklist (Bounty Escrow)
 
 - [ ] Verify Reentrancy Guards on all state-modifying paths (`lock_funds`, `release_funds`, `refund`, `batch_lock_funds`, `batch_release_funds`).
