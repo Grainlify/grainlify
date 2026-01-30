@@ -96,15 +96,11 @@ mod test_bounty_escrow;
 use events::{
     emit_admin_action_cancelled, emit_admin_action_executed, emit_admin_action_proposed,
     emit_admin_updated, emit_batch_funds_locked, emit_batch_funds_released,
-    emit_bounty_initialized, emit_config_limits_updated, emit_contract_paused,
-    emit_contract_unpaused, emit_emergency_withdrawal, emit_funds_locked, emit_funds_refunded,
-    emit_funds_released, emit_payout_key_updated, AdminActionCancelled, AdminActionExecuted,
-    AdminActionProposed, AdminUpdated, BatchFundsLocked, BatchFundsReleased,
-    BountyEscrowInitialized, ConfigLimitsUpdated, ContractPaused, ContractUnpaused,
-    EmergencyWithdrawal, FundsLocked, FundsRefunded, FundsReleased, PayoutKeyUpdated,
-    emit_batch_funds_locked, emit_batch_funds_released, emit_contract_paused,
-    emit_contract_unpaused, emit_emergency_withdrawal, BatchFundsLocked, BatchFundsReleased,
-    ContractPaused, ContractUnpaused, EmergencyWithdrawal,
+    emit_config_limits_updated, emit_contract_paused, emit_contract_unpaused,
+    emit_emergency_withdrawal, emit_funds_locked, emit_payout_key_updated, AdminActionCancelled,
+    AdminActionExecuted, AdminActionProposed, AdminUpdated, BatchFundsLocked, BatchFundsReleased,
+    ConfigLimitsUpdated, ContractPaused, ContractUnpaused, EmergencyWithdrawal, FundsLocked,
+    FundsRefunded, FundsReleased, PayoutKeyUpdated,
 };
 use indexed::{
     _emit_bounty_initialized, on_funds_locked, on_funds_refunded, on_funds_released,
@@ -704,7 +700,7 @@ impl BountyEscrowContract {
             .set(&DataKey::TimeLockDuration, &0u64);
         env.storage().instance().set(&DataKey::NextActionId, &1u64);
 
-        emit_bounty_initialized(
+        _emit_bounty_initialized(
             &env,
             BountyEscrowInitialized {
                 admin: admin.clone(),
@@ -1557,12 +1553,7 @@ impl BountyEscrowContract {
             });
         if let Some(max_payout) = config_limits.max_payout_per_transaction {
             if payout_amount > max_payout {
-                monitoring::track_operation(
-                    &env,
-                    symbol_short!("release"),
-                    admin.clone(),
-                    false,
-                );
+                monitoring::track_operation(&env, symbol_short!("release"), admin.clone(), false);
                 env.storage().instance().remove(&DataKey::ReentrancyGuard);
                 return Err(Error::InvalidAmount); // Payout exceeds configured limit
             }
@@ -1626,26 +1617,6 @@ impl BountyEscrowContract {
         env.storage()
             .persistent()
             .set(&DataKey::Escrow(bounty_id), &escrow);
-
-        emit_funds_released(
-            &env,
-            FundsReleased {
-                bounty_id,
-                amount: net_amount,
-                recipient: contributor.clone(),
-                timestamp: env.ledger().timestamp(),
-                remaining_amount: escrow.remaining_amount,
-            },
-        // Emit release event
-        // emit_funds_released(
-        //     &env,
-        //     FundsReleased {
-        //         bounty_id,
-        //         amount: net_amount, // Emit net amount (after fee)
-        //         recipient: contributor.clone(),
-        //         timestamp: env.ledger().timestamp(),
-        //     },
-        // );
 
         // Emit release event
         on_funds_released(
@@ -1847,29 +1818,6 @@ impl BountyEscrowContract {
         env.storage()
             .persistent()
             .set(&DataKey::Escrow(bounty_id), &escrow);
-
-        emit_funds_refunded(
-            &env,
-            FundsRefunded {
-                bounty_id,
-                amount: refund_amount,
-                refund_to: refund_recipient,
-                timestamp: env.ledger().timestamp(),
-                refund_mode: mode,
-                remaining_amount: escrow.remaining_amount,
-            },
-        // Emit refund event
-        // emit_funds_refunded(
-        //     &env,
-        //     FundsRefunded {
-        //         bounty_id,
-        //         amount: refund_amount,
-        //         refund_to: refund_recipient,
-        //         timestamp: env.ledger().timestamp(),
-        //         refund_mode: mode.clone(),
-        //         remaining_amount: escrow.remaining_amount,
-        //     },
-        // );
 
         // Emit refund event
         on_funds_refunded(
@@ -2245,18 +2193,6 @@ impl BountyEscrowContract {
                 .persistent()
                 .set(&DataKey::Escrow(item.bounty_id), &escrow);
 
-         //   emit_funds_locked(
-            // Emit individual event for each locked bounty
-            // emit_funds_locked(
-            //     &env,
-            //     FundsLocked {
-            //         bounty_id: item.bounty_id,
-            //         amount: item.amount,
-            //         depositor: item.depositor.clone(),
-            //         deadline: item.deadline,
-            //     },
-            // );
-
             // Emit individual event for each locked bounty
             on_funds_locked(
                 &env,
@@ -2375,26 +2311,6 @@ impl BountyEscrowContract {
             env.storage()
                 .persistent()
                 .set(&DataKey::Escrow(item.bounty_id), &escrow);
-
-            emit_funds_released(
-                &env,
-                FundsReleased {
-                    bounty_id: item.bounty_id,
-                    amount: escrow.amount,
-                    recipient: item.contributor.clone(),
-                    timestamp,
-                    remaining_amount: escrow.remaining_amount,
-                },
-            // Emit individual event for each released bounty
-            // emit_funds_released(
-            //     &env,
-            //     FundsReleased {
-            //         bounty_id: item.bounty_id,
-            //         amount: escrow.amount,
-            //         recipient: item.contributor.clone(),
-            //         timestamp,
-            //     },
-            // );
 
             // Emit individual event for each released bounty
             on_funds_released(
