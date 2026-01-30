@@ -156,6 +156,10 @@ export const getLandingStats = () =>
 export const search = (query: string) =>
   apiRequest<SearchResults>(`/search?q=${encodeURIComponent(query)}`);
 
+// Search
+export const search = (query: string) =>
+  apiRequest<SearchResults>(`/search?q=${encodeURIComponent(query)}`);
+
 // Authentication
 export const getCurrentUser = () =>
   apiRequest<{ 

@@ -1,3 +1,4 @@
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "../shared/contexts/AuthContext";
 import { ThemeProvider } from "../shared/contexts/ThemeContext";
@@ -6,7 +7,7 @@ import { SignInPage, SignUpPage, AuthCallbackPage } from "../features/auth";
 import { Dashboard } from "../features/dashboard";
 import Toast from "../shared/components/Toast";
 
-function ProtectedRoute({ children }: { children: JSX.Element }) {
+function ProtectedRoute({ children }: { children: React.ReactElement }) {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) return children; // let AuthProvider finish initial check
   if (!isAuthenticated) return <Navigate to="/" replace />;
