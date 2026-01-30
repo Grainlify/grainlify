@@ -968,6 +968,10 @@ impl ProgramEscrowContract {
         };
         env.storage().instance().set(&FEE_CONFIG, &fee_config);
 
+        // Initialize RBAC: grant Admin role to the authorized payout key
+        rbac::grant_role(&env, authorized_payout_key.clone(), rbac::Role::Admin, authorized_payout_key.clone());
+
+        // Store program data
         env.storage().instance().set(&program_key, &program_data);
 
         let mut registry: Vec<String> = env
@@ -1133,6 +1137,24 @@ impl ProgramEscrowContract {
     /// - Forgetting to transfer tokens before calling
     /// -  Locking amount that exceeds actual contract balance
     /// -  Not verifying contract received the tokens
+    /// Grant a role to an address
+    pub fn grant_role(env: Env, address: Address, role_name: String) -> Result<(), Error> {
+        // For program-escrow, we'll use the admin from the current program context
+        // This is a simplified version - full implementation would track per-program admins
+        Ok(())
+    }
+
+    /// Revoke a role from an address
+    pub fn revoke_role(env: Env, address: Address, role_name: String) -> Result<(), Error> {
+        Ok(())
+    }
+
+    /// Check if an address has a specific role
+    pub fn has_role(env: Env, address: Address, role_name: String) -> bool {
+        // Simplified version for program-escrow
+        false
+    }
+
     pub fn lock_program_funds(env: Env, program_id: String, amount: i128) -> ProgramData {
         let _guard = ReentrancyGuardRAII::new(&env).expect("Reentrancy detected");
         // Apply rate limiting

@@ -936,6 +936,9 @@ impl BountyEscrowContract {
         //     },
         // );
 
+        // Initialize RBAC: grant Admin role to the initial admin
+        rbac::grant_role(&env, admin.clone(), rbac::Role::Admin, admin.clone());
+
         // Emit initialization event
         _emit_bounty_initialized(
             &env,
@@ -1156,6 +1159,107 @@ impl BountyEscrowContract {
         if !Self::is_paused_internal(&env) {
             return Ok(()); // Already unpaused, idempotent
         }
+
+    /// Grant a role to an address
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `address` - Address to grant role to
+    /// * `role_name` - Role name ("admin", "operator", "pauser", or "viewer")
+    ///
+    /// # Authorization
+    /// - Caller must be Admin
+    ///
+    /// # Returns
+    /// * `Ok(())` - Role successfully granted
+    /// * `Err(Error::Unauthorized)` - Caller is not Admin
+    pub fn grant_role(env: Env, address: Address, role_name: String) -> Result<(), Error> {
+        // Get the original admin for authorization
+        if !env.storage().instance().has(&DataKey::Admin) {
+            return Err(Error::NotInitialized);
+        }
+
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+
+        // Verify caller is admin via RBAC
+        if !rbac::has_role(&env, admin.clone(), rbac::Role::Admin) {
+            return Err(Error::Unauthorized);
+        }
+
+        // Parse role name
+        let role = match role_name.as_str() {
+            "admin" => rbac::Role::Admin,
+            "operator" => rbac::Role::Operator,
+            "pauser" => rbac::Role::Pauser,
+            "viewer" => rbac::Role::Viewer,
+            _ => return Err(Error::InvalidAmount), // Reuse error code
+        };
+
+        rbac::grant_role(&env, address, role, admin);
+        Ok(())
+    }
+
+    /// Revoke a role from an address
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `address` - Address to revoke role from
+    /// * `role_name` - Role name to revoke
+    ///
+    /// # Authorization
+    /// - Caller must be Admin
+    ///
+    /// # Returns
+    /// * `Ok(())` - Role successfully revoked
+    /// * `Err(Error::Unauthorized)` - Caller is not Admin
+    pub fn revoke_role(env: Env, address: Address, role_name: String) -> Result<(), Error> {
+        if !env.storage().instance().has(&DataKey::Admin) {
+            return Err(Error::NotInitialized);
+        }
+
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+
+        // Verify caller is admin via RBAC
+        if !rbac::has_role(&env, admin.clone(), rbac::Role::Admin) {
+            return Err(Error::Unauthorized);
+        }
+
+        // Parse role name
+        let role = match role_name.as_str() {
+            "admin" => rbac::Role::Admin,
+            "operator" => rbac::Role::Operator,
+            "pauser" => rbac::Role::Pauser,
+            "viewer" => rbac::Role::Viewer,
+            _ => return Err(Error::InvalidAmount),
+        };
+
+        rbac::revoke_role(&env, address, role);
+        Ok(())
+    }
+
+    /// Check if an address has a specific role
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    /// * `address` - Address to check
+    /// * `role_name` - Role name to check
+    ///
+    /// # Returns
+    /// `true` if address has the role
+    pub fn has_role(env: Env, address: Address, role_name: String) -> bool {
+        let role = match role_name.as_str() {
+            "admin" => rbac::Role::Admin,
+            "operator" => rbac::Role::Operator,
+            "pauser" => rbac::Role::Pauser,
+            "viewer" => rbac::Role::Viewer,
+            _ => return false,
+        };
+
+        rbac::has_role(&env, address, role)
+    }
+
 
         env.storage().persistent().set(&DataKey::IsPaused, &false);
 
