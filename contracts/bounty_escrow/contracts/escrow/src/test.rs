@@ -4,14 +4,17 @@ use soroban_sdk::{
     token, vec, Address, Env, Vec,
 };
 
-fn create_token_contract<'a>(e: &Env, admin: &Address) -> (Address, token::Client<'a>, token::StellarAssetClient<'a>) {
+fn create_token_contract<'a>(
+    e: &Env,
+    admin: &Address,
+) -> (Address, token::Client<'a>, token::StellarAssetClient<'a>) {
     let stellar_asset = e.register_stellar_asset_contract_v2(admin.clone());
     let token_address = stellar_asset.address();
 
     (
         token_address.clone(),
         token::Client::new(e, &token_address),
-        token::StellarAssetClient::new(e, &token_address)
+        token::StellarAssetClient::new(e, &token_address),
     )
 }
 
@@ -1420,7 +1423,13 @@ fn test_lock_funds_non_whitelisted_token() {
     let deadline = setup.env.ledger().timestamp() + 1000;
 
     // Try to lock with token2 (not whitelisted)
-    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline, &Some(setup.token2.address.clone()));
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &Some(setup.token2.address.clone()),
+    );
 }
 
 #[test]
@@ -1433,10 +1442,22 @@ fn test_lock_funds_with_multiple_tokens() {
     let deadline = setup.env.ledger().timestamp() + 1000;
 
     // Lock funds with token1
-    setup.escrow.lock_funds(&setup.depositor, &1, &1000, &deadline, &Some(setup.token1.address.clone()));
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &1,
+        &1000,
+        &deadline,
+        &Some(setup.token1.address.clone()),
+    );
 
     // Lock funds with token2
-    setup.escrow.lock_funds(&setup.depositor, &2, &2000, &deadline, &Some(setup.token2.address.clone()));
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &2,
+        &2000,
+        &deadline,
+        &Some(setup.token2.address.clone()),
+    );
 
     // Verify escrows have correct tokens
     let escrow1 = setup.escrow.get_escrow_info(&1);
@@ -1462,11 +1483,25 @@ fn test_release_funds_with_correct_token() {
     let deadline = setup.env.ledger().timestamp() + 1000;
 
     // Lock funds with different tokens
-    setup.escrow.lock_funds(&setup.depositor, &1, &1000, &deadline, &Some(setup.token1.address.clone()));
-    setup.escrow.lock_funds(&setup.depositor, &2, &2000, &deadline, &Some(setup.token2.address.clone()));
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &1,
+        &1000,
+        &deadline,
+        &Some(setup.token1.address.clone()),
+    );
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &2,
+        &2000,
+        &deadline,
+        &Some(setup.token2.address.clone()),
+    );
 
     // Release bounty 2 (token2)
-    setup.escrow.release_funds(&2, &setup.contributor, &None::<Address>, &None::<i128>);
+    setup
+        .escrow
+        .release_funds(&2, &setup.contributor, &None::<Address>, &None::<i128>);
 
     // Verify contributor received token2
     assert_eq!(setup.token2.balance(&setup.contributor), 2000);
@@ -1489,13 +1524,25 @@ fn test_refund_with_correct_token() {
 
     // Lock funds with token2
     let initial_balance = setup.token2.balance(&setup.depositor);
-    setup.escrow.lock_funds(&setup.depositor, &1, &2000, &deadline, &Some(setup.token2.address.clone()));
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &1,
+        &2000,
+        &deadline,
+        &Some(setup.token2.address.clone()),
+    );
 
     // Advance time past deadline
     setup.env.ledger().set_timestamp(deadline + 1);
 
     // Refund
-    setup.escrow.refund(&1, &None::<i128>, &None::<Address>, &RefundMode::Full, &None::<Address>);
+    setup.escrow.refund(
+        &1,
+        &None::<i128>,
+        &None::<Address>,
+        &RefundMode::Full,
+        &None::<Address>,
+    );
 
     // Verify depositor received token2 back
     assert_eq!(setup.token2.balance(&setup.depositor), initial_balance);
@@ -1512,9 +1559,27 @@ fn test_get_token_balance() {
     let deadline = setup.env.ledger().timestamp() + 1000;
 
     // Lock funds with both tokens
-    setup.escrow.lock_funds(&setup.depositor, &1, &1000, &deadline, &Some(setup.token1.address.clone()));
-    setup.escrow.lock_funds(&setup.depositor, &2, &2000, &deadline, &Some(setup.token2.address.clone()));
-    setup.escrow.lock_funds(&setup.depositor, &3, &500, &deadline, &Some(setup.token1.address.clone()));
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &1,
+        &1000,
+        &deadline,
+        &Some(setup.token1.address.clone()),
+    );
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &2,
+        &2000,
+        &deadline,
+        &Some(setup.token2.address.clone()),
+    );
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &3,
+        &500,
+        &deadline,
+        &Some(setup.token1.address.clone()),
+    );
 
     // Check token-specific balances (using get_token_bal for contract-wide balance)
     assert_eq!(setup.escrow.get_token_bal(&setup.token1.address), 1500);
@@ -1556,25 +1621,267 @@ fn test_multi_token_lifecycle() {
     let deadline = setup.env.ledger().timestamp() + 1000;
 
     // Create bounties with different tokens
-    setup.escrow.lock_funds(&setup.depositor, &1, &1000, &deadline, &Some(setup.token1.address.clone()));
-    setup.escrow.lock_funds(&setup.depositor, &2, &2000, &deadline, &Some(setup.token2.address.clone()));
-    setup.escrow.lock_funds(&setup.depositor, &3, &1500, &deadline, &Some(setup.token1.address.clone()));
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &1,
+        &1000,
+        &deadline,
+        &Some(setup.token1.address.clone()),
+    );
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &2,
+        &2000,
+        &deadline,
+        &Some(setup.token2.address.clone()),
+    );
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &3,
+        &1500,
+        &deadline,
+        &Some(setup.token1.address.clone()),
+    );
 
     // Release bounty 1 (token1) to contributor
-    setup.escrow.release_funds(&1, &setup.contributor, &None::<Address>, &None::<i128>);
+    setup
+        .escrow
+        .release_funds(&1, &setup.contributor, &None::<Address>, &None::<i128>);
     assert_eq!(setup.token1.balance(&setup.contributor), 1000);
 
     // Release bounty 2 (token2) to contributor
-    setup.escrow.release_funds(&2, &setup.contributor, &None::<Address>, &None::<i128>);
+    setup
+        .escrow
+        .release_funds(&2, &setup.contributor, &None::<Address>, &None::<i128>);
     assert_eq!(setup.token2.balance(&setup.contributor), 2000);
 
     // Advance time and refund bounty 3 (token1)
     setup.env.ledger().set_timestamp(deadline + 1);
     let depositor_token1_before = setup.token1.balance(&setup.depositor);
-    setup.escrow.refund(&3, &None::<i128>, &None::<Address>, &RefundMode::Full, &None::<Address>);
-    assert_eq!(setup.token1.balance(&setup.depositor), depositor_token1_before + 1500);
+    setup.escrow.refund(
+        &3,
+        &None::<i128>,
+        &None::<Address>,
+        &RefundMode::Full,
+        &None::<Address>,
+    );
+    assert_eq!(
+        setup.token1.balance(&setup.depositor),
+        depositor_token1_before + 1500
+    );
 
     // Verify final contract balances
     assert_eq!(setup.token1.balance(&setup.escrow_address), 0);
     assert_eq!(setup.token2.balance(&setup.escrow_address), 0);
+}
+
+// ============================================================================
+// DEADLINE EXTENSION TESTS
+// ============================================================================
+
+#[test]
+fn test_extend_refund_deadline_success() {
+    let setup = TestSetup::new();
+    let bounty_id = 1;
+    let amount = 1000;
+    let current_time = setup.env.ledger().timestamp();
+    let initial_deadline = current_time + 1000;
+
+    // Lock funds
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &initial_deadline,
+        &None::<Address>,
+    );
+
+    // Verify initial deadline
+    let escrow_before = setup.escrow.get_escrow_info(&bounty_id);
+    assert_eq!(escrow_before.deadline, initial_deadline);
+
+    // Extend deadline
+    let new_deadline = initial_deadline + 2000;
+    setup
+        .escrow
+        .extend_refund_deadline(&bounty_id, &new_deadline);
+
+    // Verify deadline was extended
+    let escrow_after = setup.escrow.get_escrow_info(&bounty_id);
+    assert_eq!(escrow_after.deadline, new_deadline);
+    assert_eq!(escrow_after.status, EscrowStatus::Locked);
+    assert_eq!(escrow_after.amount, amount);
+}
+
+#[test]
+fn test_extend_refund_deadline_multiple_times() {
+    let setup = TestSetup::new();
+    let bounty_id = 1;
+    let amount = 1000;
+    let current_time = setup.env.ledger().timestamp();
+    let initial_deadline = current_time + 1000;
+
+    // Lock funds
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &initial_deadline,
+        &None::<Address>,
+    );
+
+    // First extension
+    let first_extension = initial_deadline + 1000;
+    setup
+        .escrow
+        .extend_refund_deadline(&bounty_id, &first_extension);
+
+    let escrow_after_first = setup.escrow.get_escrow_info(&bounty_id);
+    assert_eq!(escrow_after_first.deadline, first_extension);
+
+    // Second extension
+    let second_extension = first_extension + 2000;
+    setup
+        .escrow
+        .extend_refund_deadline(&bounty_id, &second_extension);
+
+    let escrow_after_second = setup.escrow.get_escrow_info(&bounty_id);
+    assert_eq!(escrow_after_second.deadline, second_extension);
+
+    // Third extension
+    let third_extension = second_extension + 3000;
+    setup
+        .escrow
+        .extend_refund_deadline(&bounty_id, &third_extension);
+
+    let escrow_after_third = setup.escrow.get_escrow_info(&bounty_id);
+    assert_eq!(escrow_after_third.deadline, third_extension);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #19)")] // InvalidDeadlineExtension
+fn test_extend_refund_deadline_not_greater() {
+    let setup = TestSetup::new();
+    let bounty_id = 1;
+    let amount = 1000;
+    let current_time = setup.env.ledger().timestamp();
+    let initial_deadline = current_time + 1000;
+
+    // Lock funds
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &initial_deadline,
+        &None::<Address>,
+    );
+
+    // Try to extend with same deadline (should fail)
+    setup
+        .escrow
+        .extend_refund_deadline(&bounty_id, &initial_deadline);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #19)")] // InvalidDeadlineExtension
+fn test_extend_refund_deadline_shorter() {
+    let setup = TestSetup::new();
+    let bounty_id = 1;
+    let amount = 1000;
+    let current_time = setup.env.ledger().timestamp();
+    let initial_deadline = current_time + 1000;
+
+    // Lock funds
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &initial_deadline,
+        &None::<Address>,
+    );
+
+    // Try to extend with shorter deadline (should fail)
+    let shorter_deadline = initial_deadline - 100;
+    setup
+        .escrow
+        .extend_refund_deadline(&bounty_id, &shorter_deadline);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #5)")] // FundsNotLocked
+fn test_extend_refund_deadline_after_release() {
+    let setup = TestSetup::new();
+    let bounty_id = 1;
+    let amount = 1000;
+    let current_time = setup.env.ledger().timestamp();
+    let deadline = current_time + 1000;
+
+    // Lock funds
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
+
+    // Release funds
+    setup.escrow.release_funds(
+        &bounty_id,
+        &setup.contributor,
+        &None::<Address>,
+        &None::<i128>,
+    );
+
+    // Try to extend deadline after release (should fail)
+    let new_deadline = deadline + 2000;
+    setup
+        .escrow
+        .extend_refund_deadline(&bounty_id, &new_deadline);
+}
+
+#[test]
+fn test_extend_refund_deadline_with_partially_refunded() {
+    let setup = TestSetup::new();
+    let bounty_id = 1;
+    let amount = 1000;
+    let current_time = setup.env.ledger().timestamp();
+    let initial_deadline = current_time + 1000;
+
+    // Lock funds
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &initial_deadline,
+        &None::<Address>,
+    );
+
+    // Advance time past deadline
+    setup.env.ledger().set_timestamp(initial_deadline + 1);
+
+    // Partial refund
+    let partial_amount = 500;
+    setup.escrow.refund(
+        &bounty_id,
+        &Some(partial_amount),
+        &None::<Address>,
+        &RefundMode::Partial,
+        &None::<Address>,
+    );
+
+    // Verify status is PartiallyRefunded
+    let escrow_before = setup.escrow.get_escrow_info(&bounty_id);
+    assert_eq!(escrow_before.status, EscrowStatus::PartiallyRefunded);
+
+    // Extend deadline (should work with PartiallyRefunded status)
+    let new_deadline = initial_deadline + 2000;
+    setup
+        .escrow
+        .extend_refund_deadline(&bounty_id, &new_deadline);
+
+    // Verify deadline was extended
+    let escrow_after = setup.escrow.get_escrow_info(&bounty_id);
+    assert_eq!(escrow_after.deadline, new_deadline);
+    assert_eq!(escrow_after.status, EscrowStatus::PartiallyRefunded);
 }
