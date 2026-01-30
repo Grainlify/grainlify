@@ -141,7 +141,7 @@
 #![no_std]
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, token, vec, Address, Env, String, Symbol,
-    Vec,
+    Vec, Map,
 };
 
 // Event types
@@ -671,7 +671,8 @@ pub struct ProgramData {
     pub remaining_balance: i128,
     pub authorized_payout_key: Address,
     pub payout_history: Vec<PayoutRecord>,
-    pub token_address: Address,
+    pub token_address: Address, // Primary/default token (for backward compatibility)
+    pub token_balances: Map<Address, i128>, // Map of token_address -> balance for multi-token support
 }
 
 /// Storage key type for individual programs
@@ -683,6 +684,8 @@ pub enum DataKey {
     ReleaseHistory(String),       // program_id -> Vec<ProgramReleaseHistory>
     NextScheduleId(String),       // program_id -> next schedule_id
     IsPaused,                     // Global contract pause state
+    TokenWhitelist(Address),      // token_address -> bool (whitelist status)
+    RegisteredTokens,             // Vec<Address> of all registered tokens
 }
 
 #[contracttype]
@@ -911,6 +914,8 @@ impl ProgramEscrowContract {
         }
 
         // Create program data
+        let mut balances = Map::new(&env);
+        balances.set(token_address.clone(), 0);
         let program_data = ProgramData {
             program_id: program_id.clone(),
             total_funds: 0,
@@ -918,6 +923,7 @@ impl ProgramEscrowContract {
             authorized_payout_key: authorized_payout_key.clone(),
             payout_history: vec![&env],
             token_address: token_address.clone(),
+            token_balances: balances,
         };
 
         // Initialize fee config with zero fees (disabled by default)
@@ -958,6 +964,84 @@ impl ProgramEscrowContract {
     }
 
     /// Calculate fee amount based on rate (in basis points)
+    /// Check if token is registered/whitelisted
+    fn is_token_registered(env: &Env, token: &Address) -> bool {
+        // Check whitelist
+        env.storage().instance().has(&DataKey::TokenWhitelist(token.clone()))
+    }
+
+    /// Register a new token (authorized payout key only)
+    pub fn register_token(
+        env: Env,
+        program_id: String,
+        token: Address,
+        whitelisted: bool,
+    ) {
+        let program_key = DataKey::Program(program_id.clone());
+        if !env.storage().instance().has(&program_key) {
+            panic!("Program not found");
+        }
+
+        let program_data: ProgramData = env.storage().instance().get(&program_key).unwrap();
+        program_data.authorized_payout_key.require_auth();
+
+        // Store whitelist status
+        if whitelisted {
+            env.storage().instance().set(&DataKey::TokenWhitelist(token.clone()), &true);
+        } else {
+            env.storage().instance().remove(&DataKey::TokenWhitelist(token.clone()));
+        }
+
+        // Add to registered tokens list
+        let mut registered: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::RegisteredTokens)
+            .unwrap_or_else(|| vec![&env]);
+
+        // Check if already registered
+        let mut found = false;
+        for i in 0..registered.len() {
+            if registered.get(i).unwrap() == token {
+                found = true;
+                break;
+            }
+        }
+
+        if !found {
+            registered.push_back(token.clone());
+            env.storage().instance().set(&DataKey::RegisteredTokens, &registered);
+        }
+    }
+
+    /// Get all registered tokens
+    pub fn get_registered_tokens(env: Env) -> Vec<Address> {
+        env.storage()
+            .instance()
+            .get(&DataKey::RegisteredTokens)
+            .unwrap_or_else(|| vec![&env])
+    }
+
+    /// Get balance for a specific token in a program
+    pub fn get_token_balance(env: Env, program_id: String, token: Address) -> i128 {
+        let program_key = DataKey::Program(program_id.clone());
+        if !env.storage().instance().has(&program_key) {
+            panic!("Program not found");
+        }
+
+        let program_data: ProgramData = env.storage().instance().get(&program_key).unwrap();
+
+        // Check token_balances map
+        if let Some(balance) = program_data.token_balances.get(token.clone()) {
+            balance
+        } else if program_data.token_address == token {
+            // Backward compatibility: if token matches default, return remaining_balance
+            program_data.remaining_balance
+        } else {
+            0
+        }
+    }
+
     fn calculate_fee(amount: i128, fee_rate: i128) -> i128 {
         if fee_rate == 0 {
             return 0;
@@ -1097,7 +1181,12 @@ impl ProgramEscrowContract {
     /// - Forgetting to transfer tokens before calling
     /// -  Locking amount that exceeds actual contract balance
     /// -  Not verifying contract received the tokens
-    pub fn lock_program_funds(env: Env, program_id: String, amount: i128) -> ProgramData {
+    pub fn lock_program_funds(
+        env: Env,
+        program_id: String,
+        amount: i128,
+        token_address: Option<Address>, // Optional: if None, uses program's primary token
+    ) -> ProgramData {
         // Apply rate limiting
         anti_abuse::check_rate_limit(&env, env.current_contract_address());
 
@@ -1127,6 +1216,19 @@ impl ProgramEscrowContract {
                 panic!("Program not found")
             });
 
+        // Get token address (use provided or program's primary token)
+        let token_addr: Address = if let Some(token) = token_address {
+            // Validate token is registered/whitelisted
+            if !Self::is_token_registered(&env, &token) {
+                monitoring::track_operation(&env, symbol_short!("lock"), caller.clone(), false);
+                panic!("Token not registered");
+            }
+            token
+        } else {
+            // Use program's primary token for backward compatibility
+            program_data.token_address.clone()
+        };
+
         // Calculate and collect fee if enabled
         let fee_config = Self::get_fee_config_internal(&env);
         let fee_amount = if fee_config.fee_enabled && fee_config.lock_fee_rate > 0 {
@@ -1135,6 +1237,10 @@ impl ProgramEscrowContract {
             0
         };
         let net_amount = amount - fee_amount;
+
+        // Update token balance in map
+        let current_balance = program_data.token_balances.get(token_addr.clone()).unwrap_or(0);
+        program_data.token_balances.set(token_addr.clone(), current_balance + net_amount);
 
         // Update balances with net amount
         program_data.total_funds += net_amount;
@@ -1273,6 +1379,7 @@ impl ProgramEscrowContract {
         program_id: String,
         recipients: Vec<Address>,
         amounts: Vec<i128>,
+        token_address: Option<Address>, // Optional: if None, uses program's primary token
     ) -> ProgramData {
         // Check if contract is paused
         if Self::is_paused_internal(&env) {
@@ -1284,11 +1391,26 @@ impl ProgramEscrowContract {
 
         // Get program data
         let program_key = DataKey::Program(program_id.clone());
-        let program_data: ProgramData = env
+        let mut program_data: ProgramData = env
             .storage()
             .instance()
             .get(&program_key)
             .unwrap_or_else(|| panic!("Program not found"));
+
+        // Get token address (use provided or program's primary token)
+        let token_addr: Address = if let Some(token) = token_address {
+            // Validate token has balance in program
+            if program_data.token_balances.get(token.clone()).is_none() {
+                panic!("Token not found in program");
+            }
+            token
+        } else {
+            // Use program's primary token for backward compatibility
+            program_data.token_address.clone()
+        };
+
+        // Get balance for this token
+        let token_balance = program_data.token_balances.get(token_addr.clone()).unwrap_or(0);
 
         // Apply rate limiting to the authorized payout key
         anti_abuse::check_rate_limit(&env, program_data.authorized_payout_key.clone());
@@ -1317,11 +1439,11 @@ impl ProgramEscrowContract {
                 .unwrap_or_else(|| panic!("Payout amount overflow"));
         }
 
-        // Validate balance
-        if total_payout > program_data.remaining_balance {
+        // Validate balance for this token
+        if total_payout > token_balance {
             panic!(
-                "Insufficient balance: requested {}, available {}",
-                total_payout, program_data.remaining_balance
+                "Insufficient token balance: requested {}, available {}",
+                total_payout, token_balance
             );
         }
 
@@ -1333,7 +1455,7 @@ impl ProgramEscrowContract {
         let mut updated_history = program_data.payout_history.clone();
         let timestamp = env.ledger().timestamp();
         let contract_address = env.current_contract_address();
-        let token_client = token::Client::new(&env, &program_data.token_address);
+        let token_client = token::Client::new(&env, &token_addr);
 
         for i in 0..recipients.len() {
             let recipient = recipients.get(i).unwrap();
@@ -1380,6 +1502,8 @@ impl ProgramEscrowContract {
 
         // Update program data
         let mut updated_data = program_data.clone();
+        // Update token balance
+        updated_data.token_balances.set(token_addr.clone(), token_balance - total_payout);
         updated_data.remaining_balance -= total_payout; // Total includes fees
         updated_data.payout_history = updated_history;
 
@@ -1458,6 +1582,7 @@ impl ProgramEscrowContract {
         program_id: String,
         recipient: Address,
         amount: i128,
+        token_address: Option<Address>, // Optional: if None, uses program's primary token
     ) -> ProgramData {
         // Check if contract is paused
         if Self::is_paused_internal(&env) {
@@ -1466,32 +1591,41 @@ impl ProgramEscrowContract {
 
         // Get program data
         let program_key = DataKey::Program(program_id.clone());
-        let program_data: ProgramData = env
+        let mut program_data: ProgramData = env
             .storage()
             .instance()
             .get(&program_key)
             .unwrap_or_else(|| panic!("Program not found"));
 
+        // Get token address (use provided or program's primary token)
+        let token_addr: Address = if let Some(token) = token_address {
+            // Validate token has balance in program
+            if program_data.token_balances.get(token.clone()).is_none() {
+                panic!("Token not found in program");
+            }
+            token
+        } else {
+            // Use program's primary token for backward compatibility
+            program_data.token_address.clone()
+        };
+
+        // Get balance for this token
+        let token_balance = program_data.token_balances.get(token_addr.clone()).unwrap_or(0);
+
         program_data.authorized_payout_key.require_auth();
         // Apply rate limiting to the authorized payout key
         anti_abuse::check_rate_limit(&env, program_data.authorized_payout_key.clone());
-
-        // Verify authorization
-        // let caller = env.invoker();
-        // if caller != program_data.authorized_payout_key {
-        //     panic!("Unauthorized: only authorized payout key can trigger payouts");
-        // }
 
         // Validate amount
         if amount <= 0 {
             panic!("Amount must be greater than zero");
         }
 
-        // Validate balance
-        if amount > program_data.remaining_balance {
+        // Validate balance for this token
+        if amount > token_balance {
             panic!(
-                "Insufficient balance: requested {}, available {}",
-                amount, program_data.remaining_balance
+                "Insufficient token balance: requested {}, available {}",
+                amount, token_balance
             );
         }
 
@@ -1507,7 +1641,7 @@ impl ProgramEscrowContract {
         // Transfer net amount to recipient
         // Transfer tokens
         let contract_address = env.current_contract_address();
-        let token_client = token::Client::new(&env, &program_data.token_address);
+        let token_client = token::Client::new(&env, &token_addr);
         token_client.transfer(&contract_address, &recipient, &net_amount);
 
         // Transfer fee to fee recipient if applicable

@@ -48,7 +48,7 @@ fn setup_bounty_with_schedule(
 
     // Lock funds for bounty
     token_client.approve(admin, contract_id, &amount, &1000);
-    client.lock_funds(&contributor.clone(), &bounty_id, &amount, &1000000000);
+    client.lock_funds(&contributor.clone(), &bounty_id, &amount, &1000000000, &None::<Address>);
 
     // Create release schedule
     client.create_release_schedule(
@@ -91,7 +91,7 @@ fn test_single_release_schedule() {
     let deadline = env.ledger().timestamp() + 1000000000;
 
     // Lock funds
-    escrow.lock_funds(&admin, &bounty_id, &amount, &deadline);
+    escrow.lock_funds(&admin, &bounty_id, &amount, &deadline, &None::<Address>);
 
     // Create release schedule
     let release_timestamp = 1000;
@@ -234,7 +234,7 @@ fn test_lock_fund() {
 
     token_admin_client.mint(&depositor, &amount);
 
-    client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
+    client.lock_funds(&depositor, &bounty_id, &amount, &deadline, &None::<Address>);
 
     // Get all events emitted
     let events = env.events().all();
@@ -266,9 +266,9 @@ fn test_release_fund() {
 
     token_admin_client.mint(&depositor, &amount);
 
-    client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
+    client.lock_funds(&depositor, &bounty_id, &amount, &deadline, &None::<Address>);
 
-    client.release_funds(&bounty_id, &contributor, &None::<i128>);
+    client.release_funds(&bounty_id, &contributor, &None::<Address>, &None::<i128>);
 
     // Get all events emitted
     let events = env.events().all();
@@ -294,7 +294,7 @@ fn test_lock_fund_invalid_amount() {
 
     client.init(&admin.clone(), &token.clone());
 
-    client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
+    client.lock_funds(&depositor, &bounty_id, &amount, &deadline, &None::<Address>);
 }
 
 #[test]
@@ -315,7 +315,7 @@ fn test_lock_fund_invalid_deadline() {
     client.init(&admin.clone(), &token.clone());
     token_admin_client.mint(&depositor, &amount);
 
-    client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
+    client.lock_funds(&depositor, &bounty_id, &amount, &deadline, &None::<Address>);
 }
 
 // ============================================================================
@@ -345,18 +345,21 @@ fn test_batch_lock_funds() {
         depositor: depositor.clone(),
         amount: 1000,
         deadline: 100,
+        token_address: None,
     });
     items.push_back(crate::LockFundsItem {
         bounty_id: 2,
         depositor: depositor.clone(),
         amount: 2000,
         deadline: 200,
+        token_address: None,
     });
     items.push_back(crate::LockFundsItem {
         bounty_id: 3,
         depositor: depositor.clone(),
         amount: 2000,
         deadline: 300,
+        token_address: None,
     });
 
     // Execute batch lock
@@ -392,8 +395,8 @@ fn test_batch_release_funds() {
     let amount2 = 2000i128;
     token_admin_client.mint(&depositor, &(amount1 + amount2));
 
-    client.lock_funds(&depositor, &1, &amount1, &100);
-    client.lock_funds(&depositor, &2, &amount2, &200);
+    client.lock_funds(&depositor, &1, &amount1, &100, &None::<Address>);
+    client.lock_funds(&depositor, &2, &amount2, &200, &None::<Address>);
 
     // Create batch release items
     let mut items = vec![&env];
@@ -443,12 +446,14 @@ fn test_batch_lock_duplicate_bounty_id() {
         depositor: depositor.clone(),
         amount: 1000,
         deadline: 100,
+        token_address: None,
     });
     items.push_back(crate::LockFundsItem {
         bounty_id: 1, // Duplicate!
         depositor: depositor.clone(),
         amount: 2000,
         deadline: 200,
+        token_address: None,
     });
 
     client.batch_lock_funds(&items);
@@ -469,7 +474,7 @@ fn test_batch_lock_existing_bounty() {
     token_admin_client.mint(&depositor, &5000);
 
     // Lock a bounty first
-    client.lock_funds(&depositor, &1, &1000, &100);
+    client.lock_funds(&depositor, &1, &1000, &100, &None::<Address>);
 
     // Try to batch lock the same bounty
     let mut items = vec![&env];
@@ -478,6 +483,7 @@ fn test_batch_lock_existing_bounty() {
         depositor: depositor.clone(),
         amount: 2000,
         deadline: 200,
+        token_address: None,
     });
 
     client.batch_lock_funds(&items);
@@ -509,12 +515,14 @@ fn test_batch_lock_event_emission() {
         depositor: depositor.clone(),
         amount: 1000,
         deadline: 100,
+        token_address: None,
     });
     items.push_back(crate::LockFundsItem {
         bounty_id: 2,
         depositor: depositor.clone(),
         amount: 2000,
         deadline: 200,
+        token_address: None,
     });
 
     client.batch_lock_funds(&items);
@@ -540,8 +548,8 @@ fn test_batch_release_event_emission() {
     token_admin_client.mint(&depositor, &5000);
 
     // Lock funds
-    client.lock_funds(&depositor, &1, &1000, &100);
-    client.lock_funds(&depositor, &2, &2000, &200);
+    client.lock_funds(&depositor, &1, &1000, &100, &None::<Address>);
+    client.lock_funds(&depositor, &2, &2000, &200, &None::<Address>);
 
     let initial_event_count = env.events().all().len();
 
@@ -588,7 +596,7 @@ fn test_complete_bounty_workflow_lock_release() {
     // 3. Lock funds
     let bounty_id = 1u64;
     let deadline = 1000u64;
-    client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
+    client.lock_funds(&depositor, &bounty_id, &amount, &deadline, &None::<Address>);
 
     // 4. Verify funds locked
     let escrow = client.get_escrow_info(&bounty_id);
@@ -600,7 +608,7 @@ fn test_complete_bounty_workflow_lock_release() {
     assert_eq!(contract_balance, amount);
 
     // 6. Release funds to contributor
-    client.release_funds(&bounty_id, &contributor, &None::<i128>);
+    client.release_funds(&bounty_id, &contributor, &None::<Address>, &None::<i128>);
 
     // 7. Verify funds released
     let escrow_after = client.get_escrow_info(&bounty_id);
@@ -630,7 +638,7 @@ fn test_complete_bounty_workflow_lock_refund() {
     // Use a future deadline, then advance the ledger timestamp past it
     let current_time = env.ledger().timestamp();
     let deadline = current_time + 1_000;
-    client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
+    client.lock_funds(&depositor, &bounty_id, &amount, &deadline, &None::<Address>);
 
     // Advance time past deadline so refund is eligible
     env.ledger().set_timestamp(deadline + 1);
@@ -641,6 +649,7 @@ fn test_complete_bounty_workflow_lock_refund() {
         &None::<i128>,
         &None::<Address>,
         &crate::RefundMode::Full,
+        &None::<Address>,
     );
 
     // Verify funds refunded

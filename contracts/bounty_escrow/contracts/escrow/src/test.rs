@@ -72,9 +72,13 @@ fn test_lock_funds_success() {
     let deadline = setup.env.ledger().timestamp() + 1000;
 
     // Lock funds
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
 
     // Verify stored escrow data
     // Note: amount stores net_amount (after fee), but fees are disabled by default
@@ -97,14 +101,22 @@ fn test_lock_funds_duplicate() {
     let amount = 1000;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
 
     // Try to lock again with same bounty_id
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
 }
 
 #[test]
@@ -115,9 +127,13 @@ fn test_lock_funds_negative_amount() {
     let amount = -100;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
 }
 
 #[test]
@@ -127,9 +143,13 @@ fn test_get_escrow_info() {
     let amount = 1000;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
 
     let escrow = setup.escrow.get_escrow_info(&bounty_id);
     assert_eq!(escrow.amount, amount);
@@ -145,18 +165,25 @@ fn test_release_funds_success() {
     let amount = 1000;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
 
     // Verify initial balances
     assert_eq!(setup.token.balance(&setup.escrow_address), amount);
     assert_eq!(setup.token.balance(&setup.contributor), 0);
 
     // Release funds
-    setup
-        .escrow
-        .release_funds(&bounty_id, &setup.contributor, &None::<i128>);
+    setup.escrow.release_funds(
+        &bounty_id,
+        &setup.contributor,
+        &None::<Address>,
+        &None::<i128>,
+    );
 
     // Verify updated state
     let stored_escrow = setup.escrow.get_escrow_info(&bounty_id);
@@ -175,17 +202,27 @@ fn test_release_funds_already_released() {
     let amount = 1000;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
-    setup
-        .escrow
-        .release_funds(&bounty_id, &setup.contributor, &None::<i128>);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
+    setup.escrow.release_funds(
+        &bounty_id,
+        &setup.contributor,
+        &None::<Address>,
+        &None::<i128>,
+    );
 
     // Try to release again
-    setup
-        .escrow
-        .release_funds(&bounty_id, &setup.contributor, &None::<i128>);
+    setup.escrow.release_funds(
+        &bounty_id,
+        &setup.contributor,
+        &None::<Address>,
+        &None::<i128>,
+    );
 }
 
 #[test]
@@ -193,9 +230,12 @@ fn test_release_funds_already_released() {
 fn test_release_funds_not_found() {
     let setup = TestSetup::new();
     let bounty_id = 1;
-    setup
-        .escrow
-        .release_funds(&bounty_id, &setup.contributor, &None::<i128>);
+    setup.escrow.release_funds(
+        &bounty_id,
+        &setup.contributor,
+        &None::<Address>,
+        &None::<i128>,
+    );
 }
 
 // ============================================================================
@@ -210,9 +250,13 @@ fn test_refund_full_after_deadline() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
 
     // Advance time past deadline
     setup.env.ledger().set_timestamp(deadline + 1);
@@ -226,6 +270,7 @@ fn test_refund_full_after_deadline() {
         &None::<i128>,
         &None::<Address>,
         &RefundMode::Full,
+        &None::<Address>,
     );
 
     // Verify state
@@ -257,9 +302,13 @@ fn test_refund_full_before_deadline() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
 
     // Attempt full refund before deadline (should fail)
     setup.escrow.refund(
@@ -267,6 +316,7 @@ fn test_refund_full_before_deadline() {
         &None::<i128>,
         &None::<Address>,
         &RefundMode::Full,
+        &None::<Address>,
     );
 }
 
@@ -283,9 +333,13 @@ fn test_refund_partial_after_deadline() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &total_amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &total_amount,
+        &deadline,
+        &None::<Address>,
+    );
 
     // Advance time past deadline
     setup.env.ledger().set_timestamp(deadline + 1);
@@ -299,6 +353,7 @@ fn test_refund_partial_after_deadline() {
         &Some(refund_amount),
         &None::<Address>,
         &RefundMode::Partial,
+        &None::<Address>,
     );
 
     // Verify state
@@ -334,9 +389,13 @@ fn test_refund_partial_multiple_times() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &total_amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &total_amount,
+        &deadline,
+        &None::<Address>,
+    );
     setup.env.ledger().set_timestamp(deadline + 1);
 
     // First partial refund
@@ -345,6 +404,7 @@ fn test_refund_partial_multiple_times() {
         &Some(refund1),
         &None::<Address>,
         &RefundMode::Partial,
+        &None::<Address>,
     );
 
     // Second partial refund
@@ -353,6 +413,7 @@ fn test_refund_partial_multiple_times() {
         &Some(refund2),
         &None::<Address>,
         &RefundMode::Partial,
+        &None::<Address>,
     );
 
     // Verify state
@@ -380,9 +441,13 @@ fn test_refund_partial_before_deadline() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
 
     // Attempt partial refund before deadline (should fail)
     setup.escrow.refund(
@@ -390,6 +455,7 @@ fn test_refund_partial_before_deadline() {
         &Some(refund_amount),
         &None::<Address>,
         &RefundMode::Partial,
+        &None::<Address>,
     );
 }
 
@@ -407,9 +473,13 @@ fn test_refund_custom_after_deadline() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
     setup.env.ledger().set_timestamp(deadline + 1);
 
     // Initial balances
@@ -421,6 +491,7 @@ fn test_refund_custom_after_deadline() {
         &Some(refund_amount),
         &Some(custom_recipient.clone()),
         &RefundMode::Custom,
+        &None::<Address>,
     );
 
     // Verify state
@@ -453,9 +524,13 @@ fn test_refund_custom_before_deadline_without_approval() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
 
     // Attempt custom refund before deadline without approval (should fail)
     setup.escrow.refund(
@@ -463,6 +538,7 @@ fn test_refund_custom_before_deadline_without_approval() {
         &Some(refund_amount),
         &Some(custom_recipient),
         &RefundMode::Custom,
+        &None::<Address>,
     );
 }
 
@@ -480,9 +556,13 @@ fn test_refund_approval_workflow() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
 
     // Admin approves refund before deadline
     setup.escrow.approve_refund(
@@ -514,6 +594,7 @@ fn test_refund_approval_workflow() {
         &Some(refund_amount),
         &Some(custom_recipient.clone()),
         &RefundMode::Custom,
+        &None::<Address>,
     );
 
     // Verify approval was consumed (removed after use)
@@ -544,9 +625,13 @@ fn test_refund_approval_mismatch() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
 
     // Admin approves refund for 500
     setup.escrow.approve_refund(
@@ -562,6 +647,7 @@ fn test_refund_approval_mismatch() {
         &Some(requested_amount),
         &Some(custom_recipient),
         &RefundMode::Custom,
+        &None::<Address>,
     );
 }
 
@@ -578,9 +664,13 @@ fn test_refund_approval_non_admin() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
 
     // Note: With mock_all_auths(), we can't easily test unauthorized access
     // The contract's require_auth() will enforce admin-only access in production
@@ -602,9 +692,13 @@ fn test_refund_history_tracking() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &total_amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &total_amount,
+        &deadline,
+        &None::<Address>,
+    );
     setup.env.ledger().set_timestamp(deadline + 1);
 
     // First refund (Partial)
@@ -613,6 +707,7 @@ fn test_refund_history_tracking() {
         &Some(refund1),
         &None::<Address>,
         &RefundMode::Partial,
+        &None::<Address>,
     );
 
     // Second refund (Partial)
@@ -621,6 +716,7 @@ fn test_refund_history_tracking() {
         &Some(refund2),
         &None::<Address>,
         &RefundMode::Partial,
+        &None::<Address>,
     );
 
     // Third refund (Full remaining - should complete the refund)
@@ -630,6 +726,7 @@ fn test_refund_history_tracking() {
         &Some(remaining),
         &None::<Address>,
         &RefundMode::Partial,
+        &None::<Address>,
     );
 
     // Verify refund history
@@ -672,9 +769,13 @@ fn test_refund_history_with_custom_recipients() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &total_amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &total_amount,
+        &deadline,
+        &None::<Address>,
+    );
     setup.env.ledger().set_timestamp(deadline + 1);
 
     // First custom refund
@@ -683,6 +784,7 @@ fn test_refund_history_with_custom_recipients() {
         &Some(refund1),
         &Some(recipient1.clone()),
         &RefundMode::Custom,
+        &None::<Address>,
     );
 
     // Second custom refund
@@ -691,6 +793,7 @@ fn test_refund_history_with_custom_recipients() {
         &Some(refund2),
         &Some(recipient2.clone()),
         &RefundMode::Custom,
+        &None::<Address>,
     );
 
     // Verify refund history
@@ -713,15 +816,23 @@ fn test_refund_invalid_amount_zero() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
     setup.env.ledger().set_timestamp(deadline + 1);
 
     // Try to refund zero amount
-    setup
-        .escrow
-        .refund(&bounty_id, &Some(0), &None::<Address>, &RefundMode::Partial);
+    setup.escrow.refund(
+        &bounty_id,
+        &Some(0),
+        &None::<Address>,
+        &RefundMode::Partial,
+        &None::<Address>,
+    );
 }
 
 #[test]
@@ -734,9 +845,13 @@ fn test_refund_invalid_amount_exceeds_remaining() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
     setup.env.ledger().set_timestamp(deadline + 1);
 
     // Try to refund more than available
@@ -745,6 +860,7 @@ fn test_refund_invalid_amount_exceeds_remaining() {
         &Some(refund_amount),
         &None::<Address>,
         &RefundMode::Partial,
+        &None::<Address>,
     );
 }
 
@@ -758,9 +874,13 @@ fn test_refund_custom_missing_amount() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
     setup.env.ledger().set_timestamp(deadline + 1);
 
     // Custom refund requires amount
@@ -769,6 +889,7 @@ fn test_refund_custom_missing_amount() {
         &None::<i128>,
         &Some(custom_recipient),
         &RefundMode::Custom,
+        &None::<Address>,
     );
 }
 
@@ -782,9 +903,13 @@ fn test_refund_custom_missing_recipient() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
     setup.env.ledger().set_timestamp(deadline + 1);
 
     // Custom refund requires recipient
@@ -793,6 +918,7 @@ fn test_refund_custom_missing_recipient() {
         &Some(refund_amount),
         &None::<Address>,
         &RefundMode::Custom,
+        &None::<Address>,
     );
 }
 
@@ -804,9 +930,13 @@ fn test_get_refund_eligibility() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
 
     // Before deadline, no approval
     let (can_refund, deadline_passed, remaining, approval) =
@@ -850,9 +980,13 @@ fn test_get_balance() {
     // Initial balance should be 0
     assert_eq!(setup.escrow.get_balance(), 0);
 
-    setup
-        .escrow
-        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup.escrow.lock_funds(
+        &setup.depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &None::<Address>,
+    );
 
     // Balance should be updated
     assert_eq!(setup.escrow.get_balance(), amount);
@@ -875,18 +1009,21 @@ fn test_batch_lock_funds_success() {
             depositor: setup.depositor.clone(),
             amount: 1000,
             deadline,
+            token_address: None,
         },
         LockFundsItem {
             bounty_id: 2,
             depositor: setup.depositor.clone(),
             amount: 2000,
             deadline,
+            token_address: None,
         },
         LockFundsItem {
             bounty_id: 3,
             depositor: setup.depositor.clone(),
             amount: 3000,
             deadline,
+            token_address: None,
         },
     ];
 
@@ -924,7 +1061,7 @@ fn test_batch_lock_funds_duplicate_bounty_id() {
     // Lock a bounty first
     setup
         .escrow
-        .lock_funds(&setup.depositor, &1, &1000, &deadline);
+        .lock_funds(&setup.depositor, &1, &1000, &deadline, &None::<Address>);
 
     // Try to batch lock with duplicate bounty_id
     let items = vec![
@@ -934,12 +1071,14 @@ fn test_batch_lock_funds_duplicate_bounty_id() {
             depositor: setup.depositor.clone(),
             amount: 2000,
             deadline,
+            token_address: None,
         },
         LockFundsItem {
             bounty_id: 2,
             depositor: setup.depositor.clone(),
             amount: 3000,
             deadline,
+            token_address: None,
         },
     ];
 
@@ -959,12 +1098,14 @@ fn test_batch_lock_funds_duplicate_in_batch() {
             depositor: setup.depositor.clone(),
             amount: 1000,
             deadline,
+            token_address: None,
         },
         LockFundsItem {
             bounty_id: 1, // Duplicate in same batch
             depositor: setup.depositor.clone(),
             amount: 2000,
             deadline,
+            token_address: None,
         },
     ];
 
@@ -979,13 +1120,13 @@ fn test_batch_release_funds_success() {
     // Lock multiple bounties
     setup
         .escrow
-        .lock_funds(&setup.depositor, &1, &1000, &deadline);
+        .lock_funds(&setup.depositor, &1, &1000, &deadline, &None::<Address>);
     setup
         .escrow
-        .lock_funds(&setup.depositor, &2, &2000, &deadline);
+        .lock_funds(&setup.depositor, &2, &2000, &deadline, &None::<Address>);
     setup
         .escrow
-        .lock_funds(&setup.depositor, &3, &3000, &deadline);
+        .lock_funds(&setup.depositor, &3, &3000, &deadline, &None::<Address>);
 
     // Create contributors
     let contributor1 = Address::generate(&setup.env);
@@ -1060,15 +1201,15 @@ fn test_batch_release_funds_already_released() {
     // Lock and release one bounty
     setup
         .escrow
-        .lock_funds(&setup.depositor, &1, &1000, &deadline);
+        .lock_funds(&setup.depositor, &1, &1000, &deadline, &None::<Address>);
     setup
         .escrow
-        .release_funds(&1, &setup.contributor, &None::<i128>);
+        .release_funds(&1, &setup.contributor, &None::<Address>, &None::<i128>);
 
     // Lock another bounty
     setup
         .escrow
-        .lock_funds(&setup.depositor, &2, &2000, &deadline);
+        .lock_funds(&setup.depositor, &2, &2000, &deadline, &None::<Address>);
 
     let contributor2 = Address::generate(&setup.env);
 
@@ -1096,7 +1237,7 @@ fn test_batch_release_funds_duplicate_in_batch() {
 
     setup
         .escrow
-        .lock_funds(&setup.depositor, &1, &1000, &deadline);
+        .lock_funds(&setup.depositor, &1, &1000, &deadline, &None::<Address>);
 
     let contributor = Address::generate(&setup.env);
 
@@ -1124,7 +1265,7 @@ fn test_batch_operations_atomicity() {
     // Lock one bounty successfully
     setup
         .escrow
-        .lock_funds(&setup.depositor, &1, &1000, &deadline);
+        .lock_funds(&setup.depositor, &1, &1000, &deadline, &None::<Address>);
 
     // Try to batch lock with one valid and one that would fail (duplicate)
     // This should fail entirely due to atomicity
@@ -1135,12 +1276,14 @@ fn test_batch_operations_atomicity() {
             depositor: setup.depositor.clone(),
             amount: 2000,
             deadline,
+            token_address: None,
         },
         LockFundsItem {
             bounty_id: 1, // Already exists - should cause entire batch to fail
             depositor: setup.depositor.clone(),
             amount: 3000,
             deadline,
+            token_address: None,
         },
     ];
 
@@ -1161,6 +1304,7 @@ fn test_batch_operations_large_batch() {
             depositor: setup.depositor.clone(),
             amount: (i * 100) as i128,
             deadline,
+            token_address: None,
         });
     }
 
