@@ -842,14 +842,14 @@ fn test_get_balance() {
     let deadline = setup.env.ledger().timestamp() + 1000;
 
     // Initial balance should be 0
-    assert_eq!(setup.escrow.get_balance(), 0);
+    assert_eq!(setup.escrow.get_contract_balance(), 0);
 
     setup
         .escrow
         .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
 
     // Balance should be updated
-    assert_eq!(setup.escrow.get_balance(), amount);
+    assert_eq!(setup.escrow.get_contract_balance(), amount);
 }
 
 // ============================================================================
@@ -898,7 +898,7 @@ fn test_batch_lock_funds_success() {
     }
 
     // Verify contract balance
-    assert_eq!(setup.escrow.get_balance(), 6000);
+    assert_eq!(setup.escrow.get_contract_balance(), 6000);
 }
 
 #[test]
@@ -1017,7 +1017,7 @@ fn test_batch_release_funds_success() {
     assert_eq!(setup.token.balance(&contributor1), 1000);
     assert_eq!(setup.token.balance(&contributor2), 2000);
     assert_eq!(setup.token.balance(&contributor3), 3000);
-    assert_eq!(setup.escrow.get_balance(), 0);
+    assert_eq!(setup.escrow.get_contract_balance(), 0);
 }
 
 #[test]

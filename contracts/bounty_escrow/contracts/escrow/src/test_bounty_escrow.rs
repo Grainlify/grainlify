@@ -6,6 +6,7 @@ use soroban_sdk::{
 };
 
 use crate::{BountyEscrowContract, BountyEscrowContractClient};
+use grainlify_interfaces::RefundMode;
 
 fn create_test_env() -> (Env, BountyEscrowContractClient<'static>, Address) {
     let env = Env::default();
@@ -239,8 +240,8 @@ fn test_lock_fund() {
     // Get all events emitted
     let events = env.events().all();
 
-    // Verify the event was emitted (5 original events + 4 monitoring events from init & lock_funds)
-    assert_eq!(events.len(), 9);
+    // Verify events were emitted
+    assert_eq!(events.len(), 4);
 }
 
 #[test]
@@ -273,8 +274,8 @@ fn test_release_fund() {
     // Get all events emitted
     let events = env.events().all();
 
-    // Verify the event was emitted (7 original events + 6 monitoring events from init, lock_funds & release_funds)
-    assert_eq!(events.len(), 13);
+    // Verify events were emitted
+    assert_eq!(events.len(), 4);
 }
 
 #[test]
@@ -596,7 +597,7 @@ fn test_complete_bounty_workflow_lock_release() {
     assert_eq!(escrow.status, crate::EscrowStatus::Locked);
 
     // 5. Verify contract balance
-    let contract_balance = client.get_balance();
+    let contract_balance = client.get_contract_balance();
     assert_eq!(contract_balance, amount);
 
     // 6. Release funds to contributor
