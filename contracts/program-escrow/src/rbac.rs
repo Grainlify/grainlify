@@ -129,7 +129,6 @@ pub fn revoke_role(env: &Env, address: Address, role: Role, admin: Address) {
         },
     );
 }
-
 /// Get all roles for an address.
 pub fn get_roles(env: &Env, address: Address) -> Vec<Role> {
     let mut roles = Vec::new(env);
