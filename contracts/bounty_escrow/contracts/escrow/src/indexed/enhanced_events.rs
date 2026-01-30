@@ -35,14 +35,14 @@ pub struct BountyEscrowInitialized {
     pub timestamp: u64,
 }
 
-/// Emits a BountyEscrowInitialized event.
-pub fn emit_bounty_initialized(env: &Env, event: BountyEscrowInitialized) {
+/// _emits a BountyEscrowInitialized event.
+pub fn _emit_bounty_initialized(env: &Env, event: BountyEscrowInitialized) {
     let topics = (symbol_short!("init"),);
     env.events().publish(topics, event.clone());
 }
 
 /// Enhanced version with metadata
-pub fn emit_enhanced_bounty_initialized(env: &Env, event: BountyEscrowInitialized) {
+pub fn _emit_enhanced_bounty_initialized(env: &Env, event: BountyEscrowInitialized) {
     let topics = (symbol_short!("init"),);
     env.events().publish(topics, event.clone());
 }
@@ -62,7 +62,7 @@ pub struct EnhancedFundsLocked {
     pub metadata: EventMetadata,
 }
 
-pub fn emit_enhanced_funds_locked(env: &Env, event: EnhancedFundsLocked) {
+pub fn _emit_enhanced_funds_locked(env: &Env, event: EnhancedFundsLocked) {
     let topics = (symbol_short!("f_lock"), event.bounty_id);
     env.events().publish(topics, event.clone());
 }
@@ -79,7 +79,7 @@ pub struct EnhancedFundsReleased {
     pub is_partial: bool,
 }
 
-pub fn emit_enhanced_funds_released(env: &Env, event: EnhancedFundsReleased) {
+pub fn _emit_enhanced_funds_released(env: &Env, event: EnhancedFundsReleased) {
     let topics = (symbol_short!("f_rel"), event.bounty_id);
     env.events().publish(topics, event.clone());
 }
@@ -97,7 +97,7 @@ pub struct EnhancedFundsRefunded {
     pub triggered_by: Address,
 }
 
-pub fn emit_enhanced_funds_refunded(env: &Env, event: EnhancedFundsRefunded) {
+pub fn _emit_enhanced_funds_refunded(env: &Env, event: EnhancedFundsRefunded) {
     let topics = (symbol_short!("f_ref"), event.bounty_id);
     env.events().publish(topics, event.clone());
 }
@@ -117,7 +117,7 @@ pub struct BountyStatusChanged {
     pub metadata: EventMetadata,
 }
 
-pub fn emit_bounty_status_changed(env: &Env, event: BountyStatusChanged) {
+pub fn _emit_bounty_status_changed(env: &Env, event: BountyStatusChanged) {
     let topics = (symbol_short!("status"), event.bounty_id);
     env.events().publish(topics, event.clone());
 }
@@ -151,7 +151,7 @@ pub struct BountyActivity {
     pub metadata: EventMetadata,
 }
 
-pub fn emit_bounty_activity(env: &Env, event: BountyActivity) {
+pub fn _emit_bounty_activity(env: &Env, event: BountyActivity) {
     let topics = (
         symbol_short!("activity"),
         event.bounty_id,
@@ -186,7 +186,7 @@ pub struct AnalyticsEvent {
     pub timestamp: u64,
 }
 
-pub fn emit_analytics_event(env: &Env, event: AnalyticsEvent) {
+pub fn _emit_analytics_event(env: &Env, event: AnalyticsEvent) {
     let topics = (symbol_short!("analytic"), event.event_type.clone());
     env.events().publish(topics, event.clone());
 }
@@ -215,7 +215,7 @@ pub struct FeeCollected {
     pub metadata: EventMetadata,
 }
 
-pub fn emit_fee_collected(env: &Env, event: FeeCollected) {
+pub fn _emit_fee_collected(env: &Env, event: FeeCollected) {
     let topics = (symbol_short!("fee"), event.bounty_id);
     env.events().publish(topics, event.clone());
 }
@@ -231,7 +231,7 @@ pub struct FeeConfigUpdated {
     pub metadata: EventMetadata,
 }
 
-pub fn emit_fee_config_updated(env: &Env, event: FeeConfigUpdated) {
+pub fn _emit_fee_config_updated(env: &Env, event: FeeConfigUpdated) {
     let topics = (symbol_short!("fee_cfg"),);
     env.events().publish(topics, event.clone());
 }
@@ -251,7 +251,7 @@ pub struct BatchFundsLocked {
     pub metadata: EventMetadata,
 }
 
-pub fn emit_batch_funds_locked(env: &Env, event: BatchFundsLocked) {
+pub fn _emit_batch_funds_locked(env: &Env, event: BatchFundsLocked) {
     let topics = (symbol_short!("b_lock"),);
     env.events().publish(topics, event.clone());
 }
@@ -267,7 +267,7 @@ pub struct BatchFundsReleased {
     pub metadata: EventMetadata,
 }
 
-pub fn emit_batch_funds_released(env: &Env, event: BatchFundsReleased) {
+pub fn _emit_batch_funds_released(env: &Env, event: BatchFundsReleased) {
     let topics = (symbol_short!("b_rel"),);
     env.events().publish(topics, event.clone());
 }
@@ -283,7 +283,7 @@ pub struct BatchFundsRefunded {
     pub metadata: EventMetadata,
 }
 
-pub fn emit_batch_funds_refunded(env: &Env, event: BatchFundsRefunded) {
+pub fn _emit_batch_funds_refunded(env: &Env, event: BatchFundsRefunded) {
     let topics = (symbol_short!("b_ref"),);
     env.events().publish(topics, event.clone());
 }
@@ -302,7 +302,7 @@ pub struct AdminChanged {
     pub metadata: EventMetadata,
 }
 
-pub fn emit_admin_changed(env: &Env, event: AdminChanged) {
+pub fn _emit_admin_changed(env: &Env, event: AdminChanged) {
     let topics = (symbol_short!("admin_ch"),);
     env.events().publish(topics, event.clone());
 }
@@ -316,7 +316,7 @@ pub struct ContractPaused {
     pub metadata: EventMetadata,
 }
 
-pub fn emit_contract_paused(env: &Env, event: ContractPaused) {
+pub fn _emit_contract_paused(env: &Env, event: ContractPaused) {
     let topics = (symbol_short!("pause"),);
     env.events().publish(topics, event.clone());
 }
@@ -336,7 +336,7 @@ pub struct BountyDeadlineExtended {
     pub metadata: EventMetadata,
 }
 
-pub fn emit_bounty_deadline_extended(env: &Env, event: BountyDeadlineExtended) {
+pub fn _emit_bounty_deadline_extended(env: &Env, event: BountyDeadlineExtended) {
     let topics = (symbol_short!("dl_ext"), event.bounty_id);
     env.events().publish(topics, event.clone());
 }
@@ -353,7 +353,7 @@ pub struct BountyAmountIncreased {
     pub metadata: EventMetadata,
 }
 
-pub fn emit_bounty_amount_increased(env: &Env, event: BountyAmountIncreased) {
+pub fn _emit_bounty_amount_increased(env: &Env, event: BountyAmountIncreased) {
     let topics = (symbol_short!("amt_inc"), event.bounty_id);
     env.events().publish(topics, event.clone());
 }
@@ -385,7 +385,7 @@ pub struct ErrorOccurred {
     pub metadata: EventMetadata,
 }
 
-pub fn emit_error_occurred(env: &Env, event: ErrorOccurred) {
+pub fn _emit_error_occurred(env: &Env, event: ErrorOccurred) {
     let topics = (symbol_short!("error"), event.error_type.clone());
     env.events().publish(topics, event.clone());
 }
@@ -405,7 +405,7 @@ pub struct MilestoneCompleted {
     pub metadata: EventMetadata,
 }
 
-pub fn emit_milestone_completed(env: &Env, event: MilestoneCompleted) {
+pub fn _emit_milestone_completed(env: &Env, event: MilestoneCompleted) {
     let topics = (
         symbol_short!("mile_cmp"),
         event.bounty_id,
@@ -439,7 +439,7 @@ pub struct NotificationEvent {
     pub metadata: EventMetadata,
 }
 
-pub fn emit_notification(env: &Env, event: NotificationEvent) {
+pub fn _emit_notification(env: &Env, event: NotificationEvent) {
     let topics = (
         symbol_short!("notify"),
         event.bounty_id,

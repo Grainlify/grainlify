@@ -94,13 +94,13 @@ mod test_bounty_escrow;
 //mod test_query;
 
 use events::{
-    emit_batch_funds_locked, emit_batch_funds_released, emit_contract_paused,
+    emit_batch_funds_locked, emit_batch_funds_released, emit_contract_paused,emit_admin_action_cancelled, emit_admin_action_executed , emit_admin_action_proposed ,emit_admin_updated,emit_payout_key_updated,emit_config_limits_updated,AdminActionProposed ,
     emit_contract_unpaused, emit_emergency_withdrawal, BatchFundsLocked, BatchFundsReleased,
-    ContractPaused, ContractUnpaused, EmergencyWithdrawal,
+    ContractPaused, ContractUnpaused, EmergencyWithdrawal,AdminActionCancelled , AdminActionExecuted ,AdminUpdated,PayoutKeyUpdated,ConfigLimitsUpdated
 };
 
 use crate::indexed::{
-    emit_bounty_initialized, on_funds_locked, on_funds_refunded, on_funds_released,
+    _emit_bounty_initialized, on_funds_locked, on_funds_refunded, on_funds_released,
     BountyEscrowInitialized,
 };
 use soroban_sdk::{
@@ -698,7 +698,7 @@ impl BountyEscrowContract {
             .set(&DataKey::TimeLockDuration, &0u64);
         env.storage().instance().set(&DataKey::NextActionId, &1u64);
 
-        emit_bounty_initialized(
+        _emit_bounty_initialized(
             &env,
             BountyEscrowInitialized {
                 admin: admin.clone(),

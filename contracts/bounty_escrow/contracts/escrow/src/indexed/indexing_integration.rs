@@ -1,6 +1,6 @@
 use crate::indexed::enhanced_events::{
-    create_event_metadata, emit_bounty_activity, emit_bounty_status_changed,
-    emit_enhanced_funds_locked, emit_enhanced_funds_refunded, emit_enhanced_funds_released,
+    create_event_metadata, _emit_bounty_activity, _emit_bounty_status_changed,
+    _emit_enhanced_funds_locked, _emit_enhanced_funds_refunded, _emit_enhanced_funds_released,
     ActivityType, BountyActivity, BountyStatusChanged, EnhancedFundsLocked, EnhancedFundsRefunded,
     EnhancedFundsReleased,
 };
@@ -35,7 +35,7 @@ pub fn on_funds_locked(
     // Create event metadata
     let metadata = create_event_metadata(env);
 
-    // Emit enhanced funds locked event
+    // _emit enhanced funds locked event
     let enhanced_event = EnhancedFundsLocked {
         bounty_id,
         amount,
@@ -44,9 +44,9 @@ pub fn on_funds_locked(
         timestamp,
         metadata: metadata.clone(),
     };
-    emit_enhanced_funds_locked(env, enhanced_event);
+    _emit_enhanced_funds_locked(env, enhanced_event);
 
-    // Emit activity tracking event
+    // _emit activity tracking event
     let activity = BountyActivity {
         bounty_id,
         activity_type: ActivityType::Locked,
@@ -55,7 +55,7 @@ pub fn on_funds_locked(
         timestamp,
         metadata,
     };
-    emit_bounty_activity(env, activity);
+    _emit_bounty_activity(env, activity);
 }
 
 /// Called when funds are released to a recipient
@@ -80,7 +80,7 @@ pub fn on_funds_released(
     // Create event metadata
     let metadata = create_event_metadata(env);
 
-    // Emit enhanced funds released event
+    // _emit enhanced funds released event
     let enhanced_event = EnhancedFundsReleased {
         bounty_id,
         amount,
@@ -90,9 +90,9 @@ pub fn on_funds_released(
         metadata: metadata.clone(),
         is_partial,
     };
-    emit_enhanced_funds_released(env, enhanced_event);
+    _emit_enhanced_funds_released(env, enhanced_event);
 
-    // Emit status change event
+    // _emit status change event
     let old_status_str = if is_partial { "Locked" } else { "Locked" };
     let new_status_str = if is_partial {
         "PartiallyReleased"
@@ -108,9 +108,9 @@ pub fn on_funds_released(
         timestamp,
         metadata: metadata.clone(),
     };
-    emit_bounty_status_changed(env, status_event);
+    _emit_bounty_status_changed(env, status_event);
 
-    // Emit activity tracking event
+    // _emit activity tracking event
     let activity_type = if is_partial {
         ActivityType::PartialRelease
     } else {
@@ -125,7 +125,7 @@ pub fn on_funds_released(
         timestamp,
         metadata,
     };
-    emit_bounty_activity(env, activity);
+    _emit_bounty_activity(env, activity);
 }
 
 /// Called when funds are refunded to the depositor
@@ -151,7 +151,7 @@ pub fn on_funds_refunded(
     // Create event metadata
     let metadata = create_event_metadata(env);
 
-    // Emit enhanced funds refunded event
+    // _emit enhanced funds refunded event
     let enhanced_event = EnhancedFundsRefunded {
         bounty_id,
         amount,
@@ -162,9 +162,9 @@ pub fn on_funds_refunded(
         refund_reason: refund_mode,
         triggered_by: triggered_by.clone(),
     };
-    emit_enhanced_funds_refunded(env, enhanced_event);
+    _emit_enhanced_funds_refunded(env, enhanced_event);
 
-    // Emit status change event
+    // _emit status change event
     let new_status_str = if remaining_amount > 0 {
         "PartiallyRefunded"
     } else {
@@ -179,9 +179,9 @@ pub fn on_funds_refunded(
         timestamp,
         metadata: metadata.clone(),
     };
-    emit_bounty_status_changed(env, status_event);
+    _emit_bounty_status_changed(env, status_event);
 
-    // Emit activity tracking event
+    // _emit activity tracking event
     let activity_type = if remaining_amount > 0 {
         ActivityType::PartialRefund
     } else {
@@ -196,7 +196,7 @@ pub fn on_funds_refunded(
         timestamp,
         metadata,
     };
-    emit_bounty_activity(env, activity);
+    _emit_bounty_activity(env, activity);
 }
 
 /// Called when a bounty is cancelled
@@ -209,7 +209,7 @@ pub fn on_bounty_cancelled(env: &Env, bounty_id: u64, cancelled_by: &Address) {
     // Create event metadata
     let metadata = create_event_metadata(env);
 
-    // Emit status change event
+    // _emit status change event
     let status_event = BountyStatusChanged {
         bounty_id,
         old_status: soroban_sdk::String::from_str(env, "Locked"),
@@ -218,9 +218,9 @@ pub fn on_bounty_cancelled(env: &Env, bounty_id: u64, cancelled_by: &Address) {
         timestamp,
         metadata: metadata.clone(),
     };
-    emit_bounty_status_changed(env, status_event);
+    _emit_bounty_status_changed(env, status_event);
 
-    // Emit activity tracking event
+    // _emit activity tracking event
     let activity = BountyActivity {
         bounty_id,
         activity_type: ActivityType::Cancelled,
@@ -229,7 +229,7 @@ pub fn on_bounty_cancelled(env: &Env, bounty_id: u64, cancelled_by: &Address) {
         timestamp,
         metadata,
     };
-    emit_bounty_activity(env, activity);
+    _emit_bounty_activity(env, activity);
 }
 
 /// Called when a bounty deadline is extended
@@ -240,12 +240,12 @@ pub fn on_deadline_extended(
     new_deadline: u64,
     extended_by: &Address,
 ) {
-    use crate::indexed::enhanced_events::{emit_bounty_deadline_extended, BountyDeadlineExtended};
+    use crate::indexed::enhanced_events::{_emit_bounty_deadline_extended, BountyDeadlineExtended};
 
     let timestamp = env.ledger().timestamp();
     let metadata = create_event_metadata(env);
 
-    // Emit deadline extended event
+    // _emit deadline extended event
     let event = BountyDeadlineExtended {
         bounty_id,
         old_deadline,
@@ -254,9 +254,9 @@ pub fn on_deadline_extended(
         timestamp,
         metadata: metadata.clone(),
     };
-    emit_bounty_deadline_extended(env, event);
+    _emit_bounty_deadline_extended(env, event);
 
-    // Emit activity tracking event
+    // _emit activity tracking event
     let activity = BountyActivity {
         bounty_id,
         activity_type: ActivityType::DeadlineExtended,
@@ -265,7 +265,7 @@ pub fn on_deadline_extended(
         timestamp,
         metadata,
     };
-    emit_bounty_activity(env, activity);
+    _emit_bounty_activity(env, activity);
 }
 
 /// Called when a bounty amount is increased
@@ -276,13 +276,13 @@ pub fn on_amount_increased(
     increase_amount: i128,
     increased_by: &Address,
 ) {
-    use crate::indexed::enhanced_events::{emit_bounty_amount_increased, BountyAmountIncreased};
+    use crate::indexed::enhanced_events::{_emit_bounty_amount_increased, BountyAmountIncreased};
 
     let timestamp = env.ledger().timestamp();
     let metadata = create_event_metadata(env);
     let new_amount = old_amount + increase_amount;
 
-    // Emit amount increased event
+    // _emit amount increased event
     let event = BountyAmountIncreased {
         bounty_id,
         old_amount,
@@ -292,9 +292,9 @@ pub fn on_amount_increased(
         timestamp,
         metadata: metadata.clone(),
     };
-    emit_bounty_amount_increased(env, event);
+    _emit_bounty_amount_increased(env, event);
 
-    // Emit activity tracking event
+    // _emit activity tracking event
     let activity = BountyActivity {
         bounty_id,
         activity_type: ActivityType::AmountIncreased,
@@ -303,5 +303,5 @@ pub fn on_amount_increased(
         timestamp,
         metadata,
     };
-    emit_bounty_activity(env, activity);
+    _emit_bounty_activity(env, activity);
 }

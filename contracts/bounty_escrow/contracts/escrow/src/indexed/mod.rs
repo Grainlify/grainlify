@@ -7,3 +7,5 @@ pub mod query_functions;
 pub use enhanced_events::*;
 
 pub use indexing_integration::*;
+
+pub use query_functions::*;
