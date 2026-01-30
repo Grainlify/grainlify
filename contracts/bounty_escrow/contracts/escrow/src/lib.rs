@@ -88,16 +88,19 @@
 
 #![no_std]
 mod events;
+mod indexed;
 mod test_bounty_escrow;
 #[cfg(test)]
 mod test_query;
 
 use events::{
-    emit_batch_funds_locked, emit_batch_funds_released, emit_bounty_initialized,
-    emit_contract_paused, emit_contract_unpaused, emit_emergency_withdrawal, emit_funds_locked,
-    emit_funds_refunded, emit_funds_released, BatchFundsLocked, BatchFundsReleased,
-    BountyEscrowInitialized, ContractPaused, ContractUnpaused, EmergencyWithdrawal, FundsLocked,
-    FundsRefunded, FundsReleased,
+    emit_batch_funds_locked, emit_batch_funds_released, emit_contract_paused,
+    emit_contract_unpaused, emit_emergency_withdrawal, BatchFundsLocked, BatchFundsReleased,
+    ContractPaused, ContractUnpaused, EmergencyWithdrawal,
+};
+use indexed::{
+    _emit_bounty_initialized, on_funds_locked, on_funds_refunded, on_funds_released,
+    BountyEscrowInitialized,
 };
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, token, vec, Address, Env,
@@ -736,7 +739,17 @@ impl BountyEscrowContract {
             .set(&DataKey::FeeConfig, &fee_config);
 
         // Emit initialization event
-        emit_bounty_initialized(
+        // emit_bounty_initialized(
+        //     &env,
+        //     BountyEscrowInitialized {
+        //         admin: admin.clone(),
+        //         token,
+        //         timestamp: env.ledger().timestamp(),
+        //     },
+        // );
+
+        // Emit initialization event
+        _emit_bounty_initialized(
             &env,
             BountyEscrowInitialized {
                 admin: admin.clone(),
@@ -1120,15 +1133,16 @@ impl BountyEscrowContract {
             .set(&DataKey::BountyRegistry, &registry);
 
         // Emit event for off-chain indexing
-        emit_funds_locked(
-            &env,
-            FundsLocked {
-                bounty_id,
-                amount: net_amount, // Emit net amount (after fee)
-                depositor: depositor.clone(),
-                deadline,
-            },
-        );
+        // emit_funds_locked(
+        //     &env,
+        //     FundsLocked {
+        //         bounty_id,
+        //         amount: net_amount, // Emit net amount (after fee)
+        //         depositor: depositor.clone(),
+        //         deadline,
+        //     },
+        // );
+        on_funds_locked(&env, bounty_id, amount, &depositor, deadline);
 
         env.storage().instance().remove(&DataKey::ReentrancyGuard);
 
@@ -1343,7 +1357,18 @@ impl BountyEscrowContract {
             .set(&DataKey::Escrow(bounty_id), &escrow);
 
         // Emit release event
-        emit_funds_released(
+        // emit_funds_released(
+        //     &env,
+        //     FundsReleased {
+        //         bounty_id,
+        //         amount: net_amount, // Emit net amount (after fee)
+        //         recipient: contributor.clone(),
+        //         timestamp: env.ledger().timestamp(),
+        //     },
+        // );
+
+        // Emit release event
+        on_funds_released(
             &env,
             FundsReleased {
                 bounty_id,
@@ -1560,7 +1585,20 @@ impl BountyEscrowContract {
             .set(&DataKey::Escrow(bounty_id), &escrow);
 
         // Emit refund event
-        emit_funds_refunded(
+        // emit_funds_refunded(
+        //     &env,
+        //     FundsRefunded {
+        //         bounty_id,
+        //         amount: refund_amount,
+        //         refund_to: refund_recipient,
+        //         timestamp: env.ledger().timestamp(),
+        //         refund_mode: mode.clone(),
+        //         remaining_amount: escrow.remaining_amount,
+        //     },
+        // );
+
+        // Emit refund event
+        on_funds_refunded(
             &env,
             FundsRefunded {
                 bounty_id,
@@ -2010,14 +2048,23 @@ impl BountyEscrowContract {
                 .set(&DataKey::Escrow(item.bounty_id), &escrow);
 
             // Emit individual event for each locked bounty
-            emit_funds_locked(
+            // emit_funds_locked(
+            //     &env,
+            //     FundsLocked {
+            //         bounty_id: item.bounty_id,
+            //         amount: item.amount,
+            //         depositor: item.depositor.clone(),
+            //         deadline: item.deadline,
+            //     },
+            // );
+
+            // Emit individual event for each locked bounty
+            on_funds_locked(
                 &env,
-                FundsLocked {
-                    bounty_id: item.bounty_id,
-                    amount: item.amount,
-                    depositor: item.depositor.clone(),
-                    deadline: item.deadline,
-                },
+                item.bounty_id,
+                item.amount,
+                &item.depositor,
+                item.deadline,
             );
 
             locked_count += 1;
@@ -2138,7 +2185,18 @@ impl BountyEscrowContract {
                 .set(&DataKey::Escrow(item.bounty_id), &escrow);
 
             // Emit individual event for each released bounty
-            emit_funds_released(
+            // emit_funds_released(
+            //     &env,
+            //     FundsReleased {
+            //         bounty_id: item.bounty_id,
+            //         amount: escrow.amount,
+            //         recipient: item.contributor.clone(),
+            //         timestamp,
+            //     },
+            // );
+
+            // Emit individual event for each released bounty
+            on_funds_released(
                 &env,
                 FundsReleased {
                     bounty_id: item.bounty_id,

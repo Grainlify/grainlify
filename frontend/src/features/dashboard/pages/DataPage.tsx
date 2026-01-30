@@ -472,34 +472,41 @@ export function DataPage() {
                     );
                   })}
 
-                  {/* Simple Connection Lines for visual effect */}
-                  <MapLine
-                    from={countryCoordinates['United Kingdom']}
-                    to={countryCoordinates['India']}
-                    stroke="#c9983a"
-                    strokeWidth={0.5}
-                    strokeDasharray="3,3"
-                    className="opacity-30"
+            {/* Chart */}
+            <div className="h-[140px] mb-6">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={contributorActivityData}>
+                  <defs>
+                    <linearGradient id="contributorBarGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#c9983a" stopOpacity={0.8} />
+                      <stop offset="100%" stopColor="#d4af37" stopOpacity={0.4} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(122, 107, 90, 0.1)" />
+                  <XAxis
+                    dataKey="month"
+                    stroke="#7a6b5a"
+                    tick={{ fill: '#7a6b5a', fontSize: 10, fontWeight: 600 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={50}
                   />
-                  <MapLine
-                    from={countryCoordinates['Canada']}
-                    to={countryCoordinates['Germany']}
-                    stroke="#d4af37"
-                    strokeWidth={0.5}
-                    strokeDasharray="3,3"
-                    className="opacity-30"
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar
+                    dataKey="value"
+                    fill="url(#contributorBarGradient)"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={30}
                   />
-                  <MapLine
-                    from={countryCoordinates['Brazil']}
-                    to={countryCoordinates['Spain']}
-                    stroke="#c9983a"
-                    strokeWidth={0.5}
-                    strokeDasharray="3,3"
-                    className="opacity-30"
+                  <RechartsLine
+                    type="monotone"
+                    dataKey="trend"
+                    stroke="#2d2820"
+                    strokeWidth={2}
+                    dot={false}
                   />
-
-                </ZoomableGroup>
-              </ComposableMap>
+                </ComposedChart>
+              </ResponsiveContainer>
             </div>
 
             {/* Map Info Overlay */}
@@ -512,6 +519,7 @@ export function DataPage() {
               </div>
             </div>
           </div>
+        </div>
 
           {/* Country Bars */}
           <div className="space-y-2 max-h-[250px] md:max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
@@ -532,10 +540,6 @@ export function DataPage() {
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
       {/* Bottom Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -606,12 +610,31 @@ export function DataPage() {
                     }}
                     className="w-full px-4 py-3 text-left text-[13px] font-medium text-[#2d2820] hover:bg-white/[0.3] transition-all touch-manipulation"
                   >
-                    Yearly interval
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+                    <Geographies geography={geoUrl}>
+                      {({ geographies }) =>
+                        geographies.map((geo) => {
+                          const isHighlighted = Object.keys(countryCoordinates).some(country =>
+                            geo.properties.name === country ||
+                            (country === "United Kingdom" && geo.properties.name === "United Kingdom") || // Add aliases if needed
+                            (country === "United States" && geo.properties.name === "United States of America")
+                          );
+                          return (
+                            <Geography
+                              key={geo.rsmKey}
+                              geography={geo}
+                              fill={isHighlighted ? "rgba(201,152,58,0.3)" : "rgba(255,255,255,0.05)"}
+                              stroke="#c9983a"
+                              strokeWidth={0.5}
+                              style={{
+                                default: { outline: "none" },
+                                hover: { fill: "#d4af37", outline: "none", opacity: 0.8 },
+                                pressed: { outline: "none" },
+                              }}
+                            />
+                          );
+                        })
+                      }
+                    </Geographies>
 
           {/* Chart */}
           <div className="h-[240px] md:h-[280px] mb-4 md:mb-6 overflow-x-auto">
@@ -707,6 +730,7 @@ export function DataPage() {
             </button>
           </div>
         </div>
+      </div>
 
         {/* Information Panel */}
         <div className="backdrop-blur-[40px] bg-white/[0.12] rounded-[16px] md:rounded-[24px] border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.08)] p-4 md:p-8">
