@@ -102,6 +102,7 @@ export function Dashboard() {
   const [deviceWidth, setDeviceWidth] = useState(
     typeof window !== 'undefined' ? window.innerWidth : null
   );
+  const [targetProjectIdForIssues, setTargetProjectIdForIssues] = useState<string | null>(null);
 
   useEffect(() => { 
     const handleResize = () => {
@@ -667,7 +668,9 @@ export function Dashboard() {
           </div>
 
           {/* Page Content */}
+       
           <div className="pt-[68px]">
+            
             {selectedIssue ? (
               <IssueDetailPage
                 issueId={selectedIssue.issueId}
@@ -675,9 +678,16 @@ export function Dashboard() {
                 onClose={() => setSelectedIssue(null)}
               />
             ) : selectedProjectId ? (
+              
               <ProjectDetailPage
                 projectId={selectedProjectId}
                 onBack={() => setSelectedProjectId(null)}
+                onNavigateToIssues={(id) => {
+                  setTargetProjectIdForIssues(id);
+                  setCurrentPage("maintainers");
+                  setSelectedProjectId(null); // Clear selected project to allow dashboard to switch pages
+                  setSelectedIssue(null); // Clear selected issue if any
+                }}
                 onIssueClick={(issueId, projectId) =>
                   setSelectedIssue({ issueId, projectId })
                 }
@@ -732,7 +742,13 @@ export function Dashboard() {
                     />
                   )}
                 {currentPage === "contributors" && <ContributorsPage />}
-                {currentPage === "maintainers" && <MaintainersPage />}
+                {currentPage === "maintainers" && (
+                  <MaintainersPage 
+                    onNavigate={handleNavigation} 
+                    initialProjectId={targetProjectIdForIssues || undefined}
+                    onClearTargetProject={() => setTargetProjectIdForIssues(null)}
+                  />
+                )}
                 {currentPage === "profile" && (
                   <ProfilePage
                     viewingUserId={viewingUserId}

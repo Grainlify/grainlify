@@ -635,6 +635,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "payout_history"
+                      },
+                      "val": {
+                        "vec": []
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "refund_history"
                       },
                       "val": {
@@ -739,6 +747,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "payout_history"
+                      },
+                      "val": {
+                        "vec": []
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "refund_history"
                       },
                       "val": {
@@ -839,6 +855,14 @@
                       },
                       "val": {
                         "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "payout_history"
+                      },
+                      "val": {
+                        "vec": []
                       }
                     },
                     {
@@ -1240,6 +1264,65 @@
                         "key": {
                           "vec": [
                             {
+                              "symbol": "BountyRegistry"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "vec": [
+                            {
+                              "u64": 1
+                            },
+                            {
+                              "u64": 2
+                            },
+                            {
+                              "u64": 3
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "ConfigLimits"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "map": [
+                            {
+                              "key": {
+                                "symbol": "max_bounty_amount"
+                              },
+                              "val": "void"
+                            },
+                            {
+                              "key": {
+                                "symbol": "max_deadline_duration"
+                              },
+                              "val": "void"
+                            },
+                            {
+                              "key": {
+                                "symbol": "min_bounty_amount"
+                              },
+                              "val": "void"
+                            },
+                            {
+                              "key": {
+                                "symbol": "min_deadline_duration"
+                              },
+                              "val": "void"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
                               "symbol": "FeeConfig"
                             }
                           ]
@@ -1285,6 +1368,30 @@
                               }
                             }
                           ]
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "NextActionId"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "u64": 1
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "TimeLockDuration"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "u64": 0
                         }
                       },
                       {
@@ -3401,6 +3508,17 @@
                 },
                 {
                   "key": {
+                    "symbol": "remaining_amount"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 1000
+                    }
+                  }
+                },
+                {
+                  "key": {
                     "symbol": "timestamp"
                   },
                   "val": {
@@ -3552,6 +3670,17 @@
                 },
                 {
                   "key": {
+                    "symbol": "remaining_amount"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 2000
+                    }
+                  }
+                },
+                {
+                  "key": {
                     "symbol": "timestamp"
                   },
                   "val": {
@@ -3699,6 +3828,17 @@
                   },
                   "val": {
                     "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "remaining_amount"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 3000
+                    }
                   }
                 },
                 {
@@ -3859,6 +3999,14 @@
                 },
                 {
                   "key": {
+                    "symbol": "payout_history"
+                  },
+                  "val": {
+                    "vec": []
+                  }
+                },
+                {
+                  "key": {
                     "symbol": "refund_history"
                   },
                   "val": {
@@ -3967,6 +4115,14 @@
                 },
                 {
                   "key": {
+                    "symbol": "payout_history"
+                  },
+                  "val": {
+                    "vec": []
+                  }
+                },
+                {
+                  "key": {
                     "symbol": "refund_history"
                   },
                   "val": {
@@ -4071,6 +4227,14 @@
                   },
                   "val": {
                     "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "payout_history"
+                  },
+                  "val": {
+                    "vec": []
                   }
                 },
                 {
