@@ -167,7 +167,7 @@ export function PaymentMethodsTab({
           className="px-5 py-3 rounded-[14px] bg-gradient-to-br from-[#c9983a] to-[#a67c2e] text-white font-semibold text-[14px] shadow-[0_6px_24px_rgba(162,121,44,0.4)] hover:shadow-[0_8px_28px_rgba(162,121,44,0.5)] transition-all border border-white/10 flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
-          Add Wallet
+          Add Your Wallet
         </button>
       </div>
 
