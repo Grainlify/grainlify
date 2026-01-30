@@ -9,7 +9,7 @@ pub struct BountyEscrowInitialized {
 }
 
 pub fn emit_bounty_initialized(env: &Env, event: BountyEscrowInitialized) {
-    let topics = (symbol_short!("init"), );
+    let topics = (symbol_short!("init"),);
     env.events().publish(topics, event.clone());
 }
 

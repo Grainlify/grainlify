@@ -2,8 +2,11 @@
 mod events;
 mod test_bounty_escrow;
 
+use events::{
+    emit_bounty_initialized, emit_funds_locked, emit_funds_refunded, emit_funds_released,
+    BountyEscrowInitialized, FundsLocked, FundsRefunded, FundsReleased,
+};
 use soroban_sdk::{contract, contracterror, contractimpl, contracttype, token, Address, Env};
-use events::{BountyEscrowInitialized, FundsLocked, FundsReleased, FundsRefunded, emit_bounty_initialized, emit_funds_locked, emit_funds_released, emit_funds_refunded};
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -60,7 +63,7 @@ impl BountyEscrowContract {
             BountyEscrowInitialized {
                 admin,
                 token,
-                timestamp: env.ledger().timestamp()
+                timestamp: env.ledger().timestamp(),
             },
         );
 
@@ -99,8 +102,10 @@ impl BountyEscrowContract {
         };
 
         // Extend the TTL of the storage entry to ensure it lives long enough
-        env.storage().persistent().set(&DataKey::Escrow(bounty_id), &escrow);
-        
+        env.storage()
+            .persistent()
+            .set(&DataKey::Escrow(bounty_id), &escrow);
+
         // Emit value allows for off-chain indexing
         emit_funds_locked(
             &env,
@@ -108,7 +113,7 @@ impl BountyEscrowContract {
                 bounty_id,
                 amount,
                 depositor: depositor.clone(),
-                deadline
+                deadline,
             },
         );
 
@@ -129,7 +134,11 @@ impl BountyEscrowContract {
             return Err(Error::BountyNotFound);
         }
 
-        let mut escrow: Escrow = env.storage().persistent().get(&DataKey::Escrow(bounty_id)).unwrap();
+        let mut escrow: Escrow = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Escrow(bounty_id))
+            .unwrap();
 
         if escrow.status != EscrowStatus::Locked {
             return Err(Error::FundsNotLocked);
@@ -139,10 +148,16 @@ impl BountyEscrowContract {
         let client = token::Client::new(&env, &token_addr);
 
         // Transfer funds to contributor
-        client.transfer(&env.current_contract_address(), &contributor, &escrow.amount);
+        client.transfer(
+            &env.current_contract_address(),
+            &contributor,
+            &escrow.amount,
+        );
 
         escrow.status = EscrowStatus::Released;
-        env.storage().persistent().set(&DataKey::Escrow(bounty_id), &escrow);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Escrow(bounty_id), &escrow);
 
         emit_funds_released(
             &env,
@@ -150,27 +165,30 @@ impl BountyEscrowContract {
                 bounty_id,
                 amount: escrow.amount,
                 recipient: contributor.clone(),
-                timestamp: env.ledger().timestamp()
+                timestamp: env.ledger().timestamp(),
             },
         );
-
 
         Ok(())
     }
 
     /// Refund funds to the original depositor if the deadline has passed.
     pub fn refund(env: Env, bounty_id: u64) -> Result<(), Error> {
-        // We'll allow anyone to trigger the refund if conditions are met, 
+        // We'll allow anyone to trigger the refund if conditions are met,
         // effectively making it permissionless but conditional.
         // OR we can require depositor auth. Let's make it permissionless to ensure funds aren't stuck if depositor key is lost,
         // but strictly logic bound.
         // However, usually refund is triggered by depositor. Let's stick to logic.
-        
+
         if !env.storage().persistent().has(&DataKey::Escrow(bounty_id)) {
             return Err(Error::BountyNotFound);
         }
 
-        let mut escrow: Escrow = env.storage().persistent().get(&DataKey::Escrow(bounty_id)).unwrap();
+        let mut escrow: Escrow = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Escrow(bounty_id))
+            .unwrap();
 
         if escrow.status != EscrowStatus::Locked {
             return Err(Error::FundsNotLocked);
@@ -185,10 +203,16 @@ impl BountyEscrowContract {
         let client = token::Client::new(&env, &token_addr);
 
         // Transfer funds back to depositor
-        client.transfer(&env.current_contract_address(), &escrow.depositor, &escrow.amount);
+        client.transfer(
+            &env.current_contract_address(),
+            &escrow.depositor,
+            &escrow.amount,
+        );
 
         escrow.status = EscrowStatus::Refunded;
-        env.storage().persistent().set(&DataKey::Escrow(bounty_id), &escrow);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Escrow(bounty_id), &escrow);
 
         emit_funds_refunded(
             &env,
@@ -196,7 +220,7 @@ impl BountyEscrowContract {
                 bounty_id,
                 amount: escrow.amount,
                 refund_to: escrow.depositor,
-                timestamp: env.ledger().timestamp()
+                timestamp: env.ledger().timestamp(),
             },
         );
 
@@ -205,15 +229,19 @@ impl BountyEscrowContract {
 
     /// view function to get escrow info
     pub fn get_escrow_info(env: Env, bounty_id: u64) -> Result<Escrow, Error> {
-         if !env.storage().persistent().has(&DataKey::Escrow(bounty_id)) {
+        if !env.storage().persistent().has(&DataKey::Escrow(bounty_id)) {
             return Err(Error::BountyNotFound);
         }
-        Ok(env.storage().persistent().get(&DataKey::Escrow(bounty_id)).unwrap())
+        Ok(env
+            .storage()
+            .persistent()
+            .get(&DataKey::Escrow(bounty_id))
+            .unwrap())
     }
 
     /// view function to get contract balance of the token
     pub fn get_balance(env: Env) -> Result<i128, Error> {
-         if !env.storage().instance().has(&DataKey::Token) {
+        if !env.storage().instance().has(&DataKey::Token) {
             return Err(Error::NotInitialized);
         }
         let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();

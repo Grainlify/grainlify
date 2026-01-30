@@ -5,13 +5,13 @@ use soroban_sdk::{
 };
 
 // Event types
-const PROGRAM_INITIALIZED: Symbol = symbol_short!("ProgramInit");
-const FUNDS_LOCKED: Symbol = symbol_short!("FundsLocked");
-const BATCH_PAYOUT: Symbol = symbol_short!("BatchPayout");
+const PROGRAM_INITIALIZED: Symbol = symbol_short!("ProgInit");
+const FUNDS_LOCKED: Symbol = symbol_short!("FundsLock");
+const BATCH_PAYOUT: Symbol = symbol_short!("BatchPay");
 const PAYOUT: Symbol = symbol_short!("Payout");
 
 // Storage keys
-const PROGRAM_DATA: Symbol = symbol_short!("ProgramData");
+const PROGRAM_DATA: Symbol = symbol_short!("ProgData");
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -57,7 +57,7 @@ impl ProgramEscrowContract {
             panic!("Program already initialized");
         }
 
-        let contract_address = env.current_contract_address();
+        let _contract_address = env.current_contract_address();
         let program_data = ProgramData {
             program_id: program_id.clone(),
             total_funds: 0,
@@ -137,10 +137,7 @@ impl ProgramEscrowContract {
             .get(&PROGRAM_DATA)
             .unwrap_or_else(|| panic!("Program not initialized"));
 
-        let caller = env.invoker();
-        if caller != program_data.authorized_payout_key {
-            panic!("Unauthorized: only authorized payout key can trigger payouts");
-        }
+        program_data.authorized_payout_key.require_auth();
 
         // Validate input lengths match
         if recipients.len() != amounts.len() {
@@ -153,12 +150,13 @@ impl ProgramEscrowContract {
 
         // Calculate total payout amount
         let mut total_payout: i128 = 0;
-        for amount in amounts.iter() {
-            if *amount <= 0 {
+        for i in 0..amounts.len() {
+            let amount = amounts.get(i as u32).unwrap();
+            if amount <= 0 {
                 panic!("All amounts must be greater than zero");
             }
             total_payout = total_payout
-                .checked_add(*amount)
+                .checked_add(amount)
                 .unwrap_or_else(|| panic!("Payout amount overflow"));
         }
 
@@ -175,15 +173,15 @@ impl ProgramEscrowContract {
         let token_client = token::Client::new(&env, &program_data.token_address);
 
         for (i, recipient) in recipients.iter().enumerate() {
-            let amount = amounts.get(i).unwrap();
+            let amount = amounts.get(i as u32).unwrap();
             
             // Transfer funds from contract to recipient
-            token_client.transfer(&contract_address, recipient, amount);
+            token_client.transfer(&contract_address, &recipient, &amount);
 
             // Record payout
             let payout_record = PayoutRecord {
                 recipient: recipient.clone(),
-                amount: *amount,
+                amount,
                 timestamp,
             };
             updated_history.push_back(payout_record);
@@ -227,10 +225,7 @@ impl ProgramEscrowContract {
             .get(&PROGRAM_DATA)
             .unwrap_or_else(|| panic!("Program not initialized"));
 
-        let caller = env.invoker();
-        if caller != program_data.authorized_payout_key {
-            panic!("Unauthorized: only authorized payout key can trigger payouts");
-        }
+        program_data.authorized_payout_key.require_auth();
 
         // Validate amount
         if amount <= 0 {

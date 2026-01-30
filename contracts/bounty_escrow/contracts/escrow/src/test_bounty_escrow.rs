@@ -1,23 +1,15 @@
 #![cfg(test)]
-use soroban_sdk::{
-    testutils::{Address as _},
-    token, Address, Env
-};
-use soroban_sdk::testutils::Events;
 use crate::{BountyEscrowContract, BountyEscrowContractClient};
+use soroban_sdk::testutils::Events;
+use soroban_sdk::{testutils::Address as _, token, Address, Env};
 
-fn create_test_env() -> (
-    Env,
-    BountyEscrowContractClient<'static>,
-    Address
-) {
+fn create_test_env() -> (Env, BountyEscrowContractClient<'static>, Address) {
     let env = Env::default();
     let contract_id = env.register_contract(None, BountyEscrowContract);
     let client = BountyEscrowContractClient::new(&env, &contract_id);
 
     (env, client, contract_id)
 }
-
 
 fn create_token_contract<'a>(
     e: &'a Env,
@@ -29,7 +21,6 @@ fn create_token_contract<'a>(
     let token_admin_client = token::StellarAssetClient::new(e, &token);
     (token, token_client, token_admin_client)
 }
-
 
 #[test]
 fn test_init_event() {
@@ -70,8 +61,7 @@ fn test_lock_fund() {
     let token_admin = Address::generate(&env);
     let (token, _token_client, token_admin_client) = create_token_contract(&env, &token_admin);
 
-
-     // Initialize
+    // Initialize
     client.init(&admin.clone(), &token.clone());
 
     token_admin_client.mint(&depositor, &amount);
@@ -84,8 +74,6 @@ fn test_lock_fund() {
     // Verify the event was emitted
     assert_eq!(events.len(), 2);
 }
-
-
 
 #[test]
 fn test_release_fund() {
@@ -105,7 +93,7 @@ fn test_release_fund() {
     let token_admin = Address::generate(&env);
     let (token, _token_client, token_admin_client) = create_token_contract(&env, &token_admin);
 
-     // Initialize
+    // Initialize
     client.init(&admin.clone(), &token.clone());
 
     token_admin_client.mint(&depositor, &amount);
