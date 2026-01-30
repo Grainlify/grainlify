@@ -446,8 +446,8 @@ pub enum Error {
 
     /// Returned when attempting to whitelist an already whitelisted token
     TokenAlreadyWhitelisted = 9,
-    InvalidFeeRate = 8,
-    FeeRecipientNotSet = 9,
+    InvalidFeeRate = 22,
+    FeeRecipientNotSet = 23,
     InvalidBatchSize = 10,
     ContractPaused = 11,
     DuplicateBountyId = 12,
@@ -691,16 +691,16 @@ impl BountyEscrowContract {
         env.storage().instance().set(&DataKey::Token, &token);
 
         // Auto-whitelist the initial token
-        env.storage().instance().set(&DataKey::WlToken(token.clone()), &true);
+        env.storage().instance().set(&DataKey::TokenWhitelist(token.clone()), &true);
         let mut token_list: Vec<Address> = Vec::new(&env);
         token_list.push_back(token.clone());
-        env.storage().instance().set(&DataKey::TokenList, &token_list);
+        env.storage().instance().set(&DataKey::RegisteredTokens, &token_list);
 
         // Auto-whitelist the initial token
-        env.storage().instance().set(&DataKey::WlToken(token.clone()), &true);
+        env.storage().instance().set(&DataKey::TokenWhitelist(token.clone()), &true);
         let mut token_list: Vec<Address> = Vec::new(&env);
         token_list.push_back(token.clone());
-        env.storage().instance().set(&DataKey::TokenList, &token_list);
+        env.storage().instance().set(&DataKey::RegisteredTokens, &token_list);
 
         let fee_config = FeeConfig {
             lock_fee_rate: 0,
@@ -1473,16 +1473,6 @@ impl BountyEscrowContract {
             return Err(Error::NotInitialized);
         }
 
-        // Verify token is whitelisted
-        if !env.storage().instance().has(&DataKey::WlToken(token.clone())) {
-            return Err(Error::TokenNotWhitelisted);
-        }
-
-        // Verify token is whitelisted
-        if !env.storage().instance().has(&DataKey::WlToken(token.clone())) {
-            return Err(Error::TokenNotWhitelisted);
-        }
-
         if env.storage().persistent().has(&DataKey::Escrow(bounty_id)) {
             monitoring::track_operation(&env, symbol_short!("lock"), caller, false);
             env.storage().instance().remove(&DataKey::ReentrancyGuard);
@@ -1495,7 +1485,7 @@ impl BountyEscrowContract {
             if !Self::is_token_registered(&env, &token) {
                 monitoring::track_operation(&env, symbol_short!("lock"), caller, false);
                 env.storage().instance().remove(&DataKey::ReentrancyGuard);
-                return Err(Error::Unauthorized); // Token not registered
+                return Err(Error::TokenNotWhitelisted);
             }
             token
         } else {
@@ -1544,6 +1534,7 @@ impl BountyEscrowContract {
                 amount: net_amount, // Store net amount (after fee)
                 status: EscrowStatus::Locked,
                 deadline,
+                token: token_addr.clone(),
                 refund_history: vec![&env],
                 remaining_amount: net_amount,
                 token_address: token_addr.clone(), // Primary token
@@ -1822,7 +1813,6 @@ impl BountyEscrowContract {
                 token_address: token_addr.clone(),
                 timestamp: env.ledger().timestamp(),
                 remaining_amount: escrow.remaining_amount,
-                token,
             },
         );
 
@@ -1920,13 +1910,6 @@ impl BountyEscrowContract {
         }
 
         let now = env.ledger().timestamp();
-        if now < escrow.deadline {
-            return Err(Error::DeadlineNotPassed);
-        }
-
-        // Transfer funds back to depositor using escrow's token
-        let client = token::Client::new(&env, &escrow.token);
-        client.transfer(&env.current_contract_address(), &escrow.depositor, &escrow.amount);
         let is_before_deadline = now < escrow.deadline;
 
         // Determine token address first (needed for balance checks)
@@ -1999,7 +1982,7 @@ impl BountyEscrowContract {
             return Err(Error::InvalidAmount);
         }
 
-        let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
+        // Use the token_addr already determined earlier (from escrow's token_balances or token_address)
         let client = token::Client::new(&env, &token_addr);
 
         let contract_balance = client.balance(&env.current_contract_address());
@@ -2031,8 +2014,8 @@ impl BountyEscrowContract {
         // Update status - check if all tokens are refunded
         // Simple check: if remaining_amount > 0, there's still balance
         if escrow.remaining_amount == 0 {
-            let token = escrow.token.clone();
-        escrow.status = EscrowStatus::Refunded;
+            let _token = escrow.token.clone();
+            escrow.status = EscrowStatus::Refunded;
         } else {
             escrow.status = EscrowStatus::PartiallyRefunded;
         }
@@ -2448,6 +2431,7 @@ impl BountyEscrowContract {
                     amount: net_amount,
                     status: EscrowStatus::Locked,
                     deadline: item.deadline,
+                    token: token_addr.clone(),
                     refund_history: vec![&env],
                     remaining_amount: net_amount,
                     token_address: token_addr.clone(),
@@ -2649,19 +2633,19 @@ impl BountyEscrowContract {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
 
-        if env.storage().instance().has(&DataKey::WlToken(token.clone())) {
+        if env.storage().instance().has(&DataKey::TokenWhitelist(token.clone())) {
             return Err(Error::TokenAlreadyWhitelisted);
         }
 
-        env.storage().instance().set(&DataKey::WlToken(token.clone()), &true);
+        env.storage().instance().set(&DataKey::TokenWhitelist(token.clone()), &true);
 
         let mut token_list: Vec<Address> = env
             .storage()
             .instance()
-            .get(&DataKey::TokenList)
+            .get(&DataKey::RegisteredTokens)
             .unwrap_or(Vec::new(&env));
         token_list.push_back(token);
-        env.storage().instance().set(&DataKey::TokenList, &token_list);
+        env.storage().instance().set(&DataKey::RegisteredTokens, &token_list);
 
         Ok(())
     }
@@ -2675,16 +2659,16 @@ impl BountyEscrowContract {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
 
-        if !env.storage().instance().has(&DataKey::WlToken(token.clone())) {
+        if !env.storage().instance().has(&DataKey::TokenWhitelist(token.clone())) {
             return Err(Error::TokenNotWhitelisted);
         }
 
-        env.storage().instance().remove(&DataKey::WlToken(token.clone()));
+        env.storage().instance().remove(&DataKey::TokenWhitelist(token.clone()));
 
         let token_list: Vec<Address> = env
             .storage()
             .instance()
-            .get(&DataKey::TokenList)
+            .get(&DataKey::RegisteredTokens)
             .unwrap_or(Vec::new(&env));
         let mut new_list: Vec<Address> = Vec::new(&env);
         for t in token_list.iter() {
@@ -2692,27 +2676,27 @@ impl BountyEscrowContract {
                 new_list.push_back(t);
             }
         }
-        env.storage().instance().set(&DataKey::TokenList, &new_list);
+        env.storage().instance().set(&DataKey::RegisteredTokens, &new_list);
 
         Ok(())
     }
 
     /// Checks if a token is whitelisted.
     pub fn is_token_whitelisted(env: Env, token: Address) -> bool {
-        env.storage().instance().has(&DataKey::WlToken(token))
+        env.storage().instance().has(&DataKey::TokenWhitelist(token))
     }
 
     /// Returns all whitelisted tokens.
     pub fn get_whitelisted_tokens(env: Env) -> Vec<Address> {
         env.storage()
             .instance()
-            .get(&DataKey::TokenList)
+            .get(&DataKey::RegisteredTokens)
             .unwrap_or(Vec::new(&env))
     }
 
-    /// Returns the balance for a specific token.
-    pub fn get_token_balance(env: Env, token: Address) -> Result<i128, Error> {
-        if !env.storage().instance().has(&DataKey::WlToken(token.clone())) {
+    /// Returns the contract's balance for a specific token.
+    pub fn get_token_bal(env: Env, token: Address) -> Result<i128, Error> {
+        if !env.storage().instance().has(&DataKey::TokenWhitelist(token.clone())) {
             return Err(Error::TokenNotWhitelisted);
         }
         let client = token::Client::new(&env, &token);

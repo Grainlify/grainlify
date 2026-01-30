@@ -16,14 +16,14 @@ fn create_token_contract<'a>(e: &Env, admin: &Address) -> (Address, token::Clien
 }
 
 fn create_escrow_contract<'a>(e: &Env) -> (BountyEscrowContractClient<'a>, Address) {
-    let contract_id = e.register(BountyEscrowContract, ());
+    let contract_id = e.register_contract(None, BountyEscrowContract);
     let client = BountyEscrowContractClient::new(e, &contract_id);
     (client, contract_id)
 }
 
 struct TestSetup<'a> {
     env: Env,
-    // Remove unused fields
+    admin: Address,
     depositor: Address,
     contributor: Address,
     token: token::Client<'a>,
@@ -50,6 +50,7 @@ impl TestSetup<'_> {
 
         Self {
             env,
+            admin,
             depositor,
             contributor,
             token,
@@ -1419,7 +1420,7 @@ fn test_lock_funds_non_whitelisted_token() {
     let deadline = setup.env.ledger().timestamp() + 1000;
 
     // Try to lock with token2 (not whitelisted)
-    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline, &setup.token2.address);
+    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline, &Some(setup.token2.address.clone()));
 }
 
 #[test]
@@ -1432,10 +1433,10 @@ fn test_lock_funds_with_multiple_tokens() {
     let deadline = setup.env.ledger().timestamp() + 1000;
 
     // Lock funds with token1
-    setup.escrow.lock_funds(&setup.depositor, &1, &1000, &deadline, &setup.token1.address);
+    setup.escrow.lock_funds(&setup.depositor, &1, &1000, &deadline, &Some(setup.token1.address.clone()));
 
     // Lock funds with token2
-    setup.escrow.lock_funds(&setup.depositor, &2, &2000, &deadline, &setup.token2.address);
+    setup.escrow.lock_funds(&setup.depositor, &2, &2000, &deadline, &Some(setup.token2.address.clone()));
 
     // Verify escrows have correct tokens
     let escrow1 = setup.escrow.get_escrow_info(&1);
@@ -1461,11 +1462,11 @@ fn test_release_funds_with_correct_token() {
     let deadline = setup.env.ledger().timestamp() + 1000;
 
     // Lock funds with different tokens
-    setup.escrow.lock_funds(&setup.depositor, &1, &1000, &deadline, &setup.token1.address);
-    setup.escrow.lock_funds(&setup.depositor, &2, &2000, &deadline, &setup.token2.address);
+    setup.escrow.lock_funds(&setup.depositor, &1, &1000, &deadline, &Some(setup.token1.address.clone()));
+    setup.escrow.lock_funds(&setup.depositor, &2, &2000, &deadline, &Some(setup.token2.address.clone()));
 
     // Release bounty 2 (token2)
-    setup.escrow.release_funds(&2, &setup.contributor, &None::<i128>);
+    setup.escrow.release_funds(&2, &setup.contributor, &None::<Address>, &None::<i128>);
 
     // Verify contributor received token2
     assert_eq!(setup.token2.balance(&setup.contributor), 2000);
@@ -1488,13 +1489,13 @@ fn test_refund_with_correct_token() {
 
     // Lock funds with token2
     let initial_balance = setup.token2.balance(&setup.depositor);
-    setup.escrow.lock_funds(&setup.depositor, &1, &2000, &deadline, &setup.token2.address);
+    setup.escrow.lock_funds(&setup.depositor, &1, &2000, &deadline, &Some(setup.token2.address.clone()));
 
     // Advance time past deadline
     setup.env.ledger().set_timestamp(deadline + 1);
 
     // Refund
-    setup.escrow.refund(&1, &None::<i128>, &None::<Address>, &RefundMode::Full);
+    setup.escrow.refund(&1, &None::<i128>, &None::<Address>, &RefundMode::Full, &None::<Address>);
 
     // Verify depositor received token2 back
     assert_eq!(setup.token2.balance(&setup.depositor), initial_balance);
@@ -1511,13 +1512,13 @@ fn test_get_token_balance() {
     let deadline = setup.env.ledger().timestamp() + 1000;
 
     // Lock funds with both tokens
-    setup.escrow.lock_funds(&setup.depositor, &1, &1000, &deadline, &setup.token1.address);
-    setup.escrow.lock_funds(&setup.depositor, &2, &2000, &deadline, &setup.token2.address);
-    setup.escrow.lock_funds(&setup.depositor, &3, &500, &deadline, &setup.token1.address);
+    setup.escrow.lock_funds(&setup.depositor, &1, &1000, &deadline, &Some(setup.token1.address.clone()));
+    setup.escrow.lock_funds(&setup.depositor, &2, &2000, &deadline, &Some(setup.token2.address.clone()));
+    setup.escrow.lock_funds(&setup.depositor, &3, &500, &deadline, &Some(setup.token1.address.clone()));
 
-    // Check token-specific balances
-    assert_eq!(setup.escrow.get_token_balance(&setup.token1.address), 1500);
-    assert_eq!(setup.escrow.get_token_balance(&setup.token2.address), 2000);
+    // Check token-specific balances (using get_token_bal for contract-wide balance)
+    assert_eq!(setup.escrow.get_token_bal(&setup.token1.address), 1500);
+    assert_eq!(setup.escrow.get_token_bal(&setup.token2.address), 2000);
 }
 
 #[test]
@@ -1555,22 +1556,22 @@ fn test_multi_token_lifecycle() {
     let deadline = setup.env.ledger().timestamp() + 1000;
 
     // Create bounties with different tokens
-    setup.escrow.lock_funds(&setup.depositor, &1, &1000, &deadline, &setup.token1.address);
-    setup.escrow.lock_funds(&setup.depositor, &2, &2000, &deadline, &setup.token2.address);
-    setup.escrow.lock_funds(&setup.depositor, &3, &1500, &deadline, &setup.token1.address);
+    setup.escrow.lock_funds(&setup.depositor, &1, &1000, &deadline, &Some(setup.token1.address.clone()));
+    setup.escrow.lock_funds(&setup.depositor, &2, &2000, &deadline, &Some(setup.token2.address.clone()));
+    setup.escrow.lock_funds(&setup.depositor, &3, &1500, &deadline, &Some(setup.token1.address.clone()));
 
     // Release bounty 1 (token1) to contributor
-    setup.escrow.release_funds(&1, &setup.contributor, &None::<i128>);
+    setup.escrow.release_funds(&1, &setup.contributor, &None::<Address>, &None::<i128>);
     assert_eq!(setup.token1.balance(&setup.contributor), 1000);
 
     // Release bounty 2 (token2) to contributor
-    setup.escrow.release_funds(&2, &setup.contributor, &None::<i128>);
+    setup.escrow.release_funds(&2, &setup.contributor, &None::<Address>, &None::<i128>);
     assert_eq!(setup.token2.balance(&setup.contributor), 2000);
 
     // Advance time and refund bounty 3 (token1)
     setup.env.ledger().set_timestamp(deadline + 1);
     let depositor_token1_before = setup.token1.balance(&setup.depositor);
-    setup.escrow.refund(&3, &None::<i128>, &None::<Address>, &RefundMode::Full);
+    setup.escrow.refund(&3, &None::<i128>, &None::<Address>, &RefundMode::Full, &None::<Address>);
     assert_eq!(setup.token1.balance(&setup.depositor), depositor_token1_before + 1500);
 
     // Verify final contract balances

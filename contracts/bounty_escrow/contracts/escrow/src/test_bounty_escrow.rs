@@ -9,7 +9,7 @@ use crate::{BountyEscrowContract, BountyEscrowContractClient};
 
 fn create_test_env() -> (Env, BountyEscrowContractClient<'static>, Address) {
     let env = Env::default();
-    let contract_id = env.register(BountyEscrowContract, ()); // FIXED: Remove None, add ()
+    let contract_id = env.register_contract(None, BountyEscrowContract);
     let client = BountyEscrowContractClient::new(&env, &contract_id);
 
     (env, client, contract_id)

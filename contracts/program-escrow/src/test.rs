@@ -20,9 +20,9 @@ fn create_token_contract<'a>(
     )
 }
 
-fn create_escrow_contract<'a>(e: &Env) -> ProgramEscrowClient<'a> {
-    let contract_id = e.register(ProgramEscrow, ());
-    ProgramEscrowClient::new(e, &contract_id)
+fn create_escrow_contract<'a>(e: &Env) -> ProgramEscrowContractClient<'a> {
+    let contract_id = e.register(ProgramEscrowContract, ());
+    ProgramEscrowContractClient::new(e, &contract_id)
 }
 
 struct TestSetup<'a> {
@@ -34,7 +34,7 @@ struct TestSetup<'a> {
     token: token::Client<'a>,
     token_address: Address,
     token_admin: token::StellarAssetClient<'a>,
-    escrow: ProgramEscrowClient<'a>,
+    escrow: ProgramEscrowContractClient<'a>,
     program_id: String,
 }
 
@@ -75,7 +75,7 @@ impl<'a> TestSetup<'a> {
         }
     }
 
-    fn new_without_init() -> (Env, ProgramEscrowClient<'a>) {
+    fn new_without_init() -> (Env, ProgramEscrowContractClient<'a>) {
         let env = Env::default();
         env.mock_all_auths();
         let escrow = create_escrow_contract(&env);
@@ -103,7 +103,7 @@ fn test_initialize_success() {
     assert_eq!(program_data.total_funds, 0);
     assert_eq!(program_data.remaining_bal, 0);
     assert_eq!(program_data.auth_key, admin);
-    assert_eq!(program_data.token_addr, token);
+    assert_eq!(program_data.token_address, token);
     assert_eq!(program_data.payout_history.len(), 0);
     assert_eq!(program_data.whitelist.len(), 1);
 }
@@ -153,10 +153,10 @@ fn test_lock_funds_balance_tracking() {
     let setup = TestSetup::new();
 
     setup.escrow.lock_funds(&100_000_000_000, &setup.token_address);
-    assert_eq!(setup.escrow.get_remaining_balance(), 100_000_000_000);
+    assert_eq!(setup.escrow.get_balance_remaining(), 100_000_000_000);
 
     setup.escrow.lock_funds(&50_000_000_000, &setup.token_address);
-    assert_eq!(setup.escrow.get_remaining_balance(), 150_000_000_000);
+    assert_eq!(setup.escrow.get_balance_remaining(), 150_000_000_000);
 }
 
 #[test]
@@ -201,7 +201,7 @@ fn test_single_payout_success() {
 
     setup.escrow.lock_funds(&lock_amount, &setup.token_address);
 
-    let program_data = setup.escrow.single_payout(&setup.recipient1, &payout_amount, &setup.token_address);
+    let program_data = setup.escrow.simple_single_payout(&setup.recipient1, &payout_amount, &setup.token_address);
 
     assert_eq!(program_data.remaining_bal, lock_amount - payout_amount);
     assert_eq!(program_data.payout_history.len(), 1);
@@ -219,12 +219,12 @@ fn test_single_payout_multiple_recipients() {
     setup.escrow.lock_funds(&100_000_000_000, &setup.token_address);
 
     // First payout
-    let program_data = setup.escrow.single_payout(&setup.recipient1, &20_000_000_000, &setup.token_address);
+    let program_data = setup.escrow.simple_single_payout(&setup.recipient1, &20_000_000_000, &setup.token_address);
     assert_eq!(program_data.remaining_bal, 80_000_000_000);
     assert_eq!(program_data.payout_history.len(), 1);
 
     // Second payout
-    let program_data = setup.escrow.single_payout(&setup.recipient2, &25_000_000_000, &setup.token_address);
+    let program_data = setup.escrow.simple_single_payout(&setup.recipient2, &25_000_000_000, &setup.token_address);
     assert_eq!(program_data.remaining_bal, 55_000_000_000);
     assert_eq!(program_data.payout_history.len(), 2);
 }
@@ -234,10 +234,10 @@ fn test_single_payout_balance_updates() {
     let setup = TestSetup::new();
 
     setup.escrow.lock_funds(&100_000_000_000, &setup.token_address);
-    assert_eq!(setup.escrow.get_remaining_balance(), 100_000_000_000);
+    assert_eq!(setup.escrow.get_balance_remaining(), 100_000_000_000);
 
-    setup.escrow.single_payout(&setup.recipient1, &40_000_000_000, &setup.token_address);
-    assert_eq!(setup.escrow.get_remaining_balance(), 60_000_000_000);
+    setup.escrow.simple_single_payout(&setup.recipient1, &40_000_000_000, &setup.token_address);
+    assert_eq!(setup.escrow.get_balance_remaining(), 60_000_000_000);
 }
 
 #[test]
@@ -246,7 +246,7 @@ fn test_single_payout_insufficient_balance() {
     let setup = TestSetup::new();
 
     setup.escrow.lock_funds(&20_000_000_000, &setup.token_address);
-    setup.escrow.single_payout(&setup.recipient1, &30_000_000_000, &setup.token_address);
+    setup.escrow.simple_single_payout(&setup.recipient1, &30_000_000_000, &setup.token_address);
 }
 
 #[test]
@@ -255,7 +255,7 @@ fn test_single_payout_zero_amount() {
     let setup = TestSetup::new();
 
     setup.escrow.lock_funds(&50_000_000_000, &setup.token_address);
-    setup.escrow.single_payout(&setup.recipient1, &0, &setup.token_address);
+    setup.escrow.simple_single_payout(&setup.recipient1, &0, &setup.token_address);
 }
 
 #[test]
@@ -264,7 +264,7 @@ fn test_single_payout_negative_amount() {
     let setup = TestSetup::new();
 
     setup.escrow.lock_funds(&50_000_000_000, &setup.token_address);
-    setup.escrow.single_payout(&setup.recipient1, &-10_000_000_000, &setup.token_address);
+    setup.escrow.simple_single_payout(&setup.recipient1, &-10_000_000_000, &setup.token_address);
 }
 
 #[test]
@@ -273,7 +273,7 @@ fn test_single_payout_before_init() {
     let (env, escrow) = TestSetup::new_without_init();
     let recipient = Address::generate(&env);
     let token = Address::generate(&env);
-    escrow.single_payout(&recipient, &10_000_000_000, &token);
+    escrow.simple_single_payout(&recipient, &10_000_000_000, &token);
 }
 
 #[test]
@@ -283,7 +283,7 @@ fn test_single_payout_non_whitelisted_token() {
     let non_whitelisted_token = Address::generate(&setup.env);
 
     setup.escrow.lock_funds(&50_000_000_000, &setup.token_address);
-    setup.escrow.single_payout(&setup.recipient1, &10_000_000_000, &non_whitelisted_token);
+    setup.escrow.simple_single_payout(&setup.recipient1, &10_000_000_000, &non_whitelisted_token);
 }
 
 // ============================================================================
@@ -299,7 +299,7 @@ fn test_batch_payout_success() {
     let recipients = vec![&setup.env, setup.recipient1.clone(), setup.recipient2.clone()];
     let amounts = vec![&setup.env, 10_000_000_000i128, 20_000_000_000i128];
 
-    let program_data = setup.escrow.batch_payout(&recipients, &amounts, &setup.token_address);
+    let program_data = setup.escrow.simple_batch_payout(&recipients, &amounts, &setup.token_address);
 
     assert_eq!(program_data.remaining_bal, 70_000_000_000); // 100 - 10 - 20
     assert_eq!(program_data.payout_history.len(), 2);
@@ -322,7 +322,7 @@ fn test_batch_payout_single_recipient() {
     let recipients = vec![&setup.env, setup.recipient1.clone()];
     let amounts = vec![&setup.env, 25_000_000_000i128];
 
-    let program_data = setup.escrow.batch_payout(&recipients, &amounts, &setup.token_address);
+    let program_data = setup.escrow.simple_batch_payout(&recipients, &amounts, &setup.token_address);
 
     assert_eq!(program_data.remaining_bal, 25_000_000_000);
     assert_eq!(program_data.payout_history.len(), 1);
@@ -338,7 +338,7 @@ fn test_batch_payout_insufficient_balance() {
     let recipients = vec![&setup.env, setup.recipient1.clone(), setup.recipient2.clone()];
     let amounts = vec![&setup.env, 30_000_000_000i128, 25_000_000_000i128]; // Total: 55 > 50
 
-    setup.escrow.batch_payout(&recipients, &amounts, &setup.token_address);
+    setup.escrow.simple_batch_payout(&recipients, &amounts, &setup.token_address);
 }
 
 #[test]
@@ -351,7 +351,7 @@ fn test_batch_payout_mismatched_lengths() {
     let recipients = vec![&setup.env, setup.recipient1.clone(), setup.recipient2.clone()];
     let amounts = vec![&setup.env, 10_000_000_000i128]; // Mismatched length
 
-    setup.escrow.batch_payout(&recipients, &amounts, &setup.token_address);
+    setup.escrow.simple_batch_payout(&recipients, &amounts, &setup.token_address);
 }
 
 #[test]
@@ -364,7 +364,7 @@ fn test_batch_payout_empty_batch() {
     let recipients: Vec<Address> = vec![&setup.env];
     let amounts: Vec<i128> = vec![&setup.env];
 
-    setup.escrow.batch_payout(&recipients, &amounts, &setup.token_address);
+    setup.escrow.simple_batch_payout(&recipients, &amounts, &setup.token_address);
 }
 
 #[test]
@@ -377,7 +377,7 @@ fn test_batch_payout_zero_amount() {
     let recipients = vec![&setup.env, setup.recipient1.clone(), setup.recipient2.clone()];
     let amounts = vec![&setup.env, 10_000_000_000i128, 0i128]; // Zero amount
 
-    setup.escrow.batch_payout(&recipients, &amounts, &setup.token_address);
+    setup.escrow.simple_batch_payout(&recipients, &amounts, &setup.token_address);
 }
 
 #[test]
@@ -390,7 +390,7 @@ fn test_batch_payout_negative_amount() {
     let recipients = vec![&setup.env, setup.recipient1.clone(), setup.recipient2.clone()];
     let amounts = vec![&setup.env, 10_000_000_000i128, -5_000_000_000i128]; // Negative
 
-    setup.escrow.batch_payout(&recipients, &amounts, &setup.token_address);
+    setup.escrow.simple_batch_payout(&recipients, &amounts, &setup.token_address);
 }
 
 #[test]
@@ -402,7 +402,7 @@ fn test_batch_payout_before_init() {
     let recipients = vec![&env, recipient];
     let amounts = vec![&env, 10_000_000_000i128];
 
-    escrow.batch_payout(&recipients, &amounts, &token);
+    escrow.simple_batch_payout(&recipients, &amounts, &token);
 }
 
 #[test]
@@ -416,7 +416,7 @@ fn test_batch_payout_non_whitelisted_token() {
     let recipients = vec![&setup.env, setup.recipient1.clone()];
     let amounts = vec![&setup.env, 10_000_000_000i128];
 
-    setup.escrow.batch_payout(&recipients, &amounts, &non_whitelisted_token);
+    setup.escrow.simple_batch_payout(&recipients, &amounts, &non_whitelisted_token);
 }
 
 // ============================================================================
@@ -435,7 +435,7 @@ fn test_get_info_success() {
     assert_eq!(info.total_funds, 75_000_000_000);
     assert_eq!(info.remaining_bal, 75_000_000_000);
     assert_eq!(info.auth_key, setup.admin);
-    assert_eq!(info.token_addr, setup.token_address);
+    assert_eq!(info.token_address, setup.token_address);
 }
 
 #[test]
@@ -444,8 +444,8 @@ fn test_get_info_after_payouts() {
 
     setup.escrow.lock_funds(&100_000_000_000, &setup.token_address);
 
-    setup.escrow.single_payout(&setup.recipient1, &25_000_000_000, &setup.token_address);
-    setup.escrow.single_payout(&setup.recipient2, &35_000_000_000, &setup.token_address);
+    setup.escrow.simple_single_payout(&setup.recipient1, &25_000_000_000, &setup.token_address);
+    setup.escrow.simple_single_payout(&setup.recipient2, &35_000_000_000, &setup.token_address);
 
     let info = setup.escrow.get_info();
 
@@ -460,7 +460,7 @@ fn test_get_remaining_balance_success() {
 
     setup.escrow.lock_funds(&50_000_000_000, &setup.token_address);
 
-    assert_eq!(setup.escrow.get_remaining_balance(), 50_000_000_000);
+    assert_eq!(setup.escrow.get_balance_remaining(), 50_000_000_000);
 }
 
 #[test]
@@ -474,7 +474,7 @@ fn test_get_info_before_init() {
 #[should_panic(expected = "Program not initialized")]
 fn test_get_remaining_balance_before_init() {
     let (_, escrow) = TestSetup::new_without_init();
-    escrow.get_remaining_balance();
+    escrow.get_balance_remaining();
 }
 
 // ============================================================================
@@ -579,7 +579,7 @@ fn test_get_balance_after_payout() {
     let setup = TestSetup::new();
 
     setup.escrow.lock_funds(&100_000_000_000, &setup.token_address);
-    setup.escrow.single_payout(&setup.recipient1, &30_000_000_000, &setup.token_address);
+    setup.escrow.simple_single_payout(&setup.recipient1, &30_000_000_000, &setup.token_address);
 
     let balance = setup.escrow.get_balance(&setup.token_address);
     assert_eq!(balance.locked, 100_000_000_000);
@@ -622,7 +622,7 @@ struct MultiTokenSetup<'a> {
     token1_address: Address,
     token2: token::Client<'a>,
     token2_address: Address,
-    escrow: ProgramEscrowClient<'a>,
+    escrow: ProgramEscrowContractClient<'a>,
 }
 
 impl<'a> MultiTokenSetup<'a> {
@@ -693,7 +693,7 @@ fn test_multi_token_payout() {
     setup.escrow.lock_funds(&200_000_000_000, &setup.token2_address);
 
     // Payout from token1
-    setup.escrow.single_payout(&setup.recipient, &50_000_000_000, &setup.token1_address);
+    setup.escrow.simple_single_payout(&setup.recipient, &50_000_000_000, &setup.token1_address);
 
     let balance1 = setup.escrow.get_balance(&setup.token1_address);
     assert_eq!(balance1.remaining, 50_000_000_000);
@@ -703,7 +703,7 @@ fn test_multi_token_payout() {
     assert_eq!(balance2.remaining, 200_000_000_000);
 
     // Payout from token2
-    setup.escrow.single_payout(&setup.recipient, &75_000_000_000, &setup.token2_address);
+    setup.escrow.simple_single_payout(&setup.recipient, &75_000_000_000, &setup.token2_address);
 
     let balance2 = setup.escrow.get_balance(&setup.token2_address);
     assert_eq!(balance2.remaining, 125_000_000_000);
@@ -720,7 +720,7 @@ fn test_multi_token_batch_payout() {
     let recipients = vec![&setup.env, setup.recipient.clone(), recipient2.clone()];
     let amounts = vec![&setup.env, 30_000_000_000i128, 40_000_000_000i128];
 
-    setup.escrow.batch_payout(&recipients, &amounts, &setup.token2_address);
+    setup.escrow.simple_batch_payout(&recipients, &amounts, &setup.token2_address);
 
     // Token2 should be reduced
     let balance2 = setup.escrow.get_balance(&setup.token2_address);
@@ -738,8 +738,8 @@ fn test_multi_token_payout_history() {
     setup.escrow.lock_funds(&100_000_000_000, &setup.token1_address);
     setup.escrow.lock_funds(&200_000_000_000, &setup.token2_address);
 
-    setup.escrow.single_payout(&setup.recipient, &50_000_000_000, &setup.token1_address);
-    setup.escrow.single_payout(&setup.recipient, &75_000_000_000, &setup.token2_address);
+    setup.escrow.simple_single_payout(&setup.recipient, &50_000_000_000, &setup.token1_address);
+    setup.escrow.simple_single_payout(&setup.recipient, &75_000_000_000, &setup.token2_address);
 
     let info = setup.escrow.get_info();
     assert_eq!(info.payout_history.len(), 2);
@@ -768,22 +768,22 @@ fn test_complete_program_lifecycle() {
 
     // 2. Lock initial funds
     setup.escrow.lock_funds(&500_000_000_000, &setup.token_address);
-    assert_eq!(setup.escrow.get_remaining_balance(), 500_000_000_000);
+    assert_eq!(setup.escrow.get_balance_remaining(), 500_000_000_000);
 
     // 3. Single payouts
-    setup.escrow.single_payout(&setup.recipient1, &50_000_000_000, &setup.token_address);
-    assert_eq!(setup.escrow.get_remaining_balance(), 450_000_000_000);
+    setup.escrow.simple_single_payout(&setup.recipient1, &50_000_000_000, &setup.token_address);
+    assert_eq!(setup.escrow.get_balance_remaining(), 450_000_000_000);
 
-    setup.escrow.single_payout(&setup.recipient2, &75_000_000_000, &setup.token_address);
-    assert_eq!(setup.escrow.get_remaining_balance(), 375_000_000_000);
+    setup.escrow.simple_single_payout(&setup.recipient2, &75_000_000_000, &setup.token_address);
+    assert_eq!(setup.escrow.get_balance_remaining(), 375_000_000_000);
 
     // 4. Batch payout
     let recipient3 = Address::generate(&setup.env);
     let recipient4 = Address::generate(&setup.env);
     let recipients = vec![&setup.env, recipient3, recipient4];
     let amounts = vec![&setup.env, 100_000_000_000i128, 80_000_000_000i128];
-    setup.escrow.batch_payout(&recipients, &amounts, &setup.token_address);
-    assert_eq!(setup.escrow.get_remaining_balance(), 195_000_000_000);
+    setup.escrow.simple_batch_payout(&recipients, &amounts, &setup.token_address);
+    assert_eq!(setup.escrow.get_balance_remaining(), 195_000_000_000);
 
     // 5. Verify final state
     let final_info = setup.escrow.get_info();
@@ -793,7 +793,7 @@ fn test_complete_program_lifecycle() {
 
     // 6. Lock additional funds
     setup.escrow.lock_funds(&100_000_000_000, &setup.token_address);
-    assert_eq!(setup.escrow.get_remaining_balance(), 295_000_000_000);
+    assert_eq!(setup.escrow.get_balance_remaining(), 295_000_000_000);
 
     let updated_info = setup.escrow.get_info();
     assert_eq!(updated_info.total_funds, 600_000_000_000);
@@ -805,11 +805,11 @@ fn test_program_with_zero_final_balance() {
 
     setup.escrow.lock_funds(&100_000_000_000, &setup.token_address);
 
-    setup.escrow.single_payout(&setup.recipient1, &60_000_000_000, &setup.token_address);
-    assert_eq!(setup.escrow.get_remaining_balance(), 40_000_000_000);
+    setup.escrow.simple_single_payout(&setup.recipient1, &60_000_000_000, &setup.token_address);
+    assert_eq!(setup.escrow.get_balance_remaining(), 40_000_000_000);
 
-    setup.escrow.single_payout(&setup.recipient2, &40_000_000_000, &setup.token_address);
-    assert_eq!(setup.escrow.get_remaining_balance(), 0);
+    setup.escrow.simple_single_payout(&setup.recipient2, &40_000_000_000, &setup.token_address);
+    assert_eq!(setup.escrow.get_balance_remaining(), 0);
 
     let info = setup.escrow.get_info();
     assert_eq!(info.total_funds, 100_000_000_000);
@@ -824,14 +824,14 @@ fn test_payout_record_integrity() {
     setup.escrow.lock_funds(&200_000_000_000, &setup.token_address);
 
     // Mix of single and batch payouts
-    setup.escrow.single_payout(&setup.recipient1, &25_000_000_000, &setup.token_address);
+    setup.escrow.simple_single_payout(&setup.recipient1, &25_000_000_000, &setup.token_address);
 
     let recipients = vec![&setup.env, setup.recipient2.clone()];
     let amounts = vec![&setup.env, 35_000_000_000i128];
-    setup.escrow.batch_payout(&recipients, &amounts, &setup.token_address);
+    setup.escrow.simple_batch_payout(&recipients, &amounts, &setup.token_address);
 
     // Same recipient again
-    setup.escrow.single_payout(&setup.recipient1, &15_000_000_000, &setup.token_address);
+    setup.escrow.simple_single_payout(&setup.recipient1, &15_000_000_000, &setup.token_address);
 
     let info = setup.escrow.get_info();
     assert_eq!(info.payout_history.len(), 3);
@@ -856,14 +856,14 @@ fn test_timestamp_tracking() {
     setup.escrow.lock_funds(&100_000_000_000, &setup.token_address);
 
     // First payout
-    setup.escrow.single_payout(&setup.recipient1, &25_000_000_000, &setup.token_address);
+    setup.escrow.simple_single_payout(&setup.recipient1, &25_000_000_000, &setup.token_address);
     let first_timestamp = setup.env.ledger().timestamp();
 
     // Advance time
     setup.env.ledger().set_timestamp(first_timestamp + 3600); // +1 hour
 
     // Second payout
-    setup.escrow.single_payout(&setup.recipient2, &30_000_000_000, &setup.token_address);
+    setup.escrow.simple_single_payout(&setup.recipient2, &30_000_000_000, &setup.token_address);
 
     let info = setup.escrow.get_info();
     let payout1 = info.payout_history.get(0).unwrap();
