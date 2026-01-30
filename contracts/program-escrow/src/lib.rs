@@ -511,7 +511,7 @@ const PROGRAM_REGISTRY: Symbol = symbol_short!("ProgReg");
 
 /// Storage key for program metadata.
 /// Contains optional metadata for indexing and categorization.
-const PROGRAM_METADATA: Symbol = symbol_short!("ProgramMeta");
+const PROGRAM_METADATA: Symbol = symbol_short!("ProgMeta");
 
 // ============================================================================
 // Data Structures
@@ -1140,7 +1140,7 @@ impl ProgramEscrowContract {
             ),
         );
 
-        Ok(program_data)
+        program_data
     }
 
     // ========================================================================
@@ -1268,7 +1268,7 @@ impl ProgramEscrowContract {
 
         // Validate inputs
         if recipients.len() != amounts.len() {
-            return Err(Error::BatchMismatch);
+            panic!("Recipients and amounts vectors must have the same length");
         }
 
         if recipients.is_empty() {
@@ -1289,7 +1289,10 @@ impl ProgramEscrowContract {
 
         // Validate balance
         if total_payout > program_data.remaining_balance {
-            return Err(Error::InsufficientBalance);
+            panic!(
+                "Insufficient balance: requested {}, available {}",
+                total_payout, program_data.remaining_balance
+            );
         }
 
         // Calculate fees if enabled
@@ -1364,7 +1367,7 @@ impl ProgramEscrowContract {
             ),
         );
 
-        Ok(updated_data)
+        updated_data
     }
 
     /// Executes a single payout to one recipient.
@@ -1449,12 +1452,15 @@ impl ProgramEscrowContract {
 
         // Validate amount
         if amount <= 0 {
-            return Err(Error::InvalidAmount);
+            panic!("Amount must be greater than zero");
         }
 
         // Validate balance
         if amount > program_data.remaining_balance {
-            return Err(Error::InsufficientBalance);
+            panic!(
+                "Insufficient balance: requested {}, available {}",
+                amount, program_data.remaining_balance
+            );
         }
 
         // Calculate and collect fee if enabled
@@ -1517,7 +1523,7 @@ impl ProgramEscrowContract {
             ),
         );
 
-        Ok(updated_data)
+        updated_data
     }
 
     // ========================================================================
@@ -2332,10 +2338,13 @@ mod test {
         token, Address, Env, String,
     };
 
-    // Test helper to create a mock token contract
-    fn create_token_contract<'a>(env: &Env, admin: &Address) -> token::Client<'a> {
-        let token_address = env.register_stellar_asset_contract(admin.clone());
-        token::Client::new(env, &token_address)
+    // Test helper to create a mock token contract (returns address, client, and admin client)
+    fn create_token_contract<'a>(env: &Env, admin: &Address) -> (Address, token::Client<'a>, token::StellarAssetClient<'a>) {
+        let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+        let token = token_id.address();
+        let token_client = token::Client::new(env, &token);
+        let token_admin = token::StellarAssetClient::new(env, &token);
+        (token, token_client, token_admin)
     }
 
     // ========================================================================
@@ -2344,29 +2353,24 @@ mod test {
 
     fn setup_program_with_schedule(
         env: &Env,
+        contract_id: &Address,
         client: &ProgramEscrowContractClient<'static>,
         authorized_key: &Address,
-        token: &Address,
+        _token: &Address,
         program_id: &String,
         total_amount: i128,
         winner: &Address,
         release_timestamp: u64,
     ) {
-        // Register program
-        client.initialize_program(program_id, authorized_key, token);
-
-        // Create and fund token
-        let token_client = create_token_contract(env, authorized_key);
-        let token_admin = token::StellarAssetClient::new(env, &token_client.address);
+        // Create and fund token contract (use token created here for consistency)
+        let (token_addr, token_client, token_admin) = create_token_contract(env, authorized_key);
         token_admin.mint(authorized_key, &total_amount);
 
-        // Lock funds for program
-        token_client.approve(
-            authorized_key,
-            &env.current_contract_address(),
-            &total_amount,
-            &1000,
-        );
+        // Initialize program with the registered token address
+        client.initialize_program(program_id, authorized_key, &token_addr);
+
+        // Transfer tokens to contract and lock funds for program
+        token_client.transfer(authorized_key, contract_id, &total_amount);
         client.lock_program_funds(program_id, &total_amount);
 
         // Create release schedule
@@ -2437,21 +2441,15 @@ mod test {
 
         env.mock_all_auths();
 
-        // Register program
-        client.initialize_program(&program_id, &authorized_key, &token);
-
-        // Create and fund token
-        let token_client = create_token_contract(&env, &authorized_key);
-        let token_admin = token::StellarAssetClient::new(&env, &token_client.address);
+        // Create and fund token contract, then initialize program with that token
+        let (token_addr, token_client, token_admin) = create_token_contract(&env, &authorized_key);
         token_admin.mint(&authorized_key, &total_amount);
 
-        // Lock funds for program
-        token_client.approve(
-            &authorized_key,
-            &env.current_contract_address(),
-            &total_amount,
-            &1000,
-        );
+        // Initialize program with the registered token address
+        client.initialize_program(&program_id, &authorized_key, &token_addr);
+
+        // Transfer tokens to contract and lock funds for program
+        token_client.transfer(&authorized_key, &contract_id, &total_amount);
         client.lock_program_funds(&program_id, &total_amount);
 
         // Create first release schedule
@@ -2980,12 +2978,14 @@ mod test {
         let admin = Address::generate(&env);
         let contract_id = env.register_contract(None, ProgramEscrowContract);
         let client = ProgramEscrowContractClient::new(&env, &contract_id);
-        let token_client = create_token_contract(&env, &admin);
+        let (token_addr, _token_client, token_admin) = create_token_contract(&env, &admin);
+        token_admin.mint(&admin, &10_000_0000000);
 
         let backend = Address::generate(&env);
         let prog_id = String::from_str(&env, "Test");
 
-        client.initialize_program(&prog_id, &backend, &token_client.address);
+        client.initialize_program(&prog_id, &backend, &token_addr);
+        _token_client.transfer(&admin, &contract_id, &10_000_0000000);
         client.lock_program_funds(&prog_id, &10_000_0000000);
 
         let recipients = soroban_sdk::vec![&env, Address::generate(&env), Address::generate(&env)];
@@ -3003,12 +3003,14 @@ mod test {
         let admin = Address::generate(&env);
         let contract_id = env.register_contract(None, ProgramEscrowContract);
         let client = ProgramEscrowContractClient::new(&env, &contract_id);
-        let token_client = create_token_contract(&env, &admin);
+        let (token_addr, token_client, token_admin) = create_token_contract(&env, &admin);
+        token_admin.mint(&admin, &5_000_0000000);
 
         let backend = Address::generate(&env);
         let prog_id = String::from_str(&env, "Test");
 
-        client.initialize_program(&prog_id, &backend, &token_client.address);
+        client.initialize_program(&prog_id, &backend, &token_addr);
+        token_client.transfer(&admin, &contract_id, &5_000_0000000);
         client.lock_program_funds(&prog_id, &5_000_0000000);
 
         let recipients = soroban_sdk::vec![&env, Address::generate(&env)];
