@@ -366,16 +366,6 @@ mod anti_abuse {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn get_admin(env: &Env) -> Option<Address> {
-        env.storage().instance().get(&AntiAbuseKey::Admin)
-    }
-
-    #[allow(dead_code)]
-    pub fn set_admin(env: &Env, admin: Address) {
-        env.storage().instance().set(&AntiAbuseKey::Admin, &admin);
-    }
-
     pub fn check_rate_limit(env: &Env, address: Address) {
         if is_whitelisted(env, address.clone()) {
             return;
@@ -469,10 +459,8 @@ pub enum Error {
     Unauthorized = 7,
     InvalidFeeRate = 8,
     FeeRecipientNotSet = 9,
-    InvalidBatchSize = 10,
     /// Returned when contract is paused and operation is blocked
     ContractPaused = 11,
-    DuplicateBountyId = 12,
     /// Returned when amount is invalid (zero, negative, or exceeds available)
     InvalidAmount = 13,
 
