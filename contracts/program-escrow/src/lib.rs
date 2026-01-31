@@ -169,7 +169,7 @@ pub struct FeeConfig {
     pub fee_enabled: bool,      // Global fee enable/disable flag
 }
 // ==================== MONITORING MODULE ====================
-mod monitoring {
+pub mod monitoring {
     use soroban_sdk::{contracttype, symbol_short, Address, Env, String, Symbol};
 
     // Storage keys
@@ -494,7 +494,20 @@ mod anti_abuse {
 // ============================================================================
 
 /// Event emitted when a program is initialized/registerd
-const PROGRAM_REGISTERED: Symbol = symbol_short!("ProgReg");
+
+pub const PROGRAM_REGISTERED: Symbol = symbol_short!("ProgReg");
+
+/// Event emitted when funds are locked in the program.
+/// Topic: `FundsLocked`
+pub const FUNDS_LOCKED: Symbol = symbol_short!("FundsLock");
+
+/// Event emitted when a batch payout is executed.
+/// Topic: `BatchPayout`
+pub const BATCH_PAYOUT: Symbol = symbol_short!("BatchPay");
+
+/// Event emitted when a single payout is executed.
+/// Topic: `Payout`
+pub const PAYOUT: Symbol = symbol_short!("Payout");
 
 // ============================================================================
 // Storage Keys
@@ -3190,6 +3203,9 @@ mod test {
     // ========================================================================
     // Batch Payout Tests
     // ========================================================================
+    
+
+
 
     #[test]
     #[should_panic(expected = "Recipients and amounts vectors must have the same length")]
@@ -3350,5 +3366,7 @@ mod test {
 }
 
 #[cfg(test)]
+#[path = "test.rs"]
+mod tests_external;
 mod test_query;
 

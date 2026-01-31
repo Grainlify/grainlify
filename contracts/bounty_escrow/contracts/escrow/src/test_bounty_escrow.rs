@@ -318,6 +318,126 @@ fn test_lock_fund_invalid_deadline() {
     client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
 }
 
+#[test]
+fn test_lock_fund_max_amount() {
+    let (env, client, _contract_id) = create_test_env();
+    let admin = Address::generate(&env);
+    let depositor = Address::generate(&env);
+    let bounty_id = 1;
+    let amount = i128::MAX;
+    let deadline = 10;
+
+    env.mock_all_auths();
+
+    let token_admin = Address::generate(&env);
+    let (token, _token_client, token_admin_client) = create_token_contract(&env, &token_admin);
+
+    client.init(&admin.clone(), &token.clone());
+    token_admin_client.mint(&depositor, &amount);
+
+    client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
+
+    // Simply asserting it didn't panic and logic held could be expanded if we had a get_bounty
+    // For now we rely on it not crashing (which checks overflow protections in soroban host mostly)
+}
+
+#[test]
+fn test_lock_fund_min_deadline() {
+    let (env, client, _contract_id) = create_test_env();
+    let admin = Address::generate(&env);
+    let depositor = Address::generate(&env);
+    let bounty_id = 1;
+    let amount = 1000;
+    // Current ledger timestamp is 0 in tests by default. Deadline must be > timestamp
+    let deadline = 1;
+
+    env.mock_all_auths();
+
+    let token_admin = Address::generate(&env);
+    let (token, _token_client, token_admin_client) = create_token_contract(&env, &token_admin);
+
+    client.init(&admin.clone(), &token.clone());
+    token_admin_client.mint(&depositor, &amount);
+
+    // This should NOT fail if deadline > ledger.timestamp (1 > 0)
+    client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #4)")] // BountyNotFound = 4
+fn test_release_fund_non_existent() {
+    let (env, client, _contract_id) = create_test_env();
+    let admin = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let bounty_id = 999;
+    let token = Address::generate(&env);
+
+    env.mock_all_auths();
+    client.init(&admin.clone(), &token.clone());
+
+    client.release_funds(&bounty_id, &contributor, &None::<i128>);
+}
+
+// Monitoring functions test commented out - these methods don't exist in the contract yet
+/*
+#[test]
+fn test_monitoring_functions() {
+    let env = Env::default();
+    let contract_id = env.register_contract(None, BountyEscrowContract);
+    let client = BountyEscrowContractClient::new(&env, &contract_id);
+
+    // Test health check
+    let health = client.health_check();
+    assert!(health.is_healthy);
+    assert_eq!(
+        health.contract_version,
+        soroban_sdk::String::from_str(&env, "1.0.0")
+    );
+
+    // Generate usage for analytics
+    let admin = Address::generate(&env);
+    let token = Address::generate(&env);
+    client.init(&admin, &token);
+
+    // Test analytics
+    let analytics = client.get_analytics();
+    assert!(analytics.operation_count > 0);
+
+    // Test state snapshot
+    let snapshot = client.get_state_snapshot();
+    assert!(snapshot.total_operations > 0);
+
+    // Test performance stats
+    let stats = client.get_performance_stats(&soroban_sdk::symbol_short!("init"));
+    assert!(stats.call_count > 0);
+}
+*/
+
+use proptest::prelude::*;
+
+proptest! {
+    #[test]
+    fn test_fuzz_lock_funds(amount in 1..i128::MAX, deadline in 0..u64::MAX) {
+        let (env, client, _contract_id) = create_test_env();
+        let admin = Address::generate(&env);
+        let depositor = Address::generate(&env);
+        let bounty_id = 1;
+
+        env.mock_all_auths();
+
+        let token_admin = Address::generate(&env);
+        let (token, _token_client, token_admin_client) = create_token_contract(&env, &token_admin);
+
+        client.init(&admin.clone(), &token.clone());
+        token_admin_client.mint(&depositor, &amount);
+
+        // We only call lock if deadline is valid to avoid known panic
+        if deadline > 0 { // Ledger timestamp is 0
+             client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
+        }
+    }
+}
+
 // ============================================================================
 // Integration Tests: Batch Operations
 // ============================================================================
