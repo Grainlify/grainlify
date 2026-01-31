@@ -471,8 +471,6 @@ pub enum Error {
     InvalidAmount = 13,
     /// Returned when deadline is invalid (in the past or too far in the future)
     InvalidDeadline = 14,
-    /// Returned when attempting to extend deadline to a value not greater than current deadline
-    InvalidDeadlineExtension = 19,
     /// Returned when contract has insufficient funds for the operation
     InsufficientFunds = 16,
     /// Returned when refund is attempted without admin approval
@@ -701,7 +699,6 @@ pub enum DataKey {
     RefundApproval(u64), // bounty_id -> RefundApproval
     ReentrancyGuard,
     IsPaused,            // Contract pause state
-    EscrowMetadata(u64), // bounty_id -> EscrowMetadata
 }
 
 // ============================================================================
@@ -814,7 +811,7 @@ impl BountyEscrowContract {
 
         // Check tag string lengths
         for i in 0..metadata.tags.len() {
-            let tag = metadata.tags.get(i as u32).unwrap();
+            let tag = metadata.tags.get(i).unwrap();
             if tag.len() > max_string_len {
                 return false;
             }
