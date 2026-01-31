@@ -12,6 +12,8 @@ base64ct = "=1.6.0"
 time-core = "=0.1.2"
 
 [dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+proptest = "1.0"
 soroban-sdk = { version = "21.7.7", features = ["testutils"] }
 
 [profile.release]
