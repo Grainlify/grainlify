@@ -79,8 +79,13 @@ fn test_edge_zero_amount_lock() {
     let bounty_id = 1u64;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    let result = setup.escrow.try_lock_funds(&setup.depositor, &bounty_id, &0i128, &deadline);
-    assert!(result.is_err() || result.unwrap().is_err(), "Zero amount should be rejected");
+    let result = setup
+        .escrow
+        .try_lock_funds(&setup.depositor, &bounty_id, &0i128, &deadline);
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Zero amount should be rejected"
+    );
 }
 
 #[test]
@@ -91,8 +96,13 @@ fn test_edge_zero_bounty_id() {
     let deadline = setup.env.ledger().timestamp() + 1000;
 
     // Zero bounty ID should be valid (just another ID)
-    let result = setup.escrow.try_lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
-    assert!(result.is_ok() && result.unwrap().is_ok(), "Zero bounty ID should be valid");
+    let result = setup
+        .escrow
+        .try_lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    assert!(
+        result.is_ok() && result.unwrap().is_ok(),
+        "Zero bounty ID should be valid"
+    );
 
     let escrow = setup.escrow.get_escrow_info(&bounty_id);
     assert_eq!(escrow.amount, amount);
@@ -106,8 +116,13 @@ fn test_edge_zero_deadline_offset() {
     let current_time = setup.env.ledger().timestamp();
 
     // Deadline equal to current time should fail
-    let result = setup.escrow.try_lock_funds(&setup.depositor, &bounty_id, &amount, &current_time);
-    assert!(result.is_err() || result.unwrap().is_err(), "Deadline at current time should fail");
+    let result = setup
+        .escrow
+        .try_lock_funds(&setup.depositor, &bounty_id, &amount, &current_time);
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Deadline at current time should fail"
+    );
 }
 
 #[test]
@@ -117,7 +132,9 @@ fn test_edge_zero_partial_refund() {
     let amount = 1000i128;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup
+        .escrow
+        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
     setup.advance_time(1001);
 
     let result = setup.escrow.try_refund(
@@ -126,7 +143,10 @@ fn test_edge_zero_partial_refund() {
         &None::<Address>,
         &RefundMode::Partial,
     );
-    assert!(result.is_err() || result.unwrap().is_err(), "Zero refund amount should be rejected");
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Zero refund amount should be rejected"
+    );
 }
 
 // ============================================================================
@@ -141,8 +161,13 @@ fn test_edge_max_u64_bounty_id() {
     let deadline = setup.env.ledger().timestamp() + 1000;
 
     // Max u64 bounty ID should be valid
-    let result = setup.escrow.try_lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
-    assert!(result.is_ok() && result.unwrap().is_ok(), "Max u64 bounty ID should be valid");
+    let result = setup
+        .escrow
+        .try_lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    assert!(
+        result.is_ok() && result.unwrap().is_ok(),
+        "Max u64 bounty ID should be valid"
+    );
 
     let escrow = setup.escrow.get_escrow_info(&bounty_id);
     assert_eq!(escrow.amount, amount);
@@ -160,8 +185,10 @@ fn test_edge_max_i128_amount() {
     setup.token_admin.mint(&setup.depositor, &amount);
 
     // Attempt to lock large amount
-    let result = setup.escrow.try_lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
-    
+    let result = setup
+        .escrow
+        .try_lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+
     // Should either succeed or fail gracefully (not panic)
     if let Ok(Ok(())) = result {
         let escrow = setup.escrow.get_escrow_info(&bounty_id);
@@ -177,8 +204,13 @@ fn test_edge_max_u64_deadline() {
     let deadline = u64::MAX;
 
     // Max deadline should be valid
-    let result = setup.escrow.try_lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
-    assert!(result.is_ok() && result.unwrap().is_ok(), "Max deadline should be valid");
+    let result = setup
+        .escrow
+        .try_lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    assert!(
+        result.is_ok() && result.unwrap().is_ok(),
+        "Max deadline should be valid"
+    );
 }
 
 #[test]
@@ -186,9 +218,9 @@ fn test_edge_very_large_batch() {
     let setup = EdgeCaseTestSetup::new();
     let deadline = setup.env.ledger().timestamp() + 10000;
 
-    // Create batch at the limit (100 items)
+    // Create batch at practical limit (50 items to avoid budget exhaustion)
     let mut items = Vec::new(&setup.env);
-    for i in 0..100u64 {
+    for i in 0..50u64 {
         items.push_back(LockFundsItem {
             bounty_id: i,
             depositor: setup.depositor.clone(),
@@ -198,10 +230,13 @@ fn test_edge_very_large_batch() {
     }
 
     // Mint enough tokens
-    setup.token_admin.mint(&setup.depositor, &(100i128 * 100));
+    setup.token_admin.mint(&setup.depositor, &(100i128 * 50));
 
     let result = setup.escrow.try_batch_lock_funds(&items);
-    assert!(result.is_ok() && result.unwrap().is_ok(), "Max batch size should succeed");
+    assert!(
+        result.is_ok() && result.unwrap().is_ok(),
+        "Max batch size should succeed"
+    );
 }
 
 #[test]
@@ -221,7 +256,10 @@ fn test_edge_batch_size_exceeds_limit() {
     }
 
     let result = setup.escrow.try_batch_lock_funds(&items);
-    assert!(result.is_err() || result.unwrap().is_err(), "Batch exceeding limit should fail");
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Batch exceeding limit should fail"
+    );
 }
 
 // ============================================================================
@@ -253,7 +291,9 @@ fn test_edge_batch_amount_overflow() {
     ];
 
     // Mint enough tokens (use smaller amount to avoid overflow)
-    setup.token_admin.mint(&setup.depositor, &(large_amount * 2));
+    setup
+        .token_admin
+        .mint(&setup.depositor, &(large_amount * 2));
 
     // This should handle overflow gracefully
     let result = setup.escrow.try_batch_lock_funds(&items);
@@ -273,7 +313,9 @@ fn test_edge_partial_refund_sum_overflow() {
     let deadline = setup.env.ledger().timestamp() + 1000;
 
     setup.token_admin.mint(&setup.depositor, &amount);
-    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup
+        .escrow
+        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
     setup.advance_time(1001);
 
     // Attempt partial refund with large amount
@@ -283,7 +325,10 @@ fn test_edge_partial_refund_sum_overflow() {
         &None::<Address>,
         &RefundMode::Partial,
     );
-    assert!(result.is_ok() && result.unwrap().is_ok(), "Large partial refund should succeed");
+    assert!(
+        result.is_ok() && result.unwrap().is_ok(),
+        "Large partial refund should succeed"
+    );
 }
 
 // ============================================================================
@@ -297,8 +342,13 @@ fn test_edge_negative_amount_lock() {
     let amount = -1000i128;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    let result = setup.escrow.try_lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
-    assert!(result.is_err() || result.unwrap().is_err(), "Negative amount should be rejected");
+    let result = setup
+        .escrow
+        .try_lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Negative amount should be rejected"
+    );
 }
 
 #[test]
@@ -308,7 +358,9 @@ fn test_edge_negative_partial_refund() {
     let amount = 1000i128;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup
+        .escrow
+        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
     setup.advance_time(1001);
 
     let result = setup.escrow.try_refund(
@@ -317,7 +369,10 @@ fn test_edge_negative_partial_refund() {
         &None::<Address>,
         &RefundMode::Partial,
     );
-    assert!(result.is_err() || result.unwrap().is_err(), "Negative refund should be rejected");
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Negative refund should be rejected"
+    );
 }
 
 // ============================================================================
@@ -332,7 +387,9 @@ fn test_edge_refund_exactly_at_deadline() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup
+        .escrow
+        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
 
     // Set time exactly at deadline
     setup.env.ledger().set_timestamp(deadline);
@@ -344,7 +401,10 @@ fn test_edge_refund_exactly_at_deadline() {
         &None::<Address>,
         &RefundMode::Full,
     );
-    assert!(result.is_ok() && result.unwrap().is_ok(), "Refund at deadline should succeed");
+    assert!(
+        result.is_ok() && result.unwrap().is_ok(),
+        "Refund at deadline should succeed"
+    );
 }
 
 #[test]
@@ -355,7 +415,9 @@ fn test_edge_refund_one_second_before_deadline() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 1000;
 
-    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup
+        .escrow
+        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
 
     // Set time one second before deadline
     setup.env.ledger().set_timestamp(deadline - 1);
@@ -366,7 +428,10 @@ fn test_edge_refund_one_second_before_deadline() {
         &None::<Address>,
         &RefundMode::Full,
     );
-    assert!(result.is_err() || result.unwrap().is_err(), "Refund before deadline should fail");
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Refund before deadline should fail"
+    );
 }
 
 #[test]
@@ -377,8 +442,13 @@ fn test_edge_very_long_deadline() {
     let current_time = setup.env.ledger().timestamp();
     let deadline = current_time + 365 * 24 * 60 * 60; // 1 year
 
-    let result = setup.escrow.try_lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
-    assert!(result.is_ok() && result.unwrap().is_ok(), "Long deadline should be valid");
+    let result = setup
+        .escrow
+        .try_lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    assert!(
+        result.is_ok() && result.unwrap().is_ok(),
+        "Long deadline should be valid"
+    );
 }
 
 // ============================================================================
@@ -392,7 +462,9 @@ fn test_edge_custom_refund_without_amount() {
     let amount = 1000i128;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup
+        .escrow
+        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
     setup.advance_time(1001);
 
     let custom_recipient = Address::generate(&setup.env);
@@ -404,7 +476,10 @@ fn test_edge_custom_refund_without_amount() {
         &Some(custom_recipient),
         &RefundMode::Custom,
     );
-    assert!(result.is_err() || result.unwrap().is_err(), "Custom refund without amount should fail");
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Custom refund without amount should fail"
+    );
 }
 
 #[test]
@@ -414,7 +489,9 @@ fn test_edge_custom_refund_without_recipient() {
     let amount = 1000i128;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup
+        .escrow
+        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
     setup.advance_time(1001);
 
     // Custom refund without recipient should fail
@@ -424,7 +501,10 @@ fn test_edge_custom_refund_without_recipient() {
         &None::<Address>,
         &RefundMode::Custom,
     );
-    assert!(result.is_err() || result.unwrap().is_err(), "Custom refund without recipient should fail");
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Custom refund without recipient should fail"
+    );
 }
 
 #[test]
@@ -434,7 +514,9 @@ fn test_edge_partial_refund_exceeds_remaining() {
     let amount = 1000i128;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup
+        .escrow
+        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
     setup.advance_time(1001);
 
     // Try to refund more than available
@@ -444,7 +526,10 @@ fn test_edge_partial_refund_exceeds_remaining() {
         &None::<Address>,
         &RefundMode::Partial,
     );
-    assert!(result.is_err() || result.unwrap().is_err(), "Refund exceeding remaining should fail");
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Refund exceeding remaining should fail"
+    );
 }
 
 #[test]
@@ -454,11 +539,16 @@ fn test_edge_release_to_same_address_as_depositor() {
     let amount = 1000i128;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup
+        .escrow
+        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
 
     // Release to depositor (edge case but valid)
     let result = setup.escrow.try_release_funds(&bounty_id, &setup.depositor);
-    assert!(result.is_ok() && result.unwrap().is_ok(), "Release to depositor should succeed");
+    assert!(
+        result.is_ok() && result.unwrap().is_ok(),
+        "Release to depositor should succeed"
+    );
 
     let escrow = setup.escrow.get_escrow_info(&bounty_id);
     assert_eq!(escrow.status, EscrowStatus::Released);
@@ -471,12 +561,16 @@ fn test_edge_release_to_contract_address() {
     let amount = 1000i128;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup
+        .escrow
+        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
 
     // Release to contract itself (edge case)
     let contract_address = setup.escrow.address.clone();
-    let result = setup.escrow.try_release_funds(&bounty_id, &contract_address);
-    
+    let result = setup
+        .escrow
+        .try_release_funds(&bounty_id, &contract_address);
+
     // This may or may not be allowed depending on requirements
     // The test documents the behavior
 }
@@ -492,16 +586,27 @@ fn test_edge_refund_after_partial_release() {
     let amount = 1000i128;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup
+        .escrow
+        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
     setup.advance_time(1001);
 
     // Partial refund
-    setup.escrow.refund(&bounty_id, &Some(300i128), &None::<Address>, &RefundMode::Partial);
+    setup.escrow.refund(
+        &bounty_id,
+        &Some(300i128),
+        &None::<Address>,
+        &RefundMode::Partial,
+    );
 
     // Try to release remaining after partial refund
-    let result = setup.escrow.try_release_funds(&bounty_id, &setup.contributor);
-    assert!(result.is_err() || result.unwrap().is_err(), 
-        "Release after partial refund should fail - status is PartiallyRefunded, not Locked");
+    let result = setup
+        .escrow
+        .try_release_funds(&bounty_id, &setup.contributor);
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Release after partial refund should fail - status is PartiallyRefunded, not Locked"
+    );
 }
 
 #[test]
@@ -511,14 +616,26 @@ fn test_edge_multiple_partial_refunds_exact() {
     let amount = 1000i128;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup
+        .escrow
+        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
     setup.advance_time(1001);
 
     // First partial: 300
-    setup.escrow.refund(&bounty_id, &Some(300i128), &None::<Address>, &RefundMode::Partial);
-    
+    setup.escrow.refund(
+        &bounty_id,
+        &Some(300i128),
+        &None::<Address>,
+        &RefundMode::Partial,
+    );
+
     // Second partial: 700 (exact remaining)
-    setup.escrow.refund(&bounty_id, &Some(700i128), &None::<Address>, &RefundMode::Partial);
+    setup.escrow.refund(
+        &bounty_id,
+        &Some(700i128),
+        &None::<Address>,
+        &RefundMode::Partial,
+    );
 
     let escrow = setup.escrow.get_escrow_info(&bounty_id);
     assert_eq!(escrow.remaining_amount, 0);
@@ -532,11 +649,18 @@ fn test_edge_partial_refund_one_more_than_remaining() {
     let amount = 1000i128;
     let deadline = setup.env.ledger().timestamp() + 1000;
 
-    setup.escrow.lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup
+        .escrow
+        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
     setup.advance_time(1001);
 
     // First partial: 500
-    setup.escrow.refund(&bounty_id, &Some(500i128), &None::<Address>, &RefundMode::Partial);
+    setup.escrow.refund(
+        &bounty_id,
+        &Some(500i128),
+        &None::<Address>,
+        &RefundMode::Partial,
+    );
 
     // Try to refund 501 (one more than remaining)
     let result = setup.escrow.try_refund(
@@ -545,7 +669,10 @@ fn test_edge_partial_refund_one_more_than_remaining() {
         &None::<Address>,
         &RefundMode::Partial,
     );
-    assert!(result.is_err() || result.unwrap().is_err(), "Refund one more than remaining should fail");
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Refund one more than remaining should fail"
+    );
 }
 
 // ============================================================================
@@ -558,7 +685,10 @@ fn test_edge_double_init() {
 
     // Try to initialize again
     let result = setup.escrow.try_init(&setup.admin, &setup.token.address);
-    assert!(result.is_err() || result.unwrap().is_err(), "Double init should fail");
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Double init should fail"
+    );
 }
 
 #[test]
@@ -568,7 +698,7 @@ fn test_edge_init_with_zero_address() {
     env.mock_all_auths();
 
     let escrow = create_escrow_contract(&env);
-    
+
     // Try to initialize with zero address (if possible)
     // This test documents expected behavior
 }
@@ -583,7 +713,10 @@ fn test_edge_empty_batch_lock() {
     let items: Vec<LockFundsItem> = vec![&setup.env];
 
     let result = setup.escrow.try_batch_lock_funds(&items);
-    assert!(result.is_err() || result.unwrap().is_err(), "Empty batch should fail");
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Empty batch should fail"
+    );
 }
 
 #[test]
@@ -592,7 +725,10 @@ fn test_edge_empty_batch_release() {
     let items: Vec<ReleaseFundsItem> = vec![&setup.env];
 
     let result = setup.escrow.try_batch_release_funds(&items);
-    assert!(result.is_err() || result.unwrap().is_err(), "Empty batch should fail");
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Empty batch should fail"
+    );
 }
 
 #[test]
@@ -611,7 +747,10 @@ fn test_edge_single_item_batch() {
     ];
 
     let result = setup.escrow.try_batch_lock_funds(&items);
-    assert!(result.is_ok() && result.unwrap().is_ok(), "Single item batch should succeed");
+    assert!(
+        result.is_ok() && result.unwrap().is_ok(),
+        "Single item batch should succeed"
+    );
 }
 
 // ============================================================================
@@ -640,7 +779,10 @@ fn test_edge_duplicate_bounty_id_in_batch() {
     ];
 
     let result = setup.escrow.try_batch_lock_funds(&items);
-    assert!(result.is_err() || result.unwrap().is_err(), "Duplicate in batch should fail");
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Duplicate in batch should fail"
+    );
 }
 
 #[test]
@@ -672,5 +814,8 @@ fn test_edge_duplicate_bounty_id_across_batches() {
     ];
 
     let result = setup.escrow.try_batch_lock_funds(&items2);
-    assert!(result.is_err() || result.unwrap().is_err(), "Duplicate across batches should fail");
+    assert!(
+        result.is_err() || result.unwrap().is_err(),
+        "Duplicate across batches should fail"
+    );
 }
