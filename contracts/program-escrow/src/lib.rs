@@ -139,7 +139,15 @@
 //! 6. **Token Approval**: Ensure contract has token allowance before locking funds
 
 #![no_std]
+pub mod security {
+    pub mod reentrancy_guard;
+}
+#[cfg(test)]
+mod reentrancy_test;
+#[cfg(test)]
 mod pause_tests;
+
+use security::reentrancy_guard::{ReentrancyGuard, ReentrancyGuardRAII};
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, token, vec, Address, Env, String, Symbol,
@@ -1085,6 +1093,7 @@ impl ProgramEscrowContract {
     /// -  Locking amount that exceeds actual contract balance
     /// -  Not verifying contract received the tokens
     pub fn lock_program_funds(env: Env, program_id: String, amount: i128) -> ProgramData {
+        let _guard = ReentrancyGuardRAII::new(&env).expect("Reentrancy detected");
         // Apply rate limiting
         anti_abuse::check_rate_limit(&env, env.current_contract_address());
 
@@ -1257,11 +1266,12 @@ impl ProgramEscrowContract {
         recipients: Vec<Address>,
         amounts: Vec<i128>,
     ) -> ProgramData {
+        let _guard = ReentrancyGuardRAII::new(&env).expect("Reentrancy detected");
+
         // Check if contract is paused
         if Self::is_paused_internal(&env) {
             panic!("Contract is paused");
         }
-
         // Apply rate limiting to the contract itself or the program
         // We can't easily get the caller here without getting program data first
 
@@ -1437,11 +1447,10 @@ impl ProgramEscrowContract {
         recipient: Address,
         amount: i128,
     ) -> ProgramData {
-        // Check if contract is paused
+        let _guard = ReentrancyGuardRAII::new(&env).expect("Reentrancy detected");
         if Self::is_paused_internal(&env) {
             panic!("Contract is paused");
         }
-
         // Get program data
         let program_key = DataKey::Program(program_id.clone());
         let program_data: ProgramData = env
@@ -1582,12 +1591,11 @@ impl ProgramEscrowContract {
         release_timestamp: u64,
         recipient: Address,
     ) -> ProgramData {
-        let start = env.ledger().timestamp();
-
-        // Check if contract is paused
+        let _guard = ReentrancyGuardRAII::new(&env).expect("Reentrancy detected");
         if Self::is_paused_internal(&env) {
             panic!("Contract is paused");
         }
+        let start = env.ledger().timestamp();
 
         // Get program data
         let program_key = DataKey::Program(program_id.clone());
@@ -1705,7 +1713,12 @@ impl ProgramEscrowContract {
     /// // Anyone can call this after the timestamp
     /// escrow_client.release_program_schedule_automatic(&"Hackathon2024", &1);
     /// ```
-    pub fn release_prog_schedule_automatic(env: Env, program_id: String, schedule_id: u64) {
+    pub fn release_prog_schedule_automatic(
+        env: Env,
+        program_id: String,
+        schedule_id: u64,
+    ) {
+        let _guard = ReentrancyGuardRAII::new(&env).expect("Reentrancy detected");
         let start = env.ledger().timestamp();
         let caller = env.current_contract_address();
 
@@ -1843,7 +1856,12 @@ impl ProgramEscrowContract {
     /// // Authorized key can release early
     /// escrow_client.release_program_schedule_manual(&"Hackathon2024", &1);
     /// ```
-    pub fn release_program_schedule_manual(env: Env, program_id: String, schedule_id: u64) {
+    pub fn release_program_schedule_manual(
+        env: Env,
+        program_id: String,
+        schedule_id: u64,
+    ) {
+        let _guard = ReentrancyGuardRAII::new(&env).expect("Reentrancy detected");
         let start = env.ledger().timestamp();
 
         // Get program data
