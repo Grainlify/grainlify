@@ -1,16 +1,16 @@
 #![no_std]
-use soroban_sdk::{contracttype, Env, String, Vec, Symbol, symbol_short};
 use crate::DataKey;
 use grainlify_common::AuditReport;
+use soroban_sdk::{contracttype, symbol_short, Env, String, Symbol, Vec};
 
 pub fn verify_admin_integrity(env: &Env) -> Vec<String> {
     let mut issues = Vec::new(env);
-    
+
     // Check 1: Admin exists
     if !env.storage().instance().has(&DataKey::Admin) {
         issues.push_back(String::from_str(env, "Admin not set"));
     }
-    
+
     issues
 }
 

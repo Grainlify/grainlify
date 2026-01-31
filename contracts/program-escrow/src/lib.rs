@@ -139,6 +139,7 @@
 //! 6. **Token Approval**: Ensure contract has token allowance before locking funds
 
 #![no_std]
+mod rbac;
 pub mod security {
     pub mod reentrancy_guard;
 }
@@ -853,36 +854,56 @@ impl ProgramEscrowContract {
         Self::is_paused_internal(&env)
     }
 
-    /// Pause the contract (authorized payout key only)
+    /// Pause the contract (Admin or Pauser role)
     /// Prevents new fund locking, payouts, and schedule releases
-    pub fn pause(env: Env) {
-        // For program-escrow, pause is triggered by the first authorized key that calls it
-        // In a multi-program setup, this would need to be per-program
+    pub fn pause(env: Env, caller: Address) -> Result<(), Error> {
+        // Apply rate limiting
+        anti_abuse::check_rate_limit(&env, caller.clone());
+
+        caller.require_auth();
+
+        // Check RBAC: only Admin or Pauser can pause
+        if !rbac::can_pause(&env, &caller) {
+            return Err(Error::InvalidAmount); // Reuse error code
+        }
 
         if Self::is_paused_internal(&env) {
-            return; // Already paused, idempotent
+            return Ok(()); // Already paused, idempotent
         }
 
         env.storage().instance().set(&DataKey::IsPaused, &true);
 
         env.events()
             .publish((symbol_short!("pause"),), (env.ledger().timestamp(),));
+
+        Ok(())
     }
 
-    /// Unpause the contract (authorized payout key only)
+    /// Unpause the contract (Admin or Pauser role)
     /// Resumes normal operations
-    pub fn unpause(env: Env) {
+    pub fn unpause(env: Env, caller: Address) -> Result<(), Error> {
+        // Apply rate limiting
+        anti_abuse::check_rate_limit(&env, caller.clone());
+
+        caller.require_auth();
+
+        // Check RBAC: only Admin or Pauser can unpause
+        if !rbac::can_pause(&env, &caller) {
+            return Err(Error::InvalidAmount); // Reuse error code
+        }
+
         if !Self::is_paused_internal(&env) {
-            return; // Already unpaused, idempotent
+            return Ok(()); // Already unpaused, idempotent
         }
 
         env.storage().instance().set(&DataKey::IsPaused, &false);
 
         env.events()
             .publish((symbol_short!("unpause"),), (env.ledger().timestamp(),));
+
+        Ok(())
     }
 
-    /// Emergency withdrawal for all contract funds (authorized payout key only, only when paused)
     pub fn emergency_withdraw(env: Env, program_id: String, recipient: Address) -> i128 {
         // Only allow emergency withdrawal when contract is paused
         if !Self::is_paused_internal(&env) {
@@ -967,6 +988,15 @@ impl ProgramEscrowContract {
         };
         env.storage().instance().set(&FEE_CONFIG, &fee_config);
 
+        // Initialize RBAC: grant Admin role to the authorized payout key
+        rbac::grant_role(
+            &env,
+            &authorized_payout_key,
+            &rbac::Role::Admin,
+            &authorized_payout_key,
+        );
+
+        // Store program data
         env.storage().instance().set(&program_key, &program_data);
 
         let mut registry: Vec<String> = env
@@ -1132,6 +1162,68 @@ impl ProgramEscrowContract {
     /// - Forgetting to transfer tokens before calling
     /// -  Locking amount that exceeds actual contract balance
     /// -  Not verifying contract received the tokens
+    /// Grant a role to an address
+    pub fn grant_role(env: Env, address: Address, role_name: String) -> Result<(), Error> {
+        // In program-escrow, roles are global, not per-program
+        // For now, we'll track the authorized payout key globally
+        // For a full implementation, this could be extended to support per-program admins
+        address.require_auth();
+
+        // Parse role name
+        let role = if role_name == String::from_str(&env, "admin") {
+            rbac::Role::Admin
+        } else if role_name == String::from_str(&env, "operator") {
+            rbac::Role::Operator
+        } else if role_name == String::from_str(&env, "pauser") {
+            rbac::Role::Pauser
+        } else if role_name == String::from_str(&env, "viewer") {
+            rbac::Role::Viewer
+        } else {
+            return Err(Error::InvalidAmount);
+        };
+
+        rbac::grant_role(&env, &address, &role, &address);
+        Ok(())
+    }
+
+    /// Revoke a role from an address
+    pub fn revoke_role(env: Env, address: Address, role_name: String) -> Result<(), Error> {
+        address.require_auth();
+
+        // Parse role name
+        let role = if role_name == String::from_str(&env, "admin") {
+            rbac::Role::Admin
+        } else if role_name == String::from_str(&env, "operator") {
+            rbac::Role::Operator
+        } else if role_name == String::from_str(&env, "pauser") {
+            rbac::Role::Pauser
+        } else if role_name == String::from_str(&env, "viewer") {
+            rbac::Role::Viewer
+        } else {
+            return Err(Error::InvalidAmount);
+        };
+
+        rbac::revoke_role(&env, &address, &role);
+        Ok(())
+    }
+
+    /// Check if an address has a specific role
+    pub fn has_role(env: Env, address: Address, role_name: String) -> bool {
+        let role = if role_name == String::from_str(&env, "admin") {
+            rbac::Role::Admin
+        } else if role_name == String::from_str(&env, "operator") {
+            rbac::Role::Operator
+        } else if role_name == String::from_str(&env, "pauser") {
+            rbac::Role::Pauser
+        } else if role_name == String::from_str(&env, "viewer") {
+            rbac::Role::Viewer
+        } else {
+            return false;
+        };
+
+        rbac::has_role(&env, &address, &role)
+    }
+
     pub fn lock_program_funds(env: Env, program_id: String, amount: i128) -> ProgramData {
         let _guard = ReentrancyGuardRAII::new(&env).expect("Reentrancy detected");
         // Apply rate limiting

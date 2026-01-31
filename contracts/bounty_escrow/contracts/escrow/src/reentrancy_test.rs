@@ -1,5 +1,5 @@
 #![cfg(test)]
-use crate::{BountyEscrowContract, BountyEscrowContractClient, LockFundsItem, ReleaseFundsItem};
+use crate::{BountyEscrowContract, BountyEscrowContractClient, LockFundsItem, ReleaseFundsItem, RefundMode};
 use crate::security::reentrancy_guard::{ReentrancyGuard};
 use soroban_sdk::{Address, Env, Vec, symbol_short, testutils::Address as _};
 
@@ -30,7 +30,7 @@ fn test_bounty_escrow_reentrancy_blocked() {
     let res = client.try_release_funds(&1, &Address::generate(&env));
     assert!(res.is_err());
     
-    let res = client.try_refund_funds(&1);
+    let res = client.try_refund(&1, &None, &None, &RefundMode::Full);
     assert!(res.is_err());
     
     let res = client.try_batch_lock_funds(&Vec::new(&env));
@@ -44,7 +44,7 @@ fn test_bounty_escrow_reentrancy_blocked() {
     
     // Calls should no longer fail due to reentrancy
     // (They might fail for other reasons, but the guard is cleared)
-    let res = client.try_refund_funds(&1);
+    let res = client.try_refund(&1, &None, &None, &RefundMode::Full);
     // Should fail with BountyNotFound (4) but NOT ReentrantCall
     assert!(res.is_err());
 }

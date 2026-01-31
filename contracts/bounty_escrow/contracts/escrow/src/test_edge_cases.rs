@@ -218,7 +218,7 @@ fn test_edge_very_large_batch() {
     let setup = EdgeCaseTestSetup::new();
     let deadline = setup.env.ledger().timestamp() + 10000;
 
-    // Create batch at practical limit (50 items to avoid budget exhaustion)
+    // Create batch at practical limit (50 items) - Soroban budget limit prevents larger batches
     let mut items = Vec::new(&setup.env);
     for i in 0..50u64 {
         items.push_back(LockFundsItem {
@@ -235,7 +235,7 @@ fn test_edge_very_large_batch() {
     let result = setup.escrow.try_batch_lock_funds(&items);
     assert!(
         result.is_ok() && result.unwrap().is_ok(),
-        "Max batch size should succeed"
+        "Large batch (50 items) should succeed within budget"
     );
 }
 
