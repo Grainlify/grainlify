@@ -14,8 +14,15 @@ mod pause_tests {
         env.mock_all_auths();
         let contract_id = env.register_contract(None, ProgramEscrowContract);
         let client = ProgramEscrowContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        let token = create_token(&env, &admin);
+        let prog_id = String::from_str(&env, "Test");
 
-        client.pause();
+        // Initialize to set up RBAC
+        client.initialize_program(&prog_id, &admin, &token.address);
+        
+        let result = client.try_pause(&admin);
+        assert!(result.is_ok());
         assert!(client.is_paused());
     }
 
@@ -32,7 +39,7 @@ mod pause_tests {
         let organizer = Address::generate(&env);
 
         client.initialize_program(&prog_id, &admin, &token.address, &organizer, &None);
-        client.pause();
+        let _ = client.try_pause(&admin);
         client.lock_program_funds(&prog_id, &1000);
     }
 
@@ -42,9 +49,14 @@ mod pause_tests {
         env.mock_all_auths();
         let contract_id = env.register_contract(None, ProgramEscrowContract);
         let client = ProgramEscrowContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        let token = create_token(&env, &admin);
+        let prog_id = String::from_str(&env, "Test");
 
-        client.pause();
-        client.unpause();
+        client.initialize_program(&prog_id, &admin, &token.address);
+        let _ = client.try_pause(&admin);
+        let result = client.try_unpause(&admin);
+        assert!(result.is_ok());
         assert!(!client.is_paused());
     }
 
@@ -61,7 +73,7 @@ mod pause_tests {
         let organizer = Address::generate(&env);
 
         client.initialize_program(&prog_id, &admin, &token.address, &organizer, &None);
-        client.pause();
+        let _ = client.try_pause(&admin);
         client.emergency_withdraw(&prog_id, &recipient);
     }
 
@@ -71,8 +83,12 @@ mod pause_tests {
         env.mock_all_auths();
         let contract_id = env.register_contract(None, ProgramEscrowContract);
         let client = ProgramEscrowContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        let token = create_token(&env, &admin);
+        let prog_id = String::from_str(&env, "Test");
 
-        client.pause();
+        client.initialize_program(&prog_id, &admin, &token.address);
+        let _ = client.try_pause(&admin);
         assert!(client.is_paused());
         assert!(client.is_paused());
     }
