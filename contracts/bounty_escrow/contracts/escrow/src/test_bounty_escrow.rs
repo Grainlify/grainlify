@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use soroban_sdk::{
-    testutils::{Address as _, Events, Ledger},
+    testutils::{Address as _, Ledger},
     token, vec, Address, Env,
 };
 
@@ -657,13 +657,13 @@ fn test_complete_bounty_workflow_lock_refund() {
 
 #[test]
 fn test_pause_functionality() {
-    let (env, client, contract_id) = create_test_env();
+    let (env, client, _contract_id) = create_test_env();
     env.mock_all_auths();
 
     let admin = Address::generate(&env);
 
     // Create and setup token
-    let (token_address, token_client, token_admin) = create_token_contract(&env, &admin);
+    let (token_address, _token_client, _token_admin) = create_token_contract(&env, &admin);
 
     // Initialize escrow
     client.init(&admin, &token_address);

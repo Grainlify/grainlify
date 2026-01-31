@@ -171,7 +171,6 @@ pub fn can_pause(env: &Env, address: &Address) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::testutils::Address as TestAddress;
 
     #[test]
     fn test_role_as_str() {

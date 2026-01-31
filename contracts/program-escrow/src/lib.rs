@@ -1139,20 +1139,64 @@ impl ProgramEscrowContract {
     /// -  Not verifying contract received the tokens
     /// Grant a role to an address
     pub fn grant_role(env: Env, address: Address, role_name: String) -> Result<(), Error> {
-        // For program-escrow, we'll use the admin from the current program context
-        // This is a simplified version - full implementation would track per-program admins
+        // In program-escrow, roles are global, not per-program
+        // For now, we'll track the authorized payout key globally
+        // For a full implementation, this could be extended to support per-program admins
+        address.require_auth();
+
+        // Parse role name
+        let role = if role_name == String::from_slice(&env, "admin") {
+            rbac::Role::Admin
+        } else if role_name == String::from_slice(&env, "operator") {
+            rbac::Role::Operator
+        } else if role_name == String::from_slice(&env, "pauser") {
+            rbac::Role::Pauser
+        } else if role_name == String::from_slice(&env, "viewer") {
+            rbac::Role::Viewer
+        } else {
+            return Err(Error::InvalidAmount);
+        };
+
+        rbac::grant_role(&env, &address, &role, &address);
         Ok(())
     }
 
     /// Revoke a role from an address
     pub fn revoke_role(env: Env, address: Address, role_name: String) -> Result<(), Error> {
+        address.require_auth();
+
+        // Parse role name
+        let role = if role_name == String::from_slice(&env, "admin") {
+            rbac::Role::Admin
+        } else if role_name == String::from_slice(&env, "operator") {
+            rbac::Role::Operator
+        } else if role_name == String::from_slice(&env, "pauser") {
+            rbac::Role::Pauser
+        } else if role_name == String::from_slice(&env, "viewer") {
+            rbac::Role::Viewer
+        } else {
+            return Err(Error::InvalidAmount)
+        };
+
+        rbac::revoke_role(&env, &address, &role);
         Ok(())
     }
 
     /// Check if an address has a specific role
     pub fn has_role(env: Env, address: Address, role_name: String) -> bool {
-        // Simplified version for program-escrow
-        false
+        let role = if role_name == String::from_slice(&env, "admin") {
+            rbac::Role::Admin
+        } else if role_name == String::from_slice(&env, "operator") {
+            rbac::Role::Operator
+        } else if role_name == String::from_slice(&env, "pauser") {
+            rbac::Role::Pauser
+        } else if role_name == String::from_slice(&env, "viewer") {
+            rbac::Role::Viewer
+        } else {
+            return false
+        };
+
+        rbac::has_role(&env, &address, &role)
     }
 
     pub fn lock_program_funds(env: Env, program_id: String, amount: i128) -> ProgramData {

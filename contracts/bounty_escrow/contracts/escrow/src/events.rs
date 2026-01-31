@@ -475,3 +475,73 @@ pub fn emit_escrow_expired(env: &Env, event: EscrowExpired) {
     let topics = (symbol_short!("expired"), event.bounty_id);
     env.events().publish(topics, event.clone());
 }
+
+// ============================================================================
+// RBAC Events
+// ============================================================================
+
+/// Event emitted when a role is granted to an address.
+///
+/// # Fields
+/// * `address` - The address that received the role
+/// * `role` - The role name that was granted
+/// * `granted_by` - The address that granted the role
+/// * `timestamp` - Unix timestamp of the grant
+///
+/// # Event Topic
+/// Symbol: `role_grant`
+///
+/// # Usage
+/// This event enables off-chain indexing of role assignments and provides
+/// an audit trail for RBAC changes.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct RoleGranted {
+    pub address: Address,
+    pub role: soroban_sdk::String,
+    pub granted_by: Address,
+    pub timestamp: u64,
+}
+
+/// Emit a RoleGranted event.
+///
+/// # Arguments
+/// * `env` - The contract environment
+/// * `event` - The role granted event data
+pub fn emit_role_granted(env: &Env, event: RoleGranted) {
+    let topics = (symbol_short!("role_add"), event.address.clone());
+    env.events().publish(topics, event);
+}
+
+/// Event emitted when a role is revoked from an address.
+///
+/// # Fields
+/// * `address` - The address that lost the role
+/// * `role` - The role name that was revoked
+/// * `revoked_by` - The address that revoked the role
+/// * `timestamp` - Unix timestamp of the revocation
+///
+/// # Event Topic
+/// Symbol: `role_revoke`
+///
+/// # Usage
+/// This event enables off-chain indexing of role removals and provides
+/// an audit trail for RBAC changes.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct RoleRevoked {
+    pub address: Address,
+    pub role: soroban_sdk::String,
+    pub revoked_by: Address,
+    pub timestamp: u64,
+}
+
+/// Emit a RoleRevoked event.
+///
+/// # Arguments
+/// * `env` - The contract environment
+/// * `event` - The role revoked event data
+pub fn emit_role_revoked(env: &Env, event: RoleRevoked) {
+    let topics = (symbol_short!("role_rm"), event.address.clone());
+    env.events().publish(topics, event);
+}

@@ -106,8 +106,9 @@ use blacklist::{
 use events::{
     emit_batch_funds_locked, emit_batch_funds_released, emit_contract_paused,
     emit_contract_unpaused, emit_deadline_extended, emit_emergency_withdrawal, emit_escrow_expired,
-    BatchFundsLocked, BatchFundsReleased, ContractPaused, ContractUnpaused, DeadlineExtended,
-    EmergencyWithdrawal, EscrowExpired,
+    emit_role_granted, emit_role_revoked, BatchFundsLocked, BatchFundsReleased, ContractPaused,
+    ContractUnpaused, DeadlineExtended, EmergencyWithdrawal, EscrowExpired, RoleGranted,
+    RoleRevoked,
 };
 use indexed::{
     _emit_bounty_initialized, on_funds_locked, on_funds_refunded, on_funds_released,
@@ -1176,6 +1177,10 @@ impl BountyEscrowContract {
             return Ok(()); // Already unpaused, idempotent
         }
 
+        env.storage().persistent().set(&DataKey::IsPaused, &false);
+        Ok(())
+    }
+
     /// Grant a role to an address
     ///
     /// # Arguments
@@ -1204,19 +1209,31 @@ impl BountyEscrowContract {
         }
 
         // Parse role name - compare Soroban Strings
-        let role = if role_name == String::from_slice(&env, "admin") {
+        let role = if role_name == String::from_str(&env, "admin") {
             rbac::Role::Admin
-        } else if role_name == String::from_slice(&env, "operator") {
+        } else if role_name == String::from_str(&env, "operator") {
             rbac::Role::Operator
-        } else if role_name == String::from_slice(&env, "pauser") {
+        } else if role_name == String::from_str(&env, "pauser") {
             rbac::Role::Pauser
-        } else if role_name == String::from_slice(&env, "viewer") {
+        } else if role_name == String::from_str(&env, "viewer") {
             rbac::Role::Viewer
         } else {
             return Err(Error::InvalidAmount); // Reuse error code
         };
 
         rbac::grant_role(&env, &address, &role, &admin);
+
+        // Emit role granted event
+        emit_role_granted(
+            &env,
+            RoleGranted {
+                address: address.clone(),
+                role: role_name.clone(),
+                granted_by: admin.clone(),
+                timestamp: env.ledger().timestamp(),
+            },
+        );
+
         Ok(())
     }
 
@@ -1247,19 +1264,30 @@ impl BountyEscrowContract {
         }
 
         // Parse role name - compare Soroban Strings
-        let role = if role_name == String::from_slice(&env, "admin") {
+        let role = if role_name == String::from_str(&env, "admin") {
             rbac::Role::Admin
-        } else if role_name == String::from_slice(&env, "operator") {
+        } else if role_name == String::from_str(&env, "operator") {
             rbac::Role::Operator
-        } else if role_name == String::from_slice(&env, "pauser") {
+        } else if role_name == String::from_str(&env, "pauser") {
             rbac::Role::Pauser
-        } else if role_name == String::from_slice(&env, "viewer") {
+        } else if role_name == String::from_str(&env, "viewer") {
             rbac::Role::Viewer
         } else {
             return Err(Error::InvalidAmount)
         };
-
         rbac::revoke_role(&env, &address, &role);
+
+        // Emit role revoked event
+        emit_role_revoked(
+            &env,
+            RoleRevoked {
+                address: address.clone(),
+                role: role_name.clone(),
+                revoked_by: admin.clone(),
+                timestamp: env.ledger().timestamp(),
+            },
+        );
+
         Ok(())
     }
 
@@ -1273,33 +1301,19 @@ impl BountyEscrowContract {
     /// # Returns
     /// `true` if address has the role
     pub fn has_role(env: Env, address: Address, role_name: String) -> bool {
-        let role = if role_name == String::from_slice(&env, "admin") {
+        let role = if role_name == String::from_str(&env, "admin") {
             rbac::Role::Admin
-        } else if role_name == String::from_slice(&env, "operator") {
+        } else if role_name == String::from_str(&env, "operator") {
             rbac::Role::Operator
-        } else if role_name == String::from_slice(&env, "pauser") {
+        } else if role_name == String::from_str(&env, "pauser") {
             rbac::Role::Pauser
-        } else if role_name == String::from_slice(&env, "viewer") {
+        } else if role_name == String::from_str(&env, "viewer") {
             rbac::Role::Viewer
         } else {
             return false
         };
 
         rbac::has_role(&env, &address, &role)
-    }
-
-
-        env.storage().persistent().set(&DataKey::IsPaused, &false);
-
-        emit_contract_unpaused(
-            &env,
-            ContractUnpaused {
-                unpaused_by: caller.clone(),
-                timestamp: env.ledger().timestamp(),
-            },
-        );
-
-        Ok(())
     }
 
     /// Emergency withdrawal for all contract funds (admin only, only when paused)
