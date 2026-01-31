@@ -105,6 +105,7 @@ use soroban_sdk::{
     Map, String, Vec,
 };
 
+
 // ==================== MONITORING MODULE ====================
 mod monitoring {
     use soroban_sdk::{contracttype, symbol_short, Address, Env, String, Symbol};
@@ -177,6 +178,7 @@ mod monitoring {
 
     // Track operation
     pub fn track_operation(env: &Env, operation: Symbol, caller: Address, success: bool) {
+        let timestamp = env.ledger().timestamp();
         let key = Symbol::new(env, OPERATION_COUNT);
         let count: u64 = env.storage().persistent().get(&key).unwrap_or(0);
         env.storage().persistent().set(&key, &(count + 1));
@@ -192,7 +194,7 @@ mod monitoring {
             OperationMetric {
                 operation,
                 caller,
-                timestamp: env.ledger().timestamp(),
+                timestamp,
                 success,
             },
         );
@@ -200,6 +202,7 @@ mod monitoring {
 
     // Track performance
     pub fn emit_performance(env: &Env, function: Symbol, duration: u64) {
+        let timestamp = env.ledger().timestamp();
         let count_key = (Symbol::new(env, "perf_cnt"), function.clone());
         let time_key = (Symbol::new(env, "perf_time"), function.clone());
 
@@ -216,7 +219,7 @@ mod monitoring {
             PerformanceMetric {
                 function,
                 duration,
-                timestamp: env.ledger().timestamp(),
+                timestamp,
             },
         );
     }
@@ -263,12 +266,13 @@ mod monitoring {
     // Get state snapshot
     #[allow(dead_code)]
     pub fn get_state_snapshot(env: &Env) -> StateSnapshot {
+        let timestamp = env.ledger().timestamp();
         let op_key = Symbol::new(env, OPERATION_COUNT);
         let usr_key = Symbol::new(env, USER_COUNT);
         let err_key = Symbol::new(env, ERROR_COUNT);
 
         StateSnapshot {
-            timestamp: env.ledger().timestamp(),
+            timestamp,
             total_operations: env.storage().persistent().get(&op_key).unwrap_or(0),
             total_users: env.storage().persistent().get(&usr_key).unwrap_or(0),
             total_errors: env.storage().persistent().get(&err_key).unwrap_or(0),
@@ -301,7 +305,7 @@ mod monitoring {
 
 // ==================== ANTI-ABUSE MODULE ====================
 mod anti_abuse {
-    use soroban_sdk::{contracttype, symbol_short, Address, Env};
+    use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol};
 
     #[contracttype]
     #[derive(Clone, Debug, Eq, PartialEq)]
@@ -325,7 +329,6 @@ mod anti_abuse {
         Config,
         State(Address),
         Whitelist(Address),
-        Admin,
     }
 
     pub fn get_config(env: &Env) -> AntiAbuseConfig {
@@ -363,16 +366,6 @@ mod anti_abuse {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn get_admin(env: &Env) -> Option<Address> {
-        env.storage().instance().get(&AntiAbuseKey::Admin)
-    }
-
-    #[allow(dead_code)]
-    pub fn set_admin(env: &Env, admin: Address) {
-        env.storage().instance().set(&AntiAbuseKey::Admin, &admin);
-    }
-
     pub fn check_rate_limit(env: &Env, address: Address) {
         if is_whitelisted(env, address.clone()) {
             return;
@@ -382,45 +375,30 @@ mod anti_abuse {
         let now = env.ledger().timestamp();
         let key = AntiAbuseKey::State(address.clone());
 
-        let mut state: AddressState =
-            env.storage()
-                .persistent()
-                .get(&key)
-                .unwrap_or(AddressState {
-                    last_operation_timestamp: 0,
-                    window_start_timestamp: now,
-                    operation_count: 0,
-                });
+        let mut state: AddressState = env.storage().persistent().get(&key).unwrap_or(AddressState {
+            last_operation_timestamp: 0,
+            window_start_timestamp: now,
+            operation_count: 0,
+        });
 
-        // 1. Cooldown check
         if state.last_operation_timestamp > 0
-            && now
-                < state
-                    .last_operation_timestamp
-                    .saturating_add(config.cooldown_period)
+            && now < state.last_operation_timestamp.saturating_add(config.cooldown_period)
         {
             env.events().publish(
                 (symbol_short!("abuse"), symbol_short!("cooldown")),
-                (address.clone(), now),
+                (address, now),
             );
             panic!("Operation in cooldown period");
         }
 
-        // 2. Window check
-        if now
-            >= state
-                .window_start_timestamp
-                .saturating_add(config.window_size)
-        {
-            // New window
+        if now >= state.window_start_timestamp.saturating_add(config.window_size) {
             state.window_start_timestamp = now;
             state.operation_count = 1;
         } else {
-            // Same window
             if state.operation_count >= config.max_operations {
                 env.events().publish(
                     (symbol_short!("abuse"), symbol_short!("limit")),
-                    (address.clone(), now),
+                    (address, now),
                 );
                 panic!("Rate limit exceeded");
             }
@@ -430,12 +408,31 @@ mod anti_abuse {
         state.last_operation_timestamp = now;
         env.storage().persistent().set(&key, &state);
 
-        // Extend TTL for state (approx 1 day)
         env.storage().persistent().extend_ttl(&key, 17280, 17280);
     }
 }
-// ==================== END ANTI-ABUSE MODULE ====================
 
+// ============================================================================
+// Error Definitions
+// ============================================================================
+
+/// Contract error codes for the Bounty Escrow system.
+///
+/// # Error Codes
+/// * `AlreadyInitialized (1)` - Contract has already been initialized
+/// * `NotInitialized (2)` - Contract must be initialized before use
+/// * `BountyExists (3)` - Bounty ID already has funds locked
+/// * `BountyNotFound (4)` - No escrow exists for this bounty ID
+/// * `FundsNotLocked (5)` - Funds are not in LOCKED state
+/// * `DeadlineNotPassed (6)` - Cannot refund before deadline
+/// * `Unauthorized (7)` - Caller lacks required authorization
+///
+/// # Usage in Error Handling
+/// ```rust
+/// if env.storage().instance().has(&DataKey::Admin) {
+///     return Err(Error::AlreadyInitialized);
+/// }
+/// ```
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
@@ -462,18 +459,26 @@ pub enum Error {
     Unauthorized = 7,
     InvalidFeeRate = 8,
     FeeRecipientNotSet = 9,
-    InvalidBatchSize = 10,
     /// Returned when contract is paused and operation is blocked
     ContractPaused = 11,
-    DuplicateBountyId = 12,
     /// Returned when amount is invalid (zero, negative, or exceeds available)
     InvalidAmount = 13,
+
     /// Returned when deadline is invalid (in the past or too far in the future)
     InvalidDeadline = 14,
+
+    /// Returned when batch size or data is invalid
+    InvalidBatchSize = 10,
+
+    /// Returned when a duplicate bounty ID is found within a batch
+    DuplicateBountyId = 12,
+
     /// Returned when attempting to extend deadline to a value not greater than current deadline
     InvalidDeadlineExtension = 19,
+
     /// Returned when contract has insufficient funds for the operation
     InsufficientFunds = 16,
+
     /// Returned when refund is attempted without admin approval
     RefundNotApproved = 17,
     BatchSizeMismatch = 18,
@@ -698,6 +703,7 @@ pub enum DataKey {
     Escrow(u64),         // bounty_id
     EscrowMetadata(u64), // bounty_id -> EscrowMetadata
     FeeConfig,           // Fee configuration
+
     RefundApproval(u64), // bounty_id -> RefundApproval
     ReentrancyGuard,
     IsPaused, // Contract pause state
@@ -799,10 +805,11 @@ impl BountyEscrowContract {
     /// # Gas Cost
     /// Low - Only two storage writes
     pub fn init(env: Env, admin: Address, token: Address) -> Result<(), Error> {
+        let now = env.ledger().timestamp();
+
         // Apply rate limiting
         anti_abuse::check_rate_limit(&env, admin.clone());
 
-        let start = env.ledger().timestamp();
         let caller = admin.clone();
 
         // Prevent re-initialization
@@ -842,7 +849,7 @@ impl BountyEscrowContract {
             BountyEscrowInitialized {
                 admin: admin.clone(),
                 token,
-                timestamp: env.ledger().timestamp(),
+                timestamp: now,
             },
         );
 
@@ -850,8 +857,7 @@ impl BountyEscrowContract {
         monitoring::track_operation(&env, symbol_short!("init"), caller, true);
 
         // Track performance
-        let duration = env.ledger().timestamp().saturating_sub(start);
-        monitoring::emit_performance(&env, symbol_short!("init"), duration);
+        monitoring::emit_performance(&env, symbol_short!("init"), 0);
 
         Ok(())
     }
@@ -1115,10 +1121,11 @@ impl BountyEscrowContract {
         amount: i128,
         deadline: u64,
     ) -> Result<(), Error> {
+        let now = env.ledger().timestamp();
+
         // Apply rate limiting
         anti_abuse::check_rate_limit(&env, depositor.clone());
 
-        let start = env.ledger().timestamp();
         let caller = depositor.clone();
 
         // Check if contract is paused
@@ -1144,7 +1151,7 @@ impl BountyEscrowContract {
             return Err(Error::InvalidAmount);
         }
 
-        if deadline <= env.ledger().timestamp() {
+        if deadline <= now {
             monitoring::track_operation(&env, symbol_short!("lock"), caller, false);
             env.storage().instance().remove(&DataKey::ReentrancyGuard);
             return Err(Error::InvalidDeadline);
@@ -1199,7 +1206,7 @@ impl BountyEscrowContract {
             amount: net_amount, // Store net amount (after fee)
             status: EscrowStatus::Locked,
             deadline,
-            refund_history: vec![&env],
+            refund_history: Vec::new(&env),
             remaining_amount: amount,
         };
 
@@ -1225,9 +1232,7 @@ impl BountyEscrowContract {
         // Track successful operation
         monitoring::track_operation(&env, symbol_short!("lock"), caller, true);
 
-        // Track performance
-        let duration = env.ledger().timestamp().saturating_sub(start);
-        monitoring::emit_performance(&env, symbol_short!("lock"), duration);
+        monitoring::emit_performance(&env, symbol_short!("lock"), 0);
 
         Ok(())
     }
@@ -1564,6 +1569,9 @@ impl BountyEscrowContract {
             monitoring::track_operation(&env, symbol_short!("refund"), caller, false);
             return Err(Error::ContractPaused);
         }
+        env.storage()
+            .instance()
+            .set(&DataKey::ReentrancyGuard, &true);
 
         if !env.storage().persistent().has(&DataKey::Escrow(bounty_id)) {
             let caller = env.current_contract_address();
@@ -2115,14 +2123,17 @@ impl BountyEscrowContract {
         // Validate batch size
         let batch_size = items.len();
         if batch_size == 0 {
+            env.storage().instance().remove(&DataKey::ReentrancyGuard);
             return Err(Error::InvalidBatchSize);
         }
         if batch_size > MAX_BATCH_SIZE {
+            env.storage().instance().remove(&DataKey::ReentrancyGuard);
             return Err(Error::InvalidBatchSize);
         }
 
         // Check if contract is paused
         if Self::is_paused_internal(&env) {
+            env.storage().instance().remove(&DataKey::ReentrancyGuard);
             return Err(Error::ContractPaused);
         }
 
@@ -2192,7 +2203,7 @@ impl BountyEscrowContract {
                 amount: item.amount,
                 status: EscrowStatus::Locked,
                 deadline: item.deadline,
-                refund_history: vec![&env],
+                refund_history: Vec::new(&env),
                 remaining_amount: item.amount,
             };
 
@@ -2258,15 +2269,19 @@ impl BountyEscrowContract {
         // Validate batch size
         let batch_size = items.len();
         if batch_size == 0 {
+            env.storage().instance().remove(&DataKey::ReentrancyGuard);
             return Err(Error::InvalidBatchSize);
         }
         if batch_size > MAX_BATCH_SIZE {
+            env.storage().instance().remove(&DataKey::ReentrancyGuard);
             return Err(Error::InvalidBatchSize);
         }
 
         // Check if contract is paused
         if Self::is_paused_internal(&env) {
+            env.storage().instance().remove(&DataKey::ReentrancyGuard);
             return Err(Error::ContractPaused);
+
         }
 
         if !env.storage().instance().has(&DataKey::Admin) {
@@ -2373,6 +2388,45 @@ impl BountyEscrowContract {
         );
 
         Ok(released_count)
+    }
+
+    /// Updates the rate limit configuration.
+    /// Only the admin can call this.
+    pub fn update_rate_limit_config(
+        env: Env,
+        window_size: u64,
+        max_operations: u32,
+        cooldown_period: u64,
+    ) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).expect("Admin not set");
+        admin.require_auth();
+        
+        anti_abuse::set_config(
+            &env,
+            anti_abuse::AntiAbuseConfig {
+                window_size,
+                max_operations,
+                cooldown_period,
+            },
+        );
+    }
+
+    /// Adds or removes an address from the whitelist.
+    /// Only the admin can call this.
+    pub fn set_whitelist(env: Env, address: Address, whitelisted: bool) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).expect("Admin not set");
+        admin.require_auth();
+        anti_abuse::set_whitelist(&env, address, whitelisted);
+    }
+
+    /// Checks if an address is whitelisted.
+    pub fn is_whitelisted(env: Env, address: Address) -> bool {
+        anti_abuse::is_whitelisted(&env, address)
+    }
+
+    /// Gets the current rate limit configuration.
+    pub fn get_rate_limit_config(env: Env) -> anti_abuse::AntiAbuseConfig {
+        anti_abuse::get_config(&env)
     }
 }
 

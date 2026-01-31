@@ -241,6 +241,7 @@ mod monitoring {
 
     // Track operation
     pub fn track_operation(env: &Env, operation: Symbol, caller: Address, success: bool) {
+        let timestamp = env.ledger().timestamp();
         let key = Symbol::new(env, OPERATION_COUNT);
         let count: u64 = env.storage().persistent().get(&key).unwrap_or(0);
         env.storage().persistent().set(&key, &(count + 1));
@@ -256,7 +257,7 @@ mod monitoring {
             OperationMetric {
                 operation,
                 caller,
-                timestamp: env.ledger().timestamp(),
+                timestamp,
                 success,
             },
         );
@@ -264,6 +265,7 @@ mod monitoring {
 
     // Track performance
     pub fn emit_performance(env: &Env, function: Symbol, duration: u64) {
+        let timestamp = env.ledger().timestamp();
         let count_key = (Symbol::new(env, "perf_cnt"), function.clone());
         let time_key = (Symbol::new(env, "perf_time"), function.clone());
 
@@ -280,7 +282,7 @@ mod monitoring {
             PerformanceMetric {
                 function,
                 duration,
-                timestamp: env.ledger().timestamp(),
+                timestamp,
             },
         );
     }
@@ -324,12 +326,13 @@ mod monitoring {
 
     // Get state snapshot
     pub fn get_state_snapshot(env: &Env) -> StateSnapshot {
+        let timestamp = env.ledger().timestamp();
         let op_key = Symbol::new(env, OPERATION_COUNT);
         let usr_key = Symbol::new(env, USER_COUNT);
         let err_key = Symbol::new(env, ERROR_COUNT);
 
         StateSnapshot {
-            timestamp: env.ledger().timestamp(),
+            timestamp,
             total_operations: env.storage().persistent().get(&op_key).unwrap_or(0),
             total_users: env.storage().persistent().get(&usr_key).unwrap_or(0),
             total_errors: env.storage().persistent().get(&err_key).unwrap_or(0),
@@ -448,7 +451,6 @@ mod anti_abuse {
                     operation_count: 0,
                 });
 
-        // 1. Cooldown check
         if state.last_operation_timestamp > 0
             && now
                 < state
@@ -457,26 +459,20 @@ mod anti_abuse {
         {
             env.events().publish(
                 (symbol_short!("abuse"), symbol_short!("cooldown")),
-                (address.clone(), now),
+                (address, now),
             );
             panic!("Operation in cooldown period");
         }
 
-        // 2. Window check
-        if now
-            >= state
-                .window_start_timestamp
-                .saturating_add(config.window_size)
-        {
+        if now >= state.window_start_timestamp.saturating_add(config.window_size) {
             // New window
             state.window_start_timestamp = now;
             state.operation_count = 1;
         } else {
-            // Same window
             if state.operation_count >= config.max_operations {
                 env.events().publish(
                     (symbol_short!("abuse"), symbol_short!("limit")),
-                    (address.clone(), now),
+                    (address, now),
                 );
                 panic!("Rate limit exceeded");
             }
@@ -486,7 +482,6 @@ mod anti_abuse {
         state.last_operation_timestamp = now;
         env.storage().persistent().set(&key, &state);
 
-        // Extend TTL for state (approx 1 day)
         env.storage().persistent().extend_ttl(&key, 17280, 17280);
     }
 }
@@ -873,10 +868,11 @@ impl ProgramEscrowContract {
         authorized_payout_key: Address,
         token_address: Address,
     ) -> ProgramData {
+        let now = env.ledger().timestamp();
+        
         // Apply rate limiting
         anti_abuse::check_rate_limit(&env, authorized_payout_key.clone());
 
-        let start = env.ledger().timestamp();
         let caller = authorized_payout_key.clone();
 
         // Validate program_id
@@ -932,9 +928,8 @@ impl ProgramEscrowContract {
         // Track successful operation
         monitoring::track_operation(&env, symbol_short!("init_prg"), caller, true);
 
-        // Track performance
-        let duration = env.ledger().timestamp().saturating_sub(start);
-        monitoring::emit_performance(&env, symbol_short!("init_prg"), duration);
+        // Track performance (timestamp is constant within transaction)
+        monitoring::emit_performance(&env, symbol_short!("init_prg"), 0);
 
         program_data
     }
@@ -1081,11 +1076,13 @@ impl ProgramEscrowContract {
     /// -  Locking amount that exceeds actual contract balance
     /// -  Not verifying contract received the tokens
     pub fn lock_program_funds(env: Env, program_id: String, amount: i128) -> ProgramData {
-        // Apply rate limiting
-        anti_abuse::check_rate_limit(&env, env.current_contract_address());
+        let contract_addr = env.current_contract_address();
 
         let _start = env.ledger().timestamp();
-        let caller = env.current_contract_address();
+        let caller = contract_addr.clone();
+
+        // Apply rate limiting
+        anti_abuse::check_rate_limit(&env, caller.clone());
 
         // Check if contract is paused
         if Self::is_paused_internal(&env) {
@@ -1095,7 +1092,7 @@ impl ProgramEscrowContract {
 
         // Validate amount
         if amount <= 0 {
-            monitoring::track_operation(&env, symbol_short!("lock"), caller.clone(), false);
+            monitoring::track_operation(&env, symbol_short!("lock"), contract_addr, false);
             panic!("Amount must be greater than zero");
         }
 
@@ -1106,7 +1103,7 @@ impl ProgramEscrowContract {
             .instance()
             .get(&program_key)
             .unwrap_or_else(|| {
-                monitoring::track_operation(&env, symbol_short!("lock"), caller.clone(), false);
+                monitoring::track_operation(&env, symbol_short!("lock"), contract_addr.clone(), false);
                 panic!("Program not found")
             });
 
@@ -1148,6 +1145,12 @@ impl ProgramEscrowContract {
                 program_data.remaining_balance,
             ),
         );
+
+        // Track successful operation
+        monitoring::track_operation(&env, symbol_short!("lock"), contract_addr, true);
+
+        let duration = env.ledger().timestamp().saturating_sub(_start);
+        monitoring::emit_performance(&env, symbol_short!("lock"), duration);
 
         program_data
     }
@@ -1359,21 +1362,19 @@ impl ProgramEscrowContract {
         updated_data.remaining_balance -= total_payout; // Total includes fees
         updated_data.payout_history = updated_history;
 
-        // Store updated data
         env.storage().instance().set(&program_key, &updated_data);
 
-        // Emit event
         env.events().publish(
             (BATCH_PAYOUT,),
             (
                 program_id,
                 recipients.len(),
                 total_payout,
-                updated_data.remaining_balance,
+                program_data.remaining_balance,
             ),
         );
 
-        updated_data
+        program_data
     }
 
     /// Executes a single payout to one recipient.
