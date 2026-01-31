@@ -989,7 +989,12 @@ impl ProgramEscrowContract {
         env.storage().instance().set(&FEE_CONFIG, &fee_config);
 
         // Initialize RBAC: grant Admin role to the authorized payout key
-        rbac::grant_role(&env, &authorized_payout_key, &rbac::Role::Admin, &authorized_payout_key);
+        rbac::grant_role(
+            &env,
+            &authorized_payout_key,
+            &rbac::Role::Admin,
+            &authorized_payout_key,
+        );
 
         // Store program data
         env.storage().instance().set(&program_key, &program_data);
@@ -1195,7 +1200,7 @@ impl ProgramEscrowContract {
         } else if role_name == String::from_str(&env, "viewer") {
             rbac::Role::Viewer
         } else {
-            return Err(Error::InvalidAmount)
+            return Err(Error::InvalidAmount);
         };
 
         rbac::revoke_role(&env, &address, &role);
@@ -1213,7 +1218,7 @@ impl ProgramEscrowContract {
         } else if role_name == String::from_str(&env, "viewer") {
             rbac::Role::Viewer
         } else {
-            return false
+            return false;
         };
 
         rbac::has_role(&env, &address, &role)

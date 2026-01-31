@@ -101,13 +101,13 @@ pub fn revoke_role(env: &Env, address: &Address, role: &Role) {
     if let Some(mut address_roles) = roles.get(address.clone()) {
         let role_symbol = Symbol::new(env, role.as_str());
         address_roles.remove(role_symbol);
-        
+
         if address_roles.len() > 0 {
             roles.set(address.clone(), address_roles);
         } else {
             roles.remove(address.clone());
         }
-        
+
         env.storage()
             .instance()
             .set(&Symbol::new(env, ROLE_STORAGE_KEY), &roles);

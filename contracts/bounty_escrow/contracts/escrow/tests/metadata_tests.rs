@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use bounty_escrow::{BountyEscrowContract, BountyEscrowContractClient, EscrowMetadata, Error};
+use bounty_escrow::{BountyEscrowContract, BountyEscrowContractClient, Error, EscrowMetadata};
 use soroban_sdk::{map, testutils::Address as _, Address, Env, String, Vec};
 
 #[test]

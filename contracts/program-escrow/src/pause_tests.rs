@@ -21,7 +21,7 @@ mod pause_tests {
 
         // Initialize to set up RBAC
         client.initialize_program(&prog_id, &admin, &token.address, &organizer, &None);
-        
+
         let result = client.try_pause(&admin);
         assert!(result.is_ok());
         assert!(client.is_paused());

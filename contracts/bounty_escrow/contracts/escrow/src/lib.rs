@@ -1273,7 +1273,7 @@ impl BountyEscrowContract {
         } else if role_name == String::from_str(&env, "viewer") {
             rbac::Role::Viewer
         } else {
-            return Err(Error::InvalidAmount)
+            return Err(Error::InvalidAmount);
         };
         rbac::revoke_role(&env, &address, &role);
 
@@ -1310,7 +1310,7 @@ impl BountyEscrowContract {
         } else if role_name == String::from_str(&env, "viewer") {
             rbac::Role::Viewer
         } else {
-            return false
+            return false;
         };
 
         rbac::has_role(&env, &address, &role)
