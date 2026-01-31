@@ -97,12 +97,12 @@ use events::{
     emit_admin_action_cancelled, emit_admin_action_executed, emit_admin_action_proposed,
     emit_admin_updated, emit_batch_funds_locked, emit_batch_funds_released,
     emit_bounty_initialized, emit_config_limits_updated, emit_contract_paused,
-    emit_contract_unpaused, emit_deadline_extended, emit_emergency_withdrawal,
+    emit_contract_unpaused, emit_deadline_extended, emit_emergency_withdrawal, emit_escrow_expired,
     emit_funds_locked, emit_funds_refunded, emit_funds_released, emit_payout_key_updated,
     AdminActionCancelled, AdminActionExecuted, AdminActionProposed, AdminUpdated, BatchFundsLocked,
     BatchFundsReleased, BountyEscrowInitialized, ConfigLimitsUpdated, ContractPaused,
-    ContractUnpaused, DeadlineExtended, EmergencyWithdrawal, FundsLocked, FundsRefunded,
-    FundsReleased, PayoutKeyUpdated,
+    ContractUnpaused, DeadlineExtended, EmergencyWithdrawal, EscrowExpired, FundsLocked,
+    FundsRefunded, FundsReleased, PayoutKeyUpdated,
 };
 use indexed::{on_funds_locked, on_funds_refunded, on_funds_released};
 use soroban_sdk::{
@@ -679,9 +679,6 @@ pub struct EscrowMetadata {
 ///     println!("Tags: {:?}", metadata.tags);
 /// }
 /// ```
-// Note: EscrowWithMetadata cannot use Option directly in contracttype
-// Instead, we'll return metadata separately or use a wrapper
-// For now, keeping the structure but metadata will be None if not set
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EscrowWithMetadata {
@@ -749,7 +746,73 @@ pub struct EscrowStats {
 }
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+/// Validates that metadata doesn't exceed size limits.
+///
+/// # Limits
+/// - Maximum 20 tags
+/// - Maximum 10 custom fields
+/// - Maximum 128 characters per string field (repo_id, issue_id, bounty_type)
+/// - Maximum 64 characters per tag
+/// - Maximum 128 characters per custom field key/value
+///
+/// # Arguments
+/// * `env` - The contract environment
+/// * `metadata` - The metadata to validate
+///
+/// # Returns
+/// * `true` - Metadata is within limits
+/// * `false` - Metadata exceeds one or more limits
+fn validate_metadata_size(env: &Env, metadata: &EscrowMetadata) -> bool {
+    // Check tags limit
+    if metadata.tags.len() > 20 {
+        return false;
+    }
+
+    // Check custom fields limit
+    if metadata.custom_fields.len() > 10 {
+        return false;
+    }
+
+    // Check individual string lengths
+    if let Some(repo_id) = &metadata.repo_id {
+        if repo_id.len() > 128 {
+            return false;
+        }
+    }
+
+    if let Some(issue_id) = &metadata.issue_id {
+        if issue_id.len() > 128 {
+            return false;
+        }
+    }
+
+    if let Some(bounty_type) = &metadata.bounty_type {
+        if bounty_type.len() > 128 {
+            return false;
+        }
+    }
+
+    for tag in metadata.tags.iter() {
+        if tag.len() > 64 {
+            return false;
+        }
+    }
+
+    for (key, value) in metadata.custom_fields.iter() {
+        if key.len() > 128 || value.len() > 128 {
+            return false;
+        }
+    }
+
+    true
+}
+
+// ============================================================================
 // Contract Implementation
+// ============================================================================
 // ============================================================================
 
 #[contract]
@@ -792,7 +855,7 @@ impl BountyEscrowContract {
 
         // Check tag string lengths
         for i in 0..metadata.tags.len() {
-            let tag = metadata.tags.get(i as u32).unwrap();
+            let tag = metadata.tags.get(i).unwrap();
             if tag.len() > max_string_len {
                 return false;
             }
@@ -1972,7 +2035,6 @@ impl BountyEscrowContract {
             }
             None => escrow.remaining_amount, // Release full remaining amount
         };
-
         let client = token::Client::new(&env, &token_addr);
 
         // Calculate and collect fee if enabled
@@ -2098,6 +2160,91 @@ impl BountyEscrowContract {
         Ok(())
     }
 
+    /// Expire an escrow and automatically refund to depositor after deadline.
+    /// This function can be called by anyone after the deadline has passed.
+    /// It provides a permissionless way to ensure funds are not stuck indefinitely.
+    pub fn expire(env: Env, bounty_id: u64) -> Result<(), Error> {
+        let start = env.ledger().timestamp();
+
+        if Self::is_paused_internal(&env) {
+            return Err(Error::ContractPaused);
+        }
+
+        if !env.storage().persistent().has(&DataKey::Escrow(bounty_id)) {
+            return Err(Error::BountyNotFound);
+        }
+
+        let mut escrow: Escrow = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Escrow(bounty_id))
+            .unwrap();
+
+        if escrow.status != EscrowStatus::Locked && escrow.status != EscrowStatus::PartiallyRefunded
+        {
+            return Err(Error::FundsNotLocked);
+        }
+
+        let now = env.ledger().timestamp();
+        if now < escrow.deadline {
+            return Err(Error::DeadlineNotPassed);
+        }
+
+        let refund_amount = escrow.remaining_amount;
+        if refund_amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
+
+        // Use escrow's primary token
+        let token_addr: Address = escrow.token_address.clone();
+        let client = token::Client::new(&env, &token_addr);
+
+        let contract_balance = client.balance(&env.current_contract_address());
+        if contract_balance < refund_amount {
+            return Err(Error::InsufficientFunds);
+        }
+
+        client.transfer(
+            &env.current_contract_address(),
+            &escrow.depositor,
+            &refund_amount,
+        );
+
+        let refund_record = RefundRecord {
+            amount: refund_amount,
+            recipient: escrow.depositor.clone(),
+            mode: RefundMode::Full,
+            timestamp: env.ledger().timestamp(),
+        };
+        escrow.refund_history.push_back(refund_record);
+        escrow.remaining_amount = 0;
+        escrow.status = EscrowStatus::Refunded;
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::Escrow(bounty_id), &escrow);
+
+        emit_escrow_expired(
+            &env,
+            EscrowExpired {
+                bounty_id,
+                amount: refund_amount,
+                refunded_to: escrow.depositor.clone(),
+                triggered_by: env.current_contract_address(),
+                timestamp: env.ledger().timestamp(),
+            },
+        );
+
+        let duration = env.ledger().timestamp().saturating_sub(start);
+        monitoring::emit_performance(&env, symbol_short!("expire"), duration);
+
+        Ok(())
+    }
+
+    /// Refund funds with support for Full, Partial, and Custom refunds.
+    /// - Full: refunds all remaining funds to depositor
+    /// - Partial: refunds specified amount to depositor
+    /// - Custom: refunds specified amount to specified recipient (requires admin approval if before deadline)
     pub fn refund(
         env: Env,
         bounty_id: u64,
@@ -3201,4 +3348,11 @@ impl BountyEscrowContract {
 mod test;
 
 #[cfg(test)]
+mod test_fuzz_properties;
+
+#[cfg(test)]
+mod test_edge_cases;
+
 mod pause_tests;
+#[cfg(test)]
+mod test_invalid_inputs;

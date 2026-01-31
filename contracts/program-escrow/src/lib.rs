@@ -688,6 +688,8 @@ pub struct ProgramData {
     pub token_address: Address, // Primary/default token (for backward compatibility)
     pub token_balances: Map<Address, i128>, // Map of token_address -> balance for multi-token support
     pub whitelist: Vec<Address>,
+    pub deadline: Option<u64>, // Optional deadline for the program
+    pub organizer: Address,    // Program organizer address
 }
 
 /// Storage key type for individual programs
@@ -834,6 +836,8 @@ impl ProgramEscrowContract {
         program_id: String,
         auth_key: Address,
         token_addr: Address,
+        organizer: Address,
+        deadline: Option<u64>,
     ) -> ProgramData {
         let start = env.ledger().timestamp();
         let caller = env.current_contract_address();
@@ -841,6 +845,13 @@ impl ProgramEscrowContract {
         // Prevent re-initialization
         if env.storage().instance().has(&PROGRAM_DATA) {
             panic!("Program already initialized");
+        }
+
+        // Validate deadline if provided
+        if let Some(dl) = deadline {
+            if dl <= env.ledger().timestamp() {
+                panic!("Deadline must be in the future");
+            }
         }
 
         // Create program data
@@ -855,6 +866,8 @@ impl ProgramEscrowContract {
             token_address: token_addr.clone(),
             token_balances: balances,
             whitelist: vec![&env, token_addr.clone()],
+            deadline,
+            organizer: organizer.clone(),
         };
 
         // Store program configuration (both at PROGRAM_DATA and DataKey::Program for compatibility)
@@ -2261,18 +2274,84 @@ impl ProgramEscrowContract {
         env.storage().instance().set(&DataKey::IsPaused, &false);
     }
 
+    /// Expire a program and refund remaining balance to organizer after deadline.
+    /// This function can be called by anyone after the deadline has passed.
+    pub fn expire_program(env: Env, program_id: String) {
+        if Self::is_paused_internal(&env) {
+            panic!("Contract is paused");
+        }
+
+        let program_key = DataKey::Program(program_id.clone());
+        let program_data: ProgramData = env
+            .storage()
+            .instance()
+            .get(&program_key)
+            .unwrap_or_else(|| panic!("Program not found"));
+
+        let deadline = program_data
+            .deadline
+            .unwrap_or_else(|| panic!("Program has no deadline"));
+
+        let now = env.ledger().timestamp();
+        if now < deadline {
+            panic!("Deadline has not passed yet");
+        }
+
+        if program_data.remaining_bal <= 0 {
+            panic!("No funds to refund");
+        }
+
+        let token_client = token::Client::new(&env, &program_data.token_address);
+        let contract_balance = token_client.balance(&env.current_contract_address());
+
+        if contract_balance < program_data.remaining_bal {
+            panic!("Insufficient contract balance");
+        }
+
+        token_client.transfer(
+            &env.current_contract_address(),
+            &program_data.organizer,
+            &program_data.remaining_bal,
+        );
+
+        let mut updated_program = program_data.clone();
+        updated_program.remaining_bal = 0;
+        env.storage().instance().set(&program_key, &updated_program);
+        env.storage()
+            .instance()
+            .set(&PROGRAM_DATA, &updated_program);
+
+        env.events().publish(
+            (symbol_short!("expired"),),
+            (
+                program_id,
+                program_data.remaining_bal,
+                program_data.organizer,
+                now,
+            ),
+        );
+    }
+
     // ========================================================================
     // Simple API Functions (for backward compatibility with tests)
     // ========================================================================
 
     /// Initialize the program (alias for init_program with simpler name).
+    /// Uses auth_key as the default organizer and no deadline.
     pub fn initialize(
         env: Env,
         program_id: String,
         auth_key: Address,
         token_addr: Address,
     ) -> ProgramData {
-        Self::init_program(env, program_id, auth_key, token_addr)
+        Self::init_program(
+            env,
+            program_id,
+            auth_key.clone(),
+            token_addr,
+            auth_key,
+            None,
+        )
     }
 
     /// Lock funds using the simple API (without program_id).
