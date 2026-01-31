@@ -698,7 +698,7 @@ pub enum DataKey {
     FeeConfig,           // Fee configuration
     RefundApproval(u64), // bounty_id -> RefundApproval
     ReentrancyGuard,
-    IsPaused,            // Contract pause state
+    IsPaused, // Contract pause state
 }
 
 // ============================================================================
