@@ -714,3 +714,123 @@ fn test_emergency_withdraw() {
     // Verify pause state still true
     assert!(client.is_paused());
 }
+
+
+
+    #[test]
+    fn test_get_bounties_with_schedule_filter() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let token = Address::generate(&env);
+        let depositor = Address::generate(&env);
+        
+        let contract_id = env.register_contract(None, BountyEscrowContract);
+        let client = BountyEscrowContractClient::new(&env, &contract_id);
+
+        client.init(&admin, &token);
+
+        let now = env.ledger().timestamp();
+
+        // Create bounties with different statuses
+        // Bounty 1: Scheduled
+        client.lock_funds(&depositor, &1, &1000_0000000, &(now + 365 * 24 * 60 * 60));
+        let schedules = Vec::from_array(&env, [(500_0000000, now + 30 * 24 * 60 * 60)]);
+        client.create_release_schedules(&1, &schedules);
+
+        // Bounty 2: Locked (no schedules)
+        client.lock_funds(&depositor, &2, &500_0000000, &(now + 365 * 24 * 60 * 60));
+
+        // Test filtering by status
+        let filter = EscrowFilter {
+            status: Some(EscrowStatus::Scheduled as u32),
+            depositor: None,
+            min_amount: None,
+            max_amount: None,
+            start_time: None,
+            end_time: None,
+        };
+        
+        let pagination = Pagination {
+            start_index: 0,
+            limit: 10,
+        };
+
+        let results = client.get_bounties(&filter, &pagination);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results.get(0).unwrap().0, 1); // Bounty ID 1
+    }
+
+    #[test]
+    fn test_get_pending_schedules_empty() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let token = Address::generate(&env);
+        let depositor = Address::generate(&env);
+        let bounty_id = 1u64;
+        let amount = 1000_0000000;
+        let deadline = env.ledger().timestamp() + 365 * 24 * 60 * 60;
+
+        let contract_id = env.register_contract(None, BountyEscrowContract);
+        let client = BountyEscrowContractClient::new(&env, &contract_id);
+
+        client.init(&admin, &token);
+        client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
+
+        // No schedules created yet
+        let pending = client.get_pending_schedules(&bounty_id);
+        assert_eq!(pending.len(), 0);
+    }
+
+    #[test]
+    fn test_schedule_edge_cases() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let token = Address::generate(&env);
+        let depositor = Address::generate(&env);
+        let bounty_id = 1u64;
+        let amount = 1000_0000000;
+        let deadline = env.ledger().timestamp() + 365 * 24 * 60 * 60;
+
+        let contract_id = env.register_contract(None, BountyEscrowContract);
+        let client = BountyEscrowContractClient::new(&env, &contract_id);
+
+        client.init(&admin, &token);
+        client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
+
+        let now = env.ledger().timestamp();
+
+        // Test: Multiple small schedules
+        let schedules = Vec::from_array(
+            &env,
+            [
+                (100_0000000, now + 10 * 24 * 60 * 60),
+                (200_0000000, now + 20 * 24 * 60 * 60),
+                (300_0000000, now + 30 * 24 * 60 * 60),
+                (400_0000000, now + 40 * 24 * 60 * 60),
+            ],
+        );
+
+        let schedule_ids = client.create_release_schedules(&bounty_id, &schedules);
+        assert_eq!(schedule_ids.len(), 4);
+
+        // Verify sequential schedule IDs
+        for (i, &id) in schedule_ids.iter().enumerate() {
+            assert_eq!(id, i as u32);
+        }
+
+        // Execute out of order
+        env.ledger().set_timestamp(now + 35 * 24 * 60 * 60);
+        
+        // Execute schedule 2 (index 2, timestamp 30 days)
+        client.execute_schedule(&bounty_id, &2, &Address::generate(&env));
+        
+        // Execute schedule 3 (index 3, timestamp 40 days) - should fail (not ready yet)
+        let result = client.try_execute_schedule(&bounty_id, &3, &Address::generate(&env));
+        assert_eq!(result, Err(Ok(Error::ScheduleNotReady)));
+    }

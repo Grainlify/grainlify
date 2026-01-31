@@ -2,7 +2,7 @@
 //!
 //! This module defines all events emitted by the Bounty Escrow contract.
 //! Events provide an audit trail and enable off-chain indexing for monitoring
-//! bounty lifecycle states.
+//! bounty lifecycle states and time-based release schedules.
 //!
 //! ## Event Architecture
 //!
@@ -19,9 +19,11 @@
 //! │  │ Decision │                                               │
 //! │  └────┬─────┘                                               │
 //! │       ├─────→ Release → FundsReleased                       │
+//! │       ├─────→ Schedule → ScheduleCreated                    │
+//! │       │         ↓ → ScheduleReleased                        │
 //! │       └─────→ Refund  → FundsRefunded                       │
 //! └─────────────────────────────────────────────────────────────┘
-//! ```
+//!
 
 use soroban_sdk::{contracttype, symbol_short, Address, Env};
 
@@ -47,35 +49,12 @@ use soroban_sdk::{contracttype, symbol_short, Address, Env};
 /// - Only emitted once; subsequent init attempts should fail
 /// - Admin address should be a secure backend service
 /// - Token address must be a valid Stellar token contract
-///
-/// # Example Off-chain Indexing
-/// ```javascript
-/// // Listen for initialization events
-/// stellar.events.on('init', (event) => {
-///   console.log(`Contract initialized by ${event.admin}`);
-///   console.log(`Using token: ${event.token}`);
-/// });
-/// ```
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BountyEscrowInitialized {
     pub admin: Address,
     pub token: Address,
     pub timestamp: u64,
-}
-
-/// Emits a BountyEscrowInitialized event.
-///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `event` - The initialization event data
-///
-/// # Event Structure
-/// Topic: `(symbol_short!("init"),)`
-/// Data: Complete `BountyEscrowInitialized` struct
-pub fn emit_bounty_initialized(env: &Env, event: BountyEscrowInitialized) {
-    let topics = (symbol_short!("init"),);
-    env.events().publish(topics, event.clone());
 }
 
 // ============================================================================
@@ -102,44 +81,13 @@ pub fn emit_bounty_initialized(env: &Env, event: BountyEscrowInitialized) {
 /// # Usage
 /// Emitted when a bounty creator locks funds for a task. The depositor
 /// transfers tokens to the contract, which holds them until release or refund.
-///
-/// # Security Considerations
-/// - Amount must be positive and within depositor's balance
-/// - Bounty ID must be unique (no duplicates allowed)
-/// - Deadline must be in the future
-/// - Depositor must authorize the transaction
-///
-/// # Example Usage
-/// ```rust
-/// // Lock 1000 XLM for bounty #42, deadline in 30 days
-/// let deadline = env.ledger().timestamp() + (30 * 24 * 60 * 60);
-/// escrow_client.lock_funds(&depositor, &42, &10_000_000_000, &deadline);
-/// // → Emits FundsLocked event
-/// ```
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FundsLocked {
     pub bounty_id: u64,
     pub amount: i128,
     pub depositor: Address,
     pub deadline: u64,
-}
-
-/// Emits a FundsLocked event.
-///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `event` - The funds locked event data
-///
-/// # Event Structure
-/// Topic: `(symbol_short!("f_lock"), event.bounty_id)`
-/// Data: Complete `FundsLocked` struct
-///
-/// # Indexing Note
-/// The bounty_id is included in topics for efficient filtering
-pub fn emit_funds_locked(env: &Env, event: FundsLocked) {
-    let topics = (symbol_short!("f_lock"), event.bounty_id);
-    env.events().publish(topics, event.clone());
 }
 
 // ============================================================================
@@ -153,6 +101,7 @@ pub fn emit_funds_locked(env: &Env, event: FundsLocked) {
 /// * `amount` - Amount transferred to recipient
 /// * `recipient` - Address receiving the funds (contributor)
 /// * `timestamp` - Unix timestamp of release
+/// * `remaining_amount` - Remaining amount in escrow after release
 ///
 /// # Event Topic
 /// Symbol: `f_rel`
@@ -162,52 +111,14 @@ pub fn emit_funds_locked(env: &Env, event: FundsLocked) {
 /// ```text
 /// LOCKED → RELEASED (final state)
 /// ```
-///
-/// # Usage
-/// Emitted when the admin releases funds to a contributor who completed
-/// the bounty task. This is a final, irreversible action.
-///
-/// # Authorization
-/// - Only the contract admin can trigger fund release
-/// - Funds must be in LOCKED state
-/// - Cannot release funds that were already released or refunded
-///
-/// # Security Considerations
-/// - Admin authorization is critical (should be secure backend)
-/// - Recipient address should be verified off-chain before release
-/// - Once released, funds cannot be retrieved
-/// - Atomic operation: transfer + state update
-///
-/// # Example Usage
-/// ```rust
-/// // Admin releases 1000 XLM to contributor for bounty #42
-/// escrow_client.release_funds(&42, &contributor_address);
-/// // → Transfers tokens
-/// // → Updates state to Released
-/// // → Emits FundsReleased event
-/// ```
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FundsReleased {
     pub bounty_id: u64,
     pub amount: i128,
     pub recipient: Address,
     pub timestamp: u64,
     pub remaining_amount: i128,
-}
-
-/// Emits a FundsReleased event.
-///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `event` - The funds released event data
-///
-/// # Event Structure
-/// Topic: `(symbol_short!("f_rel"), event.bounty_id)`
-/// Data: Complete `FundsReleased` struct
-pub fn emit_funds_released(env: &Env, event: FundsReleased) {
-    let topics = (symbol_short!("f_rel"), event.bounty_id);
-    env.events().publish(topics, event.clone());
 }
 
 // ============================================================================
@@ -221,6 +132,8 @@ pub fn emit_funds_released(env: &Env, event: FundsReleased) {
 /// * `amount` - Amount refunded to depositor
 /// * `refund_to` - Address receiving the refund (original depositor)
 /// * `timestamp` - Unix timestamp of refund
+/// * `refund_mode` - Type of refund (Full, Partial, Custom)
+/// * `remaining_amount` - Remaining amount in escrow after refund
 ///
 /// # Event Topic
 /// Symbol: `f_ref`
@@ -230,41 +143,8 @@ pub fn emit_funds_released(env: &Env, event: FundsReleased) {
 /// ```text
 /// LOCKED → REFUNDED (final state)
 /// ```
-///
-/// # Usage
-/// Emitted when funds are returned to the depositor after the deadline
-/// has passed without the bounty being completed. This mechanism prevents
-/// funds from being locked indefinitely.
-///
-/// # Conditions
-/// - Deadline must have passed (timestamp > deadline)
-/// - Funds must still be in LOCKED state
-/// - Can be triggered by anyone (permissionless but conditional)
-///
-/// # Security Considerations
-/// - Time-based protection ensures funds aren't stuck
-/// - Permissionless refund prevents admin monopoly
-/// - Original depositor always receives refund
-/// - Cannot refund if already released or refunded
-///
-/// # Example Usage
-/// ```rust
-/// // After deadline passes, anyone can trigger refund
-/// // Deadline was January 1, 2025
-/// // Current time: January 15, 2025
-/// escrow_client.refund(&42);
-/// // → Transfers tokens back to depositor
-/// // → Updates state to Refunded
-/// // → Emits FundsRefunded event
-/// ```
-///
-/// # Design Rationale
-/// Permissionless refunds ensure that:
-/// 1. Depositors don't lose funds if they lose their keys
-/// 2. No admin action needed for legitimate refunds
-/// 3. System remains trustless and decentralized
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FundsRefunded {
     pub bounty_id: u64,
     pub amount: i128,
@@ -274,57 +154,97 @@ pub struct FundsRefunded {
     pub remaining_amount: i128,
 }
 
-/// Emits a FundsRefunded event.
-///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `event` - The funds refunded event data
-///
-/// # Event Structure
-/// Topic: `(symbol_short!("f_ref"), event.bounty_id)`
-/// Data: Complete `FundsRefunded` struct
-pub fn emit_funds_refunded(env: &Env, event: FundsRefunded) {
-    let topics = (symbol_short!("f_ref"), event.bounty_id);
-    env.events().publish(topics, event.clone());
-}
+// ============================================================================
+// Contract Pause Events
+// ============================================================================
 
+/// Event emitted when the contract is paused.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum FeeOperationType {
-    Lock,
-    Release,
+pub struct ContractPaused {
+    pub paused_by: Address,
+    pub timestamp: u64,
 }
 
+/// Event emitted when the contract is unpaused.
 #[contracttype]
-#[derive(Clone, Debug)]
-pub struct FeeCollected {
-    pub operation_type: FeeOperationType,
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractUnpaused {
+    pub unpaused_by: Address,
+    pub timestamp: u64,
+}
+
+// ============================================================================
+// Emergency Withdrawal Event
+// ============================================================================
+
+/// Event emitted during emergency withdrawal of all contract funds.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyWithdrawal {
+    pub withdrawn_by: Address,
     pub amount: i128,
-    pub fee_rate: i128,
     pub recipient: Address,
     pub timestamp: u64,
 }
 
-pub fn emit_fee_collected(env: &Env, event: FeeCollected) {
-    let topics = (symbol_short!("fee"),);
-    env.events().publish(topics, event.clone());
-}
+// ============================================================================
+// Batch Operation Events
+// ============================================================================
 
+/// Event emitted for batch fund locking operations.
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BatchFundsLocked {
     pub count: u32,
     pub total_amount: i128,
     pub timestamp: u64,
 }
 
-pub fn emit_batch_funds_locked(env: &Env, event: BatchFundsLocked) {
-    let topics = (symbol_short!("b_lock"),);
-    env.events().publish(topics, event.clone());
+/// Event emitted for batch fund release operations.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BatchFundsReleased {
+    pub count: u32,
+    pub total_amount: i128,
+    pub timestamp: u64,
 }
 
+// ============================================================================
+// Release Schedule Events
+// ============================================================================
+
+/// Event emitted when a new release schedule is created.
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScheduleCreated {
+    pub bounty_id: u64,
+    pub schedule_id: u32,
+    pub amount: i128,
+    pub timestamp: u64,
+    pub created_by: Address,
+    pub created_at: u64,
+}
+
+/// Event emitted when a release schedule is executed.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScheduleReleased {
+    pub bounty_id: u64,
+    pub schedule_id: u32,
+    pub amount: i128,
+    pub recipient: Address,
+    pub executed_by: Address,
+    pub executed_at: u64,
+}
+
+// ============================================================================
+// Fee Events
+// ============================================================================
+
+/// Event emitted when fee configuration is updated.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeConfigUpdated {
     pub lock_fee_rate: i128,
     pub release_fee_rate: i128,
@@ -333,64 +253,103 @@ pub struct FeeConfigUpdated {
     pub timestamp: u64,
 }
 
-pub fn emit_fee_config_updated(env: &Env, event: FeeConfigUpdated) {
-    let topics = (symbol_short!("fee_cfg"),);
-    env.events().publish(topics, event.clone());
-}
-
+/// Event emitted when fees are collected.
 #[contracttype]
-#[derive(Clone, Debug)]
-pub struct BatchFundsReleased {
-    pub count: u32,
-    pub total_amount: i128,
-    pub timestamp: u64,
-}
-
-pub fn emit_batch_funds_released(env: &Env, event: BatchFundsReleased) {
-    let topics = (symbol_short!("b_rel"),);
-    env.events().publish(topics, event.clone());
-}
-// ============================================================================
-// Contract Pause Events
-// ============================================================================
-
-/// Event emitted when the contract is paused.
-#[contracttype]
-#[derive(Clone, Debug)]
-pub struct ContractPaused {
-    pub paused_by: Address,
-    pub timestamp: u64,
-}
-
-pub fn emit_contract_paused(env: &Env, event: ContractPaused) {
-    let topics = (symbol_short!("pause"),);
-    env.events().publish(topics, event.clone());
-}
-
-/// Event emitted when the contract is unpaused.
-#[contracttype]
-#[derive(Clone, Debug)]
-pub struct ContractUnpaused {
-    pub unpaused_by: Address,
-    pub timestamp: u64,
-}
-
-pub fn emit_contract_unpaused(env: &Env, event: ContractUnpaused) {
-    let topics = (symbol_short!("unpause"),);
-    env.events().publish(topics, event.clone());
-}
-
-/// Event emitted when emergency withdrawal occurs.
-#[contracttype]
-#[derive(Clone, Debug)]
-pub struct EmergencyWithdrawal {
-    pub withdrawn_by: Address,
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeCollected {
+    pub operation_type: FeeOperationType,
     pub amount: i128,
+    pub fee_rate: i128,
     pub recipient: Address,
     pub timestamp: u64,
 }
 
+/// Enum representing fee operation types.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum FeeOperationType {
+    Lock,
+    Release,
+}
+
+// ============================================================================
+// Event Emission Functions
+// ============================================================================
+
+/// Emits a BountyEscrowInitialized event.
+pub fn emit_bounty_initialized(env: &Env, event: BountyEscrowInitialized) {
+    let topics = (symbol_short!("init"),);
+    env.events().publish(topics, event);
+}
+
+/// Emits a FundsLocked event.
+pub fn emit_funds_locked(env: &Env, event: FundsLocked) {
+    let topics = (symbol_short!("f_lock"), event.bounty_id);
+    env.events().publish(topics, event);
+}
+
+/// Emits a FundsReleased event.
+pub fn emit_funds_released(env: &Env, event: FundsReleased) {
+    let topics = (symbol_short!("f_rel"), event.bounty_id);
+    env.events().publish(topics, event);
+}
+
+/// Emits a FundsRefunded event.
+pub fn emit_funds_refunded(env: &Env, event: FundsRefunded) {
+    let topics = (symbol_short!("f_ref"), event.bounty_id);
+    env.events().publish(topics, event);
+}
+
+/// Emits a ContractPaused event.
+pub fn emit_contract_paused(env: &Env, event: ContractPaused) {
+    let topics = (symbol_short!("pause"),);
+    env.events().publish(topics, event);
+}
+
+/// Emits a ContractUnpaused event.
+pub fn emit_contract_unpaused(env: &Env, event: ContractUnpaused) {
+    let topics = (symbol_short!("unpause"),);
+    env.events().publish(topics, event);
+}
+
+/// Emits an EmergencyWithdrawal event.
 pub fn emit_emergency_withdrawal(env: &Env, event: EmergencyWithdrawal) {
     let topics = (symbol_short!("ewith"),);
-    env.events().publish(topics, event.clone());
+    env.events().publish(topics, event);
+}
+
+/// Emits a BatchFundsLocked event.
+pub fn emit_batch_funds_locked(env: &Env, event: BatchFundsLocked) {
+    let topics = (symbol_short!("b_lock"),);
+    env.events().publish(topics, event);
+}
+
+/// Emits a BatchFundsReleased event.
+pub fn emit_batch_funds_released(env: &Env, event: BatchFundsReleased) {
+    let topics = (symbol_short!("b_rel"),);
+    env.events().publish(topics, event);
+}
+
+/// Emits a ScheduleCreated event.
+pub fn emit_schedule_created(env: &Env, event: ScheduleCreated) {
+    let topics = (symbol_short!("sched_cre"), event.bounty_id, event.schedule_id);
+    env.events().publish(topics, event);
+}
+
+/// Emits a ScheduleReleased event.
+pub fn emit_schedule_released(env: &Env, event: ScheduleReleased) {
+    let topics = (symbol_short!("sched_rel"), event.bounty_id, event.schedule_id);
+    env.events().publish(topics, event);
+}
+
+/// Emits a FeeConfigUpdated event.
+pub fn emit_fee_config_updated(env: &Env, event: FeeConfigUpdated) {
+    let topics = (symbol_short!("fee_cfg"),);
+    env.events().publish(topics, event);
+}
+
+/// Emits a FeeCollected event.
+pub fn emit_fee_collected(env: &Env, event: FeeCollected) {
+    let topics = (symbol_short!("fee_coll"),);
+    env.events().publish(topics, event);
 }
