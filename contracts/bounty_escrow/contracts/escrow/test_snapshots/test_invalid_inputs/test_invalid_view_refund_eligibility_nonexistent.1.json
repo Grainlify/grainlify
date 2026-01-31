@@ -1090,7 +1090,7 @@
                 "bytes": "0000000000000000000000000000000000000000000000000000000000000005"
               },
               {
-                "symbol": "get_escrow_info"
+                "symbol": "get_refund_eligibility"
               }
             ],
             "data": {
@@ -1113,7 +1113,7 @@
                 "symbol": "fn_return"
               },
               {
-                "symbol": "get_escrow_info"
+                "symbol": "get_refund_eligibility"
               }
             ],
             "data": {
@@ -1174,7 +1174,7 @@
                   "string": "contract try_call failed"
                 },
                 {
-                  "symbol": "get_escrow_info"
+                  "symbol": "get_refund_eligibility"
                 },
                 {
                   "vec": [
