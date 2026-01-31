@@ -678,7 +678,7 @@
                 "bytes": "0000000000000000000000000000000000000000000000000000000000000001"
               },
               {
-                "symbol": "get_version"
+                "symbol": "audit_state"
               }
             ],
             "data": "void"
@@ -699,11 +699,59 @@
                 "symbol": "fn_return"
               },
               {
-                "symbol": "get_version"
+                "symbol": "audit_state"
               }
             ],
             "data": {
-              "u32": 2
+              "map": [
+                {
+                  "key": {
+                    "symbol": "checks_failed"
+                  },
+                  "val": {
+                    "vec": []
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "checks_passed"
+                  },
+                  "val": {
+                    "vec": [
+                      {
+                        "string": "Admin Integrity"
+                      },
+                      {
+                        "string": "Version Consistency"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "contract_id"
+                  },
+                  "val": {
+                    "string": "Grainlify Core"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": 0
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "warnings"
+                  },
+                  "val": {
+                    "vec": []
+                  }
+                }
+              ]
             }
           }
         }
