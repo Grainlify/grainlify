@@ -172,6 +172,7 @@ pub enum Error {
     ProposalNotApproved = 12,
     ExecutionDelayNotMet = 13,
     ProposalExpired = 14,
+    ReentrantCall = 15,
 }
 
 pub struct GovernanceContract;

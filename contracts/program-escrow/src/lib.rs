@@ -139,7 +139,15 @@
 //! 6. **Token Approval**: Ensure contract has token allowance before locking funds
 
 #![no_std]
+pub mod security {
+    pub mod reentrancy_guard;
+}
+#[cfg(test)]
 mod pause_tests;
+#[cfg(test)]
+mod reentrancy_test;
+
+use security::reentrancy_guard::{ReentrancyGuard, ReentrancyGuardRAII};
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, token, vec, Address, Env,
@@ -162,6 +170,7 @@ const FEE_CONFIG: Symbol = symbol_short!("FeeCfg");
 const BASIS_POINTS: i128 = 10_000;
 const MAX_FEE_RATE: i128 = 1_000; // Maximum 10% fee
 
+const ADMIN_UPDATE_TIMELOCK: u64 = 1 * 24 * 60 * 60;
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeeConfig {
@@ -170,6 +179,41 @@ pub struct FeeConfig {
     pub fee_recipient: Address, // Address to receive fees
     pub fee_enabled: bool,      // Global fee enable/disable flag
 }
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct AmountLimits {
+    pub min_lock_amount: i128,
+    pub max_lock_amount: i128,
+    pub min_payout: i128,
+    pub max_payout: i128,
+}
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct UpdateAdminEvent {
+    pub admin: Address,
+    pub new_admin: Address,
+    pub timestamp: u64,
+}
+
+pub fn emit_update_admin(env: &Env, event: UpdateAdminEvent) {
+    let topics = (symbol_short!("upd_adm"),);
+    env.events().publish(topics, event.clone());
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct UpdateAuthorizedKeyEvent {
+    pub old_authorized_payout_key: Address,
+    pub new_authorized_payout_key: Address,
+    pub timestamp: u64,
+}
+
+pub fn emit_update_authorized_key(env: &Env, event: UpdateAuthorizedKeyEvent) {
+    let topics = (symbol_short!("upd_apk"),);
+    env.events().publish(topics, event.clone());
+}
+
 // ==================== MONITORING MODULE ====================
 mod monitoring {
     use soroban_sdk::{contracttype, symbol_short, Address, Env, String, Symbol};
@@ -386,6 +430,7 @@ mod anti_abuse {
         State(Address),
         Whitelist(Address),
         Admin,
+        LastAdminUpdate,
     }
 
     pub fn get_config(env: &Env) -> AntiAbuseConfig {
@@ -698,6 +743,9 @@ pub struct ProgramData {
 pub enum DataKey {
     Program(String),              // program_id -> ProgramData
     ReleaseSchedule(String, u64), // program_id, schedule_id -> ProgramReleaseSchedule
+    ReleaseHistory(String),       // program_id -> Vec<ProgramReleaseHistory>
+    NextScheduleId(String),       // program_id -> next schedule_id
+    AmountLimits,                 // Amount limits configuration
     ReleaseHistory(String),       // program_id -> Vec<ProgramReleaseHistory>
     NextScheduleId(String),       // program_id -> next schedule_id
     IsPaused,                     // Global contract pause state
@@ -1124,6 +1172,7 @@ impl ProgramEscrowContract {
         amount: i128,
         token_address: Option<Address>, // Optional: if None, uses program's primary token
     ) -> ProgramData {
+        let _guard = ReentrancyGuardRAII::new(&env).expect("Reentrancy detected");
         // Apply rate limiting
         anti_abuse::check_rate_limit(&env, env.current_contract_address());
 
@@ -1142,7 +1191,22 @@ impl ProgramEscrowContract {
             panic!("Amount must be greater than zero");
         }
 
+        // Check amount limits
+        let limits = Self::get_amount_limits(env.clone());
+        if amount < limits.min_lock_amount || amount > limits.max_lock_amount {
+            monitoring::track_operation(&env, symbol_short!("lock"), caller.clone(), false);
+            panic!("Amount violates configured limits");
+        }
+
+        // Check amount limits
+        let limits = Self::get_amount_limits(env.clone());
+        if amount < limits.min_lock_amount || amount > limits.max_lock_amount {
+            monitoring::track_operation(&env, symbol_short!("lock"), caller.clone(), false);
+            panic!("Amount violates configured limits");
+        }
+
         // Get current program data
+        let program_key = DataKey::Program(program_id.clone());
         let mut program_data: ProgramData = env
             .storage()
             .instance()
@@ -1308,10 +1372,14 @@ impl ProgramEscrowContract {
         amounts: Vec<i128>,
         token_address: Option<Address>, // Optional: if None, uses program's primary token
     ) -> ProgramData {
+        let _guard = ReentrancyGuardRAII::new(&env).expect("Reentrancy detected");
+
         // Check if contract is paused
         if Self::is_paused_internal(&env) {
             panic!("Contract is paused");
         }
+        // Apply rate limiting to the contract itself or the program
+        // We can't easily get the caller here without getting program data first
 
         // Get program data
         let program_key = DataKey::Program(program_id.clone());
@@ -1357,11 +1425,27 @@ impl ProgramEscrowContract {
 
         // Calculate total payout with overflow protection
         let mut total_payout: i128 = 0;
+        let fee_config = Self::get_fee_config_internal(&env);
+        let limits = Self::get_amount_limits(env.clone());
+
         for i in 0..amounts.len() {
             let amount = amounts.get(i as u32).unwrap();
             if amount <= 0 {
                 panic!("All amounts must be greater than zero");
             }
+
+            // Check payout amount limits (considering fees)
+            let fee_amount = if fee_config.fee_enabled && fee_config.payout_fee_rate > 0 {
+                Self::calculate_fee(amount, fee_config.payout_fee_rate)
+            } else {
+                0
+            };
+            let net_amount = amount - fee_amount;
+
+            if net_amount < limits.min_payout || net_amount > limits.max_payout {
+                panic!("Payout amount violates configured limits");
+            }
+
             total_payout = total_payout
                 .checked_add(amount)
                 .unwrap_or_else(|| panic!("Payout amount overflow"));
@@ -1483,11 +1567,10 @@ impl ProgramEscrowContract {
         amount: i128,
         token_address: Option<Address>, // Optional: if None, uses program's primary token
     ) -> ProgramData {
-        // Check if contract is paused
+        let _guard = ReentrancyGuardRAII::new(&env).expect("Reentrancy detected");
         if Self::is_paused_internal(&env) {
             panic!("Contract is paused");
         }
-
         // Get program data
         let program_key = DataKey::Program(program_id.clone());
         let program_data: ProgramData = env
@@ -1528,6 +1611,36 @@ impl ProgramEscrowContract {
             panic!(
                 "Insufficient token balance: requested {}, available {}",
                 amount, token_balance
+            );
+        }
+
+        // Check payout amount limits (considering fees)
+        let fee_config = Self::get_fee_config_internal(&env);
+        let fee_amount = if fee_config.fee_enabled && fee_config.payout_fee_rate > 0 {
+            Self::calculate_fee(amount, fee_config.payout_fee_rate)
+        } else {
+            0
+        };
+        let net_amount = amount - fee_amount;
+
+        // Transfer net amount to recipient
+        // Transfer tokens
+        let contract_address = env.current_contract_address();
+        let token_client = token::Client::new(&env, &program_data.token_address, &token_addr);
+        token_client.transfer(&contract_address, &recipient, &net_amount);
+
+        // Transfer fee to fee recipient if applicable
+
+        if fee_amount > 0 {
+            token_client.transfer(&contract_address, &fee_config.fee_recipient, &fee_amount);
+            env.events().publish(
+                (symbol_short!("fee"),),
+                (
+                    symbol_short!("payout"),
+                    fee_amount,
+                    fee_config.payout_fee_rate,
+                    fee_config.fee_recipient.clone(),
+                ),
             );
         }
 
@@ -1624,12 +1737,11 @@ impl ProgramEscrowContract {
         release_timestamp: u64,
         recipient: Address,
     ) -> ProgramData {
-        let start = env.ledger().timestamp();
-
-        // Check if contract is paused
+        let _guard = ReentrancyGuardRAII::new(&env).expect("Reentrancy detected");
         if Self::is_paused_internal(&env) {
             panic!("Contract is paused");
         }
+        let start = env.ledger().timestamp();
 
         // Get program data
         let program_key = DataKey::Program(program_id.clone());
@@ -1743,6 +1855,7 @@ impl ProgramEscrowContract {
     /// escrow_client.release_program_schedule_automatic(&"Hackathon2024", &1);
     /// ```
     pub fn release_prog_schedule_automatic(env: Env, program_id: String, schedule_id: u64) {
+        let _guard = ReentrancyGuardRAII::new(&env).expect("Reentrancy detected");
         let start = env.ledger().timestamp();
         let caller = env.current_contract_address();
 
@@ -1882,6 +1995,7 @@ impl ProgramEscrowContract {
     /// escrow_client.release_program_schedule_manual(&"Hackathon2024", &1);
     /// ```
     pub fn release_program_schedule_manual(env: Env, program_id: String, schedule_id: u64) {
+        let _guard = ReentrancyGuardRAII::new(&env).expect("Reentrancy detected");
         let start = env.ledger().timestamp();
 
         // Get program data
@@ -2097,12 +2211,175 @@ impl ProgramEscrowContract {
 
         // Store updated config
         env.storage().instance().set(&FEE_CONFIG, &fee_config);
+
+        // Emit fee config updated event
+        env.events().publish(
+            (symbol_short!("fee_cfg"),),
+            (
+                fee_config.lock_fee_rate,
+                fee_config.payout_fee_rate,
+                fee_config.fee_recipient,
+                fee_config.fee_enabled,
+            ),
+        );
     }
 
-    /// Retrieves the remaining balance available in the program.
+    /// Get current fee configuration (view function)
+    pub fn get_fee_config(env: Env) -> FeeConfig {
+        Self::get_fee_config_internal(&env)
+    }
+
+    /// Update amount limits configuration (admin only)
+    pub fn update_amount_limits(
+        env: Env,
+        min_lock_amount: i128,
+        max_lock_amount: i128,
+        min_payout: i128,
+        max_payout: i128,
+    ) {
+        // Get admin and require authorization
+        let admin = anti_abuse::get_admin(&env).expect("Admin not set");
+        admin.require_auth();
+
+        // Validate limits
+        if min_lock_amount < 0 || max_lock_amount < 0 || min_payout < 0 || max_payout < 0 {
+            panic!("Invalid amount: amounts cannot be negative");
+        }
+        if min_lock_amount > max_lock_amount || min_payout > max_payout {
+            panic!("Invalid amount: minimum cannot exceed maximum");
+        }
+
+        let limits = AmountLimits {
+            min_lock_amount,
+            max_lock_amount,
+            min_payout,
+            max_payout,
+        };
+
+        env.storage()
+            .instance()
+            .set(&DataKey::AmountLimits, &limits);
+
+        // Emit event
+        env.events().publish(
+            (symbol_short!("amt_lmt"),),
+            (min_lock_amount, max_lock_amount, min_payout, max_payout),
+        );
+    }
+
+    /// Get current amount limits configuration (view function)
+    pub fn get_amount_limits(env: Env) -> AmountLimits {
+        env.storage()
+            .instance()
+            .get(&DataKey::AmountLimits)
+            .unwrap_or(AmountLimits {
+                min_lock_amount: 1,
+                max_lock_amount: i128::MAX,
+                min_payout: 1,
+                max_payout: i128::MAX,
+            })
+    }
+
+    /// Gets the total number of programs registered.
     ///
-    /// This function returns the amount of funds still locked in the program
-    /// and available for future payouts.
+    /// # Returns
+    /// * `u32` - Count of registered programs
+    pub fn get_program_count(env: Env) -> u32 {
+        let registry: Vec<String> = env
+            .storage()
+            .instance()
+            .get(&PROGRAM_REGISTRY)
+            .unwrap_or(vec![&env]);
+
+        registry.len()
+    }
+
+    // ========================================================================
+    // Monitoring & Analytics Functions
+    // ========================================================================
+
+    /// Health check - returns contract health status
+    pub fn health_check(env: Env) -> monitoring::HealthStatus {
+        monitoring::health_check(&env)
+    }
+
+    /// Get analytics - returns usage analytics
+    pub fn get_analytics(env: Env) -> monitoring::Analytics {
+        monitoring::get_analytics(&env)
+    }
+
+    /// Get state snapshot - returns current state
+    pub fn get_state_snapshot(env: Env) -> monitoring::StateSnapshot {
+        monitoring::get_state_snapshot(&env)
+    }
+
+    /// Get performance stats for a function
+    pub fn get_performance_stats(env: Env, function_name: Symbol) -> monitoring::PerformanceStats {
+        monitoring::get_performance_stats(&env, function_name)
+    }
+
+    // ========================================================================
+    // Anti-Abuse Administrative Functions
+    // ========================================================================
+
+    /// Sets the administrative address for anti-abuse configuration.
+    /// Can only be called once or by the existing admin.
+    pub fn set_admin(env: Env, new_admin: Address) {
+        if let Some(current_admin) = anti_abuse::get_admin(&env) {
+            current_admin.require_auth();
+        }
+        anti_abuse::set_admin(&env, new_admin);
+    }
+
+    pub fn get_admin(env: Env) -> Option<Address> {
+        anti_abuse::get_admin(&env)
+    }
+
+    /// Updates the rate limit configuration.
+    /// Only the admin can call this.
+    pub fn update_rate_limit_config(
+        env: Env,
+        window_size: u64,
+        max_operations: u32,
+        cooldown_period: u64,
+    ) {
+        let admin = anti_abuse::get_admin(&env).expect("Admin not set");
+        admin.require_auth();
+
+        anti_abuse::set_config(
+            &env,
+            anti_abuse::AntiAbuseConfig {
+                window_size,
+                max_operations,
+                cooldown_period,
+            },
+        );
+    }
+
+    /// Adds or removes an address from the whitelist.
+    /// Only the admin can call this.
+    pub fn set_whitelist(env: Env, address: Address, whitelisted: bool) {
+        let admin = anti_abuse::get_admin(&env).expect("Admin not set");
+        admin.require_auth();
+
+        anti_abuse::set_whitelist(&env, address, whitelisted);
+    }
+
+    /// Checks if an address is whitelisted.
+    pub fn is_whitelisted(env: Env, address: Address) -> bool {
+        anti_abuse::is_whitelisted(&env, address)
+    }
+
+    /// Gets the current rate limit configuration.
+    pub fn get_rate_limit_config(env: Env) -> anti_abuse::AntiAbuseConfig {
+        anti_abuse::get_config(&env)
+    }
+
+    // ========================================================================
+    // Schedule View Functions
+    // ========================================================================
+
+    /// Retrieves a specific program release schedule.
     ///
     /// # Arguments
     /// * `env` - The contract environment
@@ -2329,6 +2606,73 @@ impl ProgramEscrowContract {
                 program_data.organizer,
                 now,
             ),
+        );
+    }
+    // ========================================================================
+    // Admin Functions
+    // ========================================================================
+
+    /// Update Admin
+    ///
+    /// # Arguments
+    /// * `new_admin` - New Admin address
+    /// Admin Require Auth
+    pub fn update_admin(env: Env, new_admin: Address) {
+        let current_admin = anti_abuse::get_admin(&env).unwrap();
+        current_admin.require_auth();
+
+        let last_update: u64 = env
+            .storage()
+            .instance()
+            .get(&anti_abuse::AntiAbuseKey::LastAdminUpdate)
+            .unwrap_or(0);
+        let current_time = env.ledger().timestamp();
+        if current_time < last_update + ADMIN_UPDATE_TIMELOCK {
+            panic!("TimeLock");
+        }
+
+        env.storage()
+            .instance()
+            .set(&anti_abuse::AntiAbuseKey::Admin, &new_admin);
+        env.storage()
+            .instance()
+            .set(&anti_abuse::AntiAbuseKey::LastAdminUpdate, &current_time);
+
+        emit_update_admin(
+            &env,
+            UpdateAdminEvent {
+                admin: current_admin,
+                new_admin,
+                timestamp: current_time,
+            },
+        );
+    }
+
+    /// Update Authorized Payout Key
+    ///
+    /// # Arguments
+    /// * `new_admin` - New Authorized Payout Key address
+    /// Admin Require Auth
+    pub fn update_authorized_payout_key(
+        env: Env,
+        program_id: String,
+        authorized_payout_key: Address,
+    ) {
+        let current_admin = anti_abuse::get_admin(&env).unwrap();
+        current_admin.require_auth();
+
+        let program_key = DataKey::Program(program_id.clone());
+        let mut program_data = Self::get_program_info(env.clone(), program_id);
+        program_data.authorized_payout_key = authorized_payout_key.clone();
+        env.storage().instance().set(&program_key, &program_data);
+
+        emit_update_authorized_key(
+            &env,
+            UpdateAuthorizedKeyEvent {
+                old_authorized_payout_key: program_data.authorized_payout_key,
+                new_authorized_payout_key: authorized_payout_key,
+                timestamp: env.ledger().timestamp(),
+            },
         );
     }
 
@@ -2625,6 +2969,5 @@ impl ProgramEscrowContract {
         program_data.remaining_bal
     }
 }
-
 #[cfg(test)]
 mod test;
