@@ -1206,7 +1206,6 @@ fn migrate_v1_to_v2(_env: &Env) {
 fn migrate_v2_to_v3(_env: &Env) {
     // Future migration logic here
     // This will be implemented when v3 is released
->>>>>>> origin/master
 }
 
 

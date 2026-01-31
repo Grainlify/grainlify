@@ -17,9 +17,10 @@ mod pause_tests {
         let admin = Address::generate(&env);
         let token = create_token(&env, &admin);
         let prog_id = String::from_str(&env, "Test");
+        let organizer = Address::generate(&env);
 
         // Initialize to set up RBAC
-        client.initialize_program(&prog_id, &admin, &token.address);
+        client.initialize_program(&prog_id, &admin, &token.address, &organizer, &None);
         
         let result = client.try_pause(&admin);
         assert!(result.is_ok());
@@ -52,8 +53,9 @@ mod pause_tests {
         let admin = Address::generate(&env);
         let token = create_token(&env, &admin);
         let prog_id = String::from_str(&env, "Test");
+        let organizer = Address::generate(&env);
 
-        client.initialize_program(&prog_id, &admin, &token.address);
+        client.initialize_program(&prog_id, &admin, &token.address, &organizer, &None);
         let _ = client.try_pause(&admin);
         let result = client.try_unpause(&admin);
         assert!(result.is_ok());
@@ -86,8 +88,9 @@ mod pause_tests {
         let admin = Address::generate(&env);
         let token = create_token(&env, &admin);
         let prog_id = String::from_str(&env, "Test");
+        let organizer = Address::generate(&env);
 
-        client.initialize_program(&prog_id, &admin, &token.address);
+        client.initialize_program(&prog_id, &admin, &token.address, &organizer, &None);
         let _ = client.try_pause(&admin);
         assert!(client.is_paused());
         assert!(client.is_paused());
