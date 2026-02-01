@@ -3,7 +3,7 @@
 //! Provides role definitions and enforcement for the Bounty Escrow contract.
 //! Supports multiple roles: Admin, Operator, Pauser, and Viewer.
 
-use soroban_sdk::{symbol_short, Address, Env, Map, Symbol, contracttype};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, Symbol};
 
 /// Role definitions for RBAC
 #[contracttype]

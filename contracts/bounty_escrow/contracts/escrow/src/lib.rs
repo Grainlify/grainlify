@@ -87,11 +87,11 @@
 //! ```
 
 #![no_std]
-#[cfg(test)]
-mod invariants;
 mod blacklist;
 mod events;
 mod indexed;
+#[cfg(test)]
+mod invariants;
 mod test_blacklist;
 mod test_bounty_escrow;
 pub mod security {
@@ -99,8 +99,11 @@ pub mod security {
 }
 pub mod rbac;
 
+use rbac::{
+    grant_role, has_role, is_admin, require_admin, require_operator, require_role, revoke_role,
+    Role,
+};
 use security::reentrancy_guard::{ReentrancyGuard, ReentrancyGuardRAII};
-use rbac::{grant_role, revoke_role, has_role, require_role, require_admin, require_operator, is_admin, Role};
 
 use blacklist::{
     add_to_blacklist, add_to_whitelist, is_participant_allowed, remove_from_blacklist,
@@ -119,8 +122,8 @@ use events::{
 };
 use indexed::{on_funds_locked, on_funds_refunded, on_funds_released};
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, symbol_short, token, vec, Address, String, Env,
-    Vec, Map,
+    contract, contracterror, contractimpl, contracttype, symbol_short, token, vec, Address, Env,
+    Map, String, Vec,
 };
 
 pub use grainlify_interfaces::{
@@ -3708,7 +3711,6 @@ impl BountyEscrowContract {
     }
 }
 
-
 fn validate_metadata_size(_env: &Env, metadata: &EscrowMetadata) -> bool {
     let mut size: u32 = 0;
 
@@ -3731,7 +3733,6 @@ fn validate_metadata_size(_env: &Env, metadata: &EscrowMetadata) -> bool {
 
     size <= 2048
 }
-
 
 #[cfg(test)]
 mod reentrancy_test;
