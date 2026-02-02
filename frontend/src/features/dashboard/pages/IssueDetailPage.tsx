@@ -7,6 +7,12 @@ import { IssuesTab } from '../../maintainers/components/issues/IssuesTab';
 import { SkeletonLoader } from '../../../shared/components/SkeletonLoader';
 import { IssueCardSkeleton } from '../../../shared/components/IssueCardSkeleton';
 
+interface ProjectForIssues {
+  id: string;
+  github_full_name: string;
+  status: string;
+}
+
 interface IssueDetailPageProps {
   issueId?: string;
   projectId?: string;
@@ -19,7 +25,7 @@ export function IssueDetailPage({ issueId, projectId, onClose }: IssueDetailPage
 
   const [project, setProject] = useState<null | Awaited<ReturnType<typeof getPublicProject>>>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [myProjects, setMyProjects] = useState<Array<{ id: string; github_full_name: string; status: string }>>([]);
+  const [myProjects, setMyProjects] = useState<ProjectForIssues[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +57,15 @@ export function IssueDetailPage({ issueId, projectId, onClose }: IssueDetailPage
       cancelled = true;
     };
   }, [projectId]);
+
+  // Include the current project so contributors (who have no "my projects") still see the issue
+  const selectedProjects = useMemo((): ProjectForIssues[] => {
+    const current: ProjectForIssues | null = project
+      ? { id: project.id, github_full_name: project.github_full_name, status: 'verified' }
+      : null;
+    const others = myProjects.filter((m) => !current || m.id !== current.id);
+    return current ? [current, ...others] : others;
+  }, [project, myProjects]);
 
   const repoName = useMemo(() => {
     const full = project?.github_full_name || '';
@@ -98,7 +113,7 @@ export function IssueDetailPage({ issueId, projectId, onClose }: IssueDetailPage
       ) : (
         <IssuesTab
           onNavigate={() => {}}
-          selectedProjects={myProjects}
+          selectedProjects={selectedProjects}
           initialSelectedIssueId={issueId}
           initialSelectedProjectId={projectId}
         />

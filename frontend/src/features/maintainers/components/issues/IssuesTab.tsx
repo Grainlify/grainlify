@@ -360,6 +360,64 @@ Only applications submitted via the apply link above will be considered. Please 
       setIsSubmittingApplication(false);
     }
   }, [selectedIssueFromAPI, applicationDraft]);
+
+  const handlePostBotComment = useCallback(async () => {
+    if (!selectedIssueFromAPI || !botCommentDraft.trim()) return;
+    try {
+      setBotCommentError(null);
+      setIsPostingBotComment(true);
+      const res = await postBotComment(
+        selectedIssueFromAPI.projectId,
+        selectedIssueFromAPI.number,
+        botCommentDraft.trim()
+      );
+      const newComment = res.comment;
+      setSelectedIssueFromAPI((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          comments_count: (prev.comments_count || 0) + 1,
+          comments: [
+            ...(prev.comments || []),
+            {
+              id: newComment.id,
+              body: newComment.body,
+              user: { login: newComment.user.login },
+              created_at: newComment.created_at,
+              updated_at: newComment.updated_at,
+            } as CommentFromAPI,
+          ],
+        };
+      });
+      setIssues((prev) =>
+        prev.map((it) =>
+          it.github_issue_id === selectedIssueFromAPI.github_issue_id && it.projectId === selectedIssueFromAPI.projectId
+            ? {
+              ...it,
+              comments_count: (it.comments_count || 0) + 1,
+              comments: [
+                ...(it.comments || []),
+                {
+                  id: newComment.id,
+                  body: newComment.body,
+                  user: { login: newComment.user.login },
+                  created_at: newComment.created_at,
+                  updated_at: newComment.updated_at,
+                } as any,
+              ],
+            }
+            : it
+        )
+      );
+      setBotCommentDraft('');
+      setBotCommentModalOpen(false);
+    } catch (e: any) {
+      setBotCommentError(e?.message || 'Failed to post bot comment');
+    } finally {
+      setIsPostingBotComment(false);
+    }
+  }, [selectedIssueFromAPI, botCommentDraft]);
+
   const appliedFilterCount =
     selectedFilters.status.length +
     selectedFilters.applicants.length +
@@ -726,12 +784,12 @@ Only applications submitted via the apply link above will be considered. Please 
             {/* Content */}
             {issueDetailTab === 'applications' && (
               <>
-                {/* Apply CTA: button opens modal (contributors only when issue is open + unassigned + not author) */}
+                {/* Apply CTA: any logged-in user with GitHub linked can apply when issue is open + unassigned + not author */}
                 {selectedIssueFromAPI && (
                   <div className={`mb-6 rounded-[16px] border p-5 transition-colors ${isDark ? 'bg-white/[0.08] border-white/10' : 'bg-white/[0.15] border-white/25'}`}>
-                    {userRole !== 'contributor' ? (
+                    {!user ? (
                       <p className={`text-[13px] ${isDark ? 'text-[#b8a898]' : 'text-[#7a6b5a]'}`}>
-                        Sign in as a contributor to apply for this issue.
+                        Sign in to apply for this issue.
                       </p>
                     ) : !canApplyToSelectedIssue ? (
                       (() => {
@@ -758,6 +816,24 @@ Only applications submitted via the apply link above will be considered. Please 
                           }`}
                         >
                           Apply for this issue
+                        </button>
+                      </div>
+                    )}
+                    {/* Maintainer: Post Grainlify bot message on this issue */}
+                    {(userRole === 'maintainer' || userRole === 'admin') && (
+                      <div className="mt-4 pt-4 border-t border-white/10">
+                        <p className={`text-[12px] mb-2 ${isDark ? 'text-[#b8a898]' : 'text-[#7a6b5a]'}`}>
+                          As maintainer: Post a Grainlify bot message on this issue (e.g. to announce it&apos;s in the program).
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => { setBotCommentError(null); setBotCommentDraft(DEFAULT_BOT_MESSAGE); setBotCommentModalOpen(true); }}
+                          className={`px-3 py-1.5 rounded-[8px] text-[12px] font-semibold border ${isDark
+                            ? 'bg-white/[0.08] border-white/15 text-[#e8dfd0] hover:bg-white/[0.12]'
+                            : 'bg-white/[0.15] border-white/25 text-[#7a6b5a] hover:bg-white/[0.2]'
+                          }`}
+                        >
+                          Post Grainlify bot message
                         </button>
                       </div>
                     )}
@@ -1066,6 +1142,40 @@ Only applications submitted via the apply link above will be considered. Please 
         {applicationError && (
           <div className="mt-2 text-[12px] font-semibold text-red-400">
             {applicationError}
+          </div>
+        )}
+      </Modal>
+
+      {/* Post Grainlify bot message modal (maintainers) */}
+      <Modal
+        isOpen={botCommentModalOpen}
+        onClose={() => { setBotCommentModalOpen(false); setBotCommentError(null); }}
+        title="Post Grainlify bot message"
+        width="lg"
+        footer={
+          <ModalFooter>
+            <ModalButton onClick={() => { setBotCommentModalOpen(false); setBotCommentError(null); }}>Cancel</ModalButton>
+            <ModalButton variant="primary" disabled={isPostingBotComment || !botCommentDraft.trim()} onClick={handlePostBotComment}>
+              {isPostingBotComment ? 'Posting…' : 'Post comment'}
+            </ModalButton>
+          </ModalFooter>
+        }
+      >
+        <p className={`text-[13px] mb-3 ${isDark ? 'text-[#b8a898]' : 'text-[#7a6b5a]'}`}>
+          This will post a comment on the GitHub issue as the Grainlify bot (GitHub App). Edit the message below if needed.
+        </p>
+        <textarea
+          value={botCommentDraft}
+          onChange={(e) => setBotCommentDraft(e.target.value)}
+          placeholder="Bot message (markdown supported)"
+          className={`w-full min-h-[160px] rounded-[12px] border px-4 py-3 text-[13px] outline-none transition-colors ${isDark
+            ? 'bg-white/[0.06] border-white/15 text-[#e8dfd0] placeholder:text-[#b8a898]/60'
+            : 'bg-white/[0.25] border-white/30 text-[#2d2820] placeholder:text-[#7a6b5a]/70'
+            }`}
+        />
+        {botCommentError && (
+          <div className="mt-2 text-[12px] font-semibold text-red-400">
+            {botCommentError}
           </div>
         )}
       </Modal>
