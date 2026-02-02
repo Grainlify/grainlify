@@ -50,27 +50,37 @@ export function EcosystemDetailPage({ ecosystemId, ecosystemName, onBack, onProj
   const [ecosystemDetail, setEcosystemDetail] = useState<EcosystemDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(true);
 
-  useEffect(() => {
+  const fetchEcosystemDetail = React.useCallback(async () => {
     if (!ecosystemId) {
       setEcosystemDetail(null);
       setIsLoadingDetail(false);
       return;
     }
-    let cancelled = false;
-    const load = async () => {
-      setIsLoadingDetail(true);
-      try {
-        const detail = await getEcosystemDetail(ecosystemId);
-        if (!cancelled) setEcosystemDetail(detail);
-      } catch {
-        if (!cancelled) setEcosystemDetail(null);
-      } finally {
-        if (!cancelled) setIsLoadingDetail(false);
+    setIsLoadingDetail(true);
+    try {
+      const detail = await getEcosystemDetail(ecosystemId);
+      setEcosystemDetail(detail);
+    } catch {
+      setEcosystemDetail(null);
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  }, [ecosystemId]);
+
+  useEffect(() => {
+    fetchEcosystemDetail();
+  }, [fetchEcosystemDetail]);
+
+  // Refetch when user returns to this tab (e.g. after editing in admin) so logo/description stay in sync
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && ecosystemId) {
+        fetchEcosystemDetail();
       }
     };
-    load();
-    return () => { cancelled = true; };
-  }, [ecosystemId]);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [ecosystemId, fetchEcosystemDetail]);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,40 +129,79 @@ export function EcosystemDetailPage({ ecosystemId, ecosystemName, onBack, onProj
     return () => { cancelled = true; };
   }, [ecosystemName]);
 
-  // Use API detail when available; fallback to minimal defaults for name/logo/description
+  // Prefer API detail when loaded; use hardcoded fallbacks only when detail is null (loading/error)
   const detail = ecosystemDetail;
+  const hasDetail = detail != null;
+
+  const normalizeLinks = (raw: unknown): Array<{ label: string; url: string }> => {
+    if (!Array.isArray(raw) || raw.length === 0) return [];
+    return raw.map((l) => ({
+      label: (l && typeof l === 'object' && 'label' in l && typeof (l as { label?: unknown }).label === 'string') ? (l as { label: string }).label : '',
+      url: (l && typeof l === 'object' && 'url' in l && typeof (l as { url?: unknown }).url === 'string') ? (l as { url: string }).url : '',
+    })).filter((l) => l.label.trim() || l.url.trim());
+  };
+  const normalizeKeyAreas = (raw: unknown): Array<{ title: string; description: string }> => {
+    if (!Array.isArray(raw) || raw.length === 0) return [];
+    return raw.map((k) => ({
+      title: (k && typeof k === 'object' && 'title' in k && typeof (k as { title?: unknown }).title === 'string') ? (k as { title: string }).title : '',
+      description: (k && typeof k === 'object' && 'description' in k && typeof (k as { description?: unknown }).description === 'string') ? (k as { description: string }).description : '',
+    })).filter((k) => k.title.trim() || k.description.trim());
+  };
+  const normalizeTechnologies = (raw: unknown): string[] => {
+    if (!Array.isArray(raw) || raw.length === 0) return [];
+    return raw.map((t) => (typeof t === 'string' ? t.trim() : '')).filter(Boolean);
+  };
+
+  const apiLinks = normalizeLinks(detail?.links);
+  const apiKeyAreas = normalizeKeyAreas(detail?.key_areas);
+  const apiTechnologies = normalizeTechnologies(detail?.technologies);
+
+  // Use API values for logo and description when detail is loaded (from admin modal data)
+  const apiDescription = hasDetail && detail?.description != null ? String(detail.description).trim() : '';
+  const apiLogoUrl = hasDetail && detail?.logo_url != null && String(detail.logo_url).trim() !== '' ? String(detail.logo_url).trim() : null;
+
   const ecosystemData = {
-    name: detail?.name ?? ecosystemName,
-    logo: detail?.logo_url ? undefined : ecosystemName.charAt(0).toUpperCase(),
-    logoUrl: detail?.logo_url ?? null,
-    description: detail?.description ?? 'Projects building decentralized protocols, tooling, and infrastructure.',
-    languages: [] as { name: string; percentage: number }[], // optional: could be computed from projects later
-    links: Array.isArray(detail?.links) && detail.links.length > 0
-      ? detail.links.map((l) => ({ label: l.label || '', url: l.url || '' }))
-      : [
-          { label: 'Official Website', url: detail?.website_url || 'web3.ecosystem.example', icon: 'website' },
-          { label: 'Discord Community', url: 'discord.gg', icon: 'discord' },
-          { label: 'Twitter', url: 'twitter.com', icon: 'twitter' },
-        ].map(({ label, url }) => ({ label, url })),
+    name: (hasDetail && detail?.name) ? detail.name : ecosystemName,
+    logo: apiLogoUrl ? undefined : ecosystemName.charAt(0).toUpperCase(),
+    logoUrl: apiLogoUrl,
+    description: hasDetail
+      ? apiDescription
+      : 'Projects building decentralized protocols, tooling, and infrastructure.',
+    languages: [] as { name: string; percentage: number }[],
+    links: hasDetail && apiLinks.length > 0
+      ? apiLinks
+      : hasDetail
+        ? []
+        : [
+            { label: 'Official Website', url: detail?.website_url || 'web3.ecosystem.example', icon: 'website' },
+            { label: 'Discord Community', url: 'discord.gg', icon: 'discord' },
+            { label: 'Twitter', url: 'twitter.com', icon: 'twitter' },
+          ].map(({ label, url }) => ({ label, url })),
     stats: {
       activeContributors: { value: detail?.contributors_count ?? ecosystemProjects.reduce((s, p) => s + (p.contributors || 0), 0), change: '' },
       activeProjects: { value: detail?.project_count ?? ecosystemProjects.length, change: '' },
       availableIssues: { value: detail?.open_issues_count ?? ecosystemProjects.reduce((s, p) => s + p.openIssues, 0), change: '' },
       mergedPullRequests: { value: detail?.open_prs_count ?? 0, change: '' },
     },
-    about: detail?.about ?? `The ${ecosystemName} ecosystem represents a paradigm shift towards decentralized applications, protocols, and infrastructure.`,
-    keyAreas: Array.isArray(detail?.key_areas) && detail.key_areas.length > 0
-      ? detail.key_areas.map((k) => ({ title: k.title || '', description: k.description || '' }))
-      : [
-          { title: 'Blockchain Protocols', description: 'Core blockchain technologies and consensus mechanisms' },
-          { title: 'DeFi (Decentralized Finance)', description: 'Financial applications built on blockchain' },
-          { title: 'NFTs & Digital Assets', description: 'Tokenization and digital ownership' },
-          { title: `${ecosystemName} Infrastructure`, description: 'Wallets, nodes, and developer tools' },
-          { title: 'DAOs', description: 'Decentralized autonomous organizations' },
-        ],
-    technologies: Array.isArray(detail?.technologies) && detail.technologies.length > 0
-      ? detail.technologies
-      : ['TypeScript for smart contract development and tooling', 'Rust for high-performance blockchain infrastructure', 'Solidity for Ethereum smart contracts', 'JavaScript/TypeScript for dApp frontends'],
+    about: hasDetail
+      ? (detail?.about?.trim() || '')
+      : `The ${ecosystemName} ecosystem represents a paradigm shift towards decentralized applications, protocols, and infrastructure.`,
+    keyAreas: hasDetail && apiKeyAreas.length > 0
+      ? apiKeyAreas
+      : hasDetail
+        ? []
+        : [
+            { title: 'Blockchain Protocols', description: 'Core blockchain technologies and consensus mechanisms' },
+            { title: 'DeFi (Decentralized Finance)', description: 'Financial applications built on blockchain' },
+            { title: 'NFTs & Digital Assets', description: 'Tokenization and digital ownership' },
+            { title: `${ecosystemName} Infrastructure`, description: 'Wallets, nodes, and developer tools' },
+            { title: 'DAOs', description: 'Decentralized autonomous organizations' },
+          ],
+    technologies: hasDetail && apiTechnologies.length > 0
+      ? apiTechnologies
+      : hasDetail
+        ? []
+        : ['TypeScript for smart contract development and tooling', 'Rust for high-performance blockchain infrastructure', 'Solidity for Ethereum smart contracts', 'JavaScript/TypeScript for dApp frontends'],
   };
 
   const filteredProjects = ecosystemProjects.filter(

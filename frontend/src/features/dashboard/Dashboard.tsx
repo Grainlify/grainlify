@@ -136,13 +136,13 @@ export function Dashboard() {
     "nav" | "role" | null
   >(null);
 
-  // Check URL params for viewing other users' profiles
+  // Check URL params for viewing other users' profiles (tab=profile or page=profile)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const userParam = params.get("user");
-    const pageParam = params.get("page");
+    const tabParam = params.get("tab") || params.get("page");
 
-    if (pageParam === "profile" && userParam) {
+    if (tabParam === "profile" && userParam) {
       setCurrentPage("profile");
       // Check if it's a UUID (user_id) or a username (login)
       const uuidRegex =
