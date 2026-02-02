@@ -240,7 +240,11 @@ export function IssuesTab({ onNavigate, selectedProjects, onRefresh, initialSele
     return `https://github.com/${login}.png?size=${size}`;
   };
 
-  const GRAINLIFY_APP_PREFIX = '[grainlify application]';
+  // Detect application comments: new format has "has applied to work on this issue as part of the Grainlify program"; legacy had "[grainlify application]" at start
+  const isApplicationComment = (body: string | null | undefined): boolean => {
+    const b = (body || '').toLowerCase();
+    return b.includes('has applied to work on this issue as part of the grainlify program') || b.startsWith('[grainlify application]');
+  };
 
   const DEFAULT_BOT_MESSAGE = `This issue has been added to the Grainlify program. Interested in contributing? **Apply to work on this issue on Grainlify**, earn points, and receive rewards.
 
@@ -248,14 +252,12 @@ Only applications submitted via the apply link above will be considered. Please 
 
   const countApplicationComments = (comments: Array<{ body?: string | null }> | null | undefined): number => {
     if (!Array.isArray(comments)) return 0;
-    return comments.filter((c) => (c?.body || '').toLowerCase().startsWith(GRAINLIFY_APP_PREFIX)).length;
+    return comments.filter((c) => isApplicationComment(c?.body)).length;
   };
 
-  // Extract the applicant's custom message from a Grainlify application comment body.
-  // New template: blockquote holds the message; fallback to full body after prefix.
+  // Extract the applicant's custom message from a Grainlify application comment body (blockquote holds the message).
   const getApplicationMessage = (body: string): string => {
-    const afterPrefix = body.replace(new RegExp(`^${GRAINLIFY_APP_PREFIX}\\s*`, 'i'), '').trim();
-    const lines = afterPrefix.split('\n');
+    const lines = body.split('\n');
     const blockquoteLines: string[] = [];
     for (const line of lines) {
       if (line.startsWith('> ')) {
@@ -267,7 +269,7 @@ Only applications submitted via the apply link above will be considered. Please 
     if (blockquoteLines.length > 0) {
       return blockquoteLines.join('\n').trim();
     }
-    return afterPrefix;
+    return '';
   };
 
   const getApplicationData = (issue: Issue | null, issueFromAPI: IssueFromAPI | null) => {
@@ -280,7 +282,7 @@ Only applications submitted via the apply link above will be considered. Please 
     // Applications are explicit Grainlify application comments (so discussions can contain other chatter).
     // When posted as Grainlify bot, body contains "**@username has applied" – use that as display author.
     const applications = comments
-      .filter(comment => (comment.body || '').toLowerCase().startsWith(GRAINLIFY_APP_PREFIX))
+      .filter(comment => isApplicationComment(comment.body))
       .map((comment) => {
         const body = comment.body || '';
         const applicantMatch = body.match(/\*\*@(\S+)\s+has\s+applied/i);
@@ -310,7 +312,7 @@ Only applications submitted via the apply link above will be considered. Please 
       timeAgo: formatTimeAgo(comment.created_at),
       content: comment.body,
       isAuthor: comment.user.login === issueAuthor,
-      appliedForContribution: (comment.body || '').toLowerCase().startsWith(GRAINLIFY_APP_PREFIX),
+      appliedForContribution: isApplicationComment(comment.body),
     }));
 
     return {

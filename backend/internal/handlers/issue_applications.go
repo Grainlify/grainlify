@@ -17,7 +17,6 @@ import (
 	"github.com/jagadeesh/grainlify/backend/internal/github"
 )
 
-const grainlifyApplicationPrefix = "[grainlify application]"
 
 type IssueApplicationsHandler struct {
 	cfg config.Config
@@ -120,9 +119,8 @@ LIMIT 1
 		if issueURL == "" {
 			issueURL = fmt.Sprintf("https://github.com/%s/issues/%d", fullName, issueNumber)
 		}
-		// Keep prefix for frontend detection; add a formatted header so it renders nicely on GitHub
-		commentBody := fmt.Sprintf("%s\n\n**📋 Grainlify Application**\n\n**@%s has applied to work on this issue as part of the Grainlify program.**\n\n%s\n\n---\n\n**Repo Maintainers:** To accept this application, [review their application](%s) or [assign @%s](%s) to this issue.",
-			grainlifyApplicationPrefix, linked.Login, quotedMsg, reviewURL, linked.Login, issueURL)
+		commentBody := fmt.Sprintf("**📋 Grainlify Application**\n\n**@%s has applied to work on this issue as part of the Grainlify program.**\n\n%s\n\n---\n\n**Repo Maintainers:** To accept this application, [review their application](%s) or [assign @%s](%s) to this issue.",
+			linked.Login, quotedMsg, reviewURL, linked.Login, issueURL)
 		gh := github.NewClient()
 		// Post as the applicant (user token) so the commenter is the user, not the bot (like Drips Wave: user + "with Drips Wave").
 		ghComment, err := gh.CreateIssueComment(c.Context(), linked.AccessToken, fullName, issueNumber, commentBody)
