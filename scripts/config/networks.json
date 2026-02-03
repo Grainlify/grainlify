@@ -1,0 +1,68 @@
+{
+  "networks": {
+    "testnet": {
+      "name": "testnet",
+      "rpc_url": "https://soroban-testnet.stellar.org:443",
+      "network_passphrase": "Test SDF Network ; September 2015",
+      "friendbot_url": "https://friendbot.stellar.org",
+      "explorer_url": "https://stellar.expert/explorer/testnet",
+      "horizon_url": "https://horizon-testnet.stellar.org",
+      "gas_fee_multiplier": 1.0,
+      "confirmation_timeout": 30,
+      "max_retries": 3
+    },
+    "mainnet": {
+      "name": "mainnet",
+      "rpc_url": "https://soroban-mainnet.stellar.org:443",
+      "network_passphrase": "Public Global Stellar Network ; September 2015",
+      "friendbot_url": null,
+      "explorer_url": "https://stellar.expert/explorer/public",
+      "horizon_url": "https://horizon.stellar.org",
+      "gas_fee_multiplier": 1.5,
+      "confirmation_timeout": 60,
+      "max_retries": 5
+    },
+    "local": {
+      "name": "local",
+      "rpc_url": "http://localhost:8000/soroban/rpc",
+      "network_passphrase": "Standalone Network ; February 2017",
+      "friendbot_url": "http://localhost:8000/friendbot",
+      "explorer_url": null,
+      "horizon_url": "http://localhost:8000",
+      "gas_fee_multiplier": 1.0,
+      "confirmation_timeout": 10,
+      "max_retries": 3
+    }
+  },
+  "contracts": {
+    "grainlify-core": {
+      "path": "contracts/grainlify-core",
+      "name": "grainlify-core",
+      "wasm_file": "grainlify_core.wasm",
+      "requires_init": true,
+      "init_args": ["admin_address"],
+      "upgradeable": true
+    },
+    "program-escrow": {
+      "path": "contracts/program-escrow",
+      "name": "program-escrow",
+      "wasm_file": "program_escrow.wasm",
+      "requires_init": true,
+      "init_args": ["admin_address", "token_address"],
+      "upgradeable": true
+    },
+    "bounty-escrow": {
+      "path": "contracts/bounty_escrow/contracts/escrow",
+      "name": "bounty-escrow",
+      "wasm_file": "bounty_escrow.wasm",
+      "requires_init": true,
+      "init_args": ["admin_address", "token_address"],
+      "upgradeable": true
+    }
+  },
+  "deployment_order": [
+    "grainlify-core",
+    "program-escrow",
+    "bounty-escrow"
+  ]
+}
