@@ -1034,6 +1034,10 @@ impl ProgramEscrowContract {
             ),
         );
 
+        // Note: Caller is responsible for transferring actual tokens to the contract
+        // before calling this function. This function only records the locked amount
+        // in the program state. Use token_client.transfer() to move tokens separately.
+
         program_data
     }
 
@@ -1551,7 +1555,7 @@ impl ProgramEscrowContract {
             .storage()
             .instance()
             .get(&program_key)
-            .unwrap();
+            .expect("Program data missing after schedule creation");
         updated_data
     }
 
@@ -2213,7 +2217,8 @@ mod test {
 
     // Test helper to create a mock token contract
     fn create_token_contract<'a>(env: &Env, admin: &Address) -> token::Client<'a> {
-        let token_address = env.register_stellar_asset_contract(admin.clone());
+        let token_contract = env.register_stellar_asset_contract_v2(admin.clone());
+        let token_address = token_contract.address();
         token::Client::new(env, &token_address)
     }
 
@@ -2224,31 +2229,49 @@ mod test {
     fn setup_program_with_schedule(
         env: &Env,
         client: &ProgramEscrowContractClient<'static>,
+        contract_id: &Address,
         authorized_key: &Address,
-        token: &Address,
+        _token: &Address,
         program_id: &String,
         total_amount: i128,
         winner: &Address,
         release_timestamp: u64,
     ) {
-        // Register program
-        client.register_program(program_id, token, authorized_key);
+
+        // // Register program
+        // client.register_program(program_id, token, authorized_key);
         
-        // Create and fund token
+        // // Create and fund token
+        // let token_client = create_token_contract(env, authorized_key);
+        // let token_admin = token::StellarAssetClient::new(env, &token_client.address);
+        // token_admin.mint(authorized_key, &total_amount);
+        
+        // // Lock funds for program
+        // token_client.approve(authorized_key, &env.current_contract_address(), &total_amount, &1000);
+        // client.lock_funds(program_id, &total_amount);
+        
+
+        // Create and fund token first, then register the program with the real token address
         let token_client = create_token_contract(env, authorized_key);
         let token_admin = token::StellarAssetClient::new(env, &token_client.address);
         token_admin.mint(authorized_key, &total_amount);
-        
-        // Lock funds for program
-        token_client.approve(authorized_key, &env.current_contract_address(), &total_amount, &1000);
-        client.lock_funds(program_id, &total_amount);
-        
+
+        // Register program using the created token contract address
+        client.initialize_program(&program_id, &authorized_key, &token_client.address);
+
+        // Transfer tokens to contract first
+        token_client.transfer(&authorized_key, contract_id, &total_amount);
+
+        // Lock funds for program (records the amount in program state)
+        client.lock_program_funds(program_id, &total_amount);
+
+
         // Create release schedule
         client.create_program_release_schedule(
-            program_id,
+            &program_id,
             &total_amount,
             &release_timestamp,
-            winner.clone(),
+            winner,
         );
     }
 
@@ -2271,6 +2294,7 @@ mod test {
         setup_program_with_schedule(
             &env,
             &client,
+            &contract_id,
             &authorized_key,
             &token,
             &program_id,
@@ -2312,23 +2336,26 @@ mod test {
         env.mock_all_auths();
         
         // Register program
-        client.register_program(&program_id, &token, &authorized_key);
+        client.initialize_program(&program_id, &authorized_key, &token);
         
         // Create and fund token
         let token_client = create_token_contract(&env, &authorized_key);
         let token_admin = token::StellarAssetClient::new(&env, &token_client.address);
         token_admin.mint(&authorized_key, &total_amount);
-        
+
+
+        // Transfer tokens to contract first
+        token_client.transfer(&authorized_key, &contract_id, &total_amount);
+
         // Lock funds for program
-        token_client.approve(&authorized_key, &env.current_contract_address(), &total_amount, &1000);
-        client.lock_funds(&program_id, &total_amount);
-        
+        client.lock_program_funds(&program_id, &total_amount);
+
         // Create first release schedule
         client.create_program_release_schedule(
             &program_id,
             &amount1,
             &1000,
-            &winner1.clone(),
+            &winner1,
         );
         
         // Create second release schedule
@@ -2336,7 +2363,7 @@ mod test {
             &program_id,
             &amount2,
             &2000,
-            &winner2.clone(),
+            &winner2,
         );
         
         // Verify both schedules exist
@@ -2383,6 +2410,7 @@ mod test {
         setup_program_with_schedule(
             &env,
             &client,
+            &contract_id,
             &authorized_key,
             &token,
             &program_id,
@@ -2406,8 +2434,9 @@ mod test {
         let schedule = client.get_program_release_schedule(&program_id, &1);
         assert!(schedule.released);
         assert_eq!(schedule.released_at, Some(1001));
-        assert_eq!(schedule.released_by, Some(env.current_contract_address()));
-        
+
+        assert_eq!(schedule.released_by, Some(contract_id.clone()));
+
         // Check no pending schedules
         let pending = client.get_pending_program_schedules(&program_id);
         assert_eq!(pending.len(), 0);
@@ -2439,6 +2468,7 @@ mod test {
         setup_program_with_schedule(
             &env,
             &client,
+            &contract_id,
             &authorized_key,
             &token,
             &program_id,
@@ -2449,7 +2479,7 @@ mod test {
         
         // Manually release before timestamp (authorized key can do this)
         env.ledger().set_timestamp(999);
-        client.release_prog_schedule_manual(&program_id, &1);
+        client.release_program_schedule_manual(&program_id, &1);
         
         // Verify schedule was released
         let schedule = client.get_program_release_schedule(&program_id, &1);
@@ -2474,32 +2504,34 @@ mod test {
         let authorized_key = Address::generate(&env);
         let winner1 = Address::generate(&env);
         let winner2 = Address::generate(&env);
-        let token = Address::generate(&env);
         let program_id = String::from_str(&env, "Hackathon2024");
         let amount1 = 600_0000000;
         let amount2 = 400_0000000;
         let total_amount = amount1 + amount2;
         
         env.mock_all_auths();
-        
-        // Register program
-        client.register_program(&program_id, &token, &authorized_key);
-        
-        // Create and fund token
+
+
+        // Create and fund token FIRST
         let token_client = create_token_contract(&env, &authorized_key);
         let token_admin = token::StellarAssetClient::new(&env, &token_client.address);
         token_admin.mint(&authorized_key, &total_amount);
-        
+
+        // Register program with REAL token address
+        client.initialize_program(&program_id, &authorized_key, &token_client.address);
+
+        // Transfer tokens to contract first
+        token_client.transfer(&authorized_key, &contract_id, &total_amount);
+
         // Lock funds for program
-        token_client.approve(&authorized_key, &env.current_contract_address(), &total_amount, &1000);
-        client.lock_funds(&program_id, &total_amount);
-        
+        client.lock_program_funds(&program_id, &total_amount);
+
         // Create first schedule
         client.create_program_release_schedule(
             &program_id,
             &amount1,
             &1000,
-            &winner1.clone(),
+            &winner1,
         );
         
         // Create second schedule
@@ -2507,11 +2539,11 @@ mod test {
             &program_id,
             &amount2,
             &2000,
-            &winner2.clone(),
+            &winner2,
         );
         
         // Release first schedule manually
-        client.release_prog_schedule_manual(&program_id, &1);
+        client.release_program_schedule_manual(&program_id, &1);
         
         // Advance time and release second schedule automatically
         env.ledger().set_timestamp(2001);
@@ -2556,7 +2588,6 @@ mod test {
         let winner1 = Address::generate(&env);
         let winner2 = Address::generate(&env);
         let winner3 = Address::generate(&env);
-        let token = Address::generate(&env);
         let program_id = String::from_str(&env, "Hackathon2024");
         let amount1 = 300_0000000;
         let amount2 = 300_0000000;
@@ -2565,19 +2596,22 @@ mod test {
         let base_timestamp = 1000;
         
         env.mock_all_auths();
-        
-        // Register program
-        client.register_program(&program_id, &token, &authorized_key);
-        
-        // Create and fund token
+
+
+        // Create and fund token FIRST
         let token_client = create_token_contract(&env, &authorized_key);
         let token_admin = token::StellarAssetClient::new(&env, &token_client.address);
         token_admin.mint(&authorized_key, &total_amount);
-        
+
+        // Register program with REAL token address
+        client.initialize_program(&program_id, &authorized_key, &token_client.address);
+
+        // Transfer tokens to contract first
+        token_client.transfer(&authorized_key, &contract_id, &total_amount);
+
         // Lock funds for program
-        token_client.approve(&authorized_key, &env.current_contract_address(), &total_amount, &1000);
-        client.lock_funds(&program_id, &total_amount);
-        
+        client.lock_program_funds(&program_id, &total_amount);
+
         // Create overlapping schedules (all at same timestamp)
         client.create_program_release_schedule(
             &program_id,
