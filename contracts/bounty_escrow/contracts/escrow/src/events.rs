@@ -3,25 +3,6 @@
 //! This module defines all events emitted by the Bounty Escrow contract.
 //! Events provide an audit trail and enable off-chain indexing for monitoring
 //! bounty lifecycle states.
-//!
-//! ## Event Architecture
-//!
-//! ```text
-//! ┌─────────────────────────────────────────────────────────────┐
-//! │                    Event Flow Diagram                        │
-//! ├─────────────────────────────────────────────────────────────┤
-//! │                                                              │
-//! │  Contract Init → BountyEscrowInitialized                    │
-//! │       ↓                                                      │
-//! │  Lock Funds    → FundsLocked                                │
-//! │       ↓                                                      │
-//! │  ┌──────────┐                                               │
-//! │  │ Decision │                                               │
-//! │  └────┬─────┘                                               │
-//! │       ├─────→ Release → FundsReleased                       │
-//! │       └─────→ Refund  → FundsRefunded                       │
-//! └─────────────────────────────────────────────────────────────┘
-//! ```
 
 use soroban_sdk::{contracttype, symbol_short, Address, Env};
 
@@ -29,33 +10,6 @@ use soroban_sdk::{contracttype, symbol_short, Address, Env};
 // Contract Initialization Event
 // ============================================================================
 
-/// Event emitted when the Bounty Escrow contract is initialized.
-///
-/// # Fields
-/// * `admin` - The administrator address with release authorization
-/// * `token` - The token contract address (typically XLM/USDC)
-/// * `timestamp` - Unix timestamp of initialization
-///
-/// # Event Topic
-/// Symbol: `init`
-///
-/// # Usage
-/// This event is emitted once during contract deployment and signals
-/// that the contract is ready to accept bounty escrows.
-///
-/// # Security Considerations
-/// - Only emitted once; subsequent init attempts should fail
-/// - Admin address should be a secure backend service
-/// - Token address must be a valid Stellar token contract
-///
-/// # Example Off-chain Indexing
-/// ```javascript
-/// // Listen for initialization events
-/// stellar.events.on('init', (event) => {
-///   console.log(`Contract initialized by ${event.admin}`);
-///   console.log(`Using token: ${event.token}`);
-/// });
-/// ```
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct BountyEscrowInitialized {
@@ -64,15 +18,6 @@ pub struct BountyEscrowInitialized {
     pub timestamp: u64,
 }
 
-/// Emits a BountyEscrowInitialized event.
-///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `event` - The initialization event data
-///
-/// # Event Structure
-/// Topic: `(symbol_short!("init"),)`
-/// Data: Complete `BountyEscrowInitialized` struct
 pub fn emit_bounty_initialized(env: &Env, event: BountyEscrowInitialized) {
     let topics = (symbol_short!("init"),);
     env.events().publish(topics, event.clone());
@@ -82,40 +27,6 @@ pub fn emit_bounty_initialized(env: &Env, event: BountyEscrowInitialized) {
 // Funds Locked Event
 // ============================================================================
 
-/// Event emitted when funds are locked in escrow for a bounty.
-///
-/// # Fields
-/// * `bounty_id` - Unique identifier for the bounty
-/// * `amount` - Amount of tokens locked (in stroops for XLM)
-/// * `depositor` - Address that deposited the funds
-/// * `deadline` - Unix timestamp after which refunds are allowed
-///
-/// # Event Topic
-/// Symbol: `f_lock`
-/// Indexed: `bounty_id` (allows filtering by specific bounty)
-///
-/// # State Transition
-/// ```text
-/// NONE → LOCKED
-/// ```
-///
-/// # Usage
-/// Emitted when a bounty creator locks funds for a task. The depositor
-/// transfers tokens to the contract, which holds them until release or refund.
-///
-/// # Security Considerations
-/// - Amount must be positive and within depositor's balance
-/// - Bounty ID must be unique (no duplicates allowed)
-/// - Deadline must be in the future
-/// - Depositor must authorize the transaction
-///
-/// # Example Usage
-/// ```rust
-/// // Lock 1000 XLM for bounty #42, deadline in 30 days
-/// let deadline = env.ledger().timestamp() + (30 * 24 * 60 * 60);
-/// escrow_client.lock_funds(&depositor, &42, &10_000_000_000, &deadline);
-/// // → Emits FundsLocked event
-/// ```
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct FundsLocked {
@@ -123,6 +34,7 @@ pub struct FundsLocked {
     pub amount: i128,
     pub depositor: Address,
     pub deadline: u64,
+    pub token_address: Address, // Token used for this lock
 }
 
 /// Emits a FundsLocked event.
@@ -146,53 +58,15 @@ pub fn emit_funds_locked(env: &Env, event: FundsLocked) {
 // Funds Released Event
 // ============================================================================
 
-/// Event emitted when escrowed funds are released to a contributor.
-///
-/// # Fields
-/// * `bounty_id` - The bounty identifier
-/// * `amount` - Amount transferred to recipient
-/// * `recipient` - Address receiving the funds (contributor)
-/// * `timestamp` - Unix timestamp of release
-///
-/// # Event Topic
-/// Symbol: `f_rel`
-/// Indexed: `bounty_id`
-///
-/// # State Transition
-/// ```text
-/// LOCKED → RELEASED (final state)
-/// ```
-///
-/// # Usage
-/// Emitted when the admin releases funds to a contributor who completed
-/// the bounty task. This is a final, irreversible action.
-///
-/// # Authorization
-/// - Only the contract admin can trigger fund release
-/// - Funds must be in LOCKED state
-/// - Cannot release funds that were already released or refunded
-///
-/// # Security Considerations
-/// - Admin authorization is critical (should be secure backend)
-/// - Recipient address should be verified off-chain before release
-/// - Once released, funds cannot be retrieved
-/// - Atomic operation: transfer + state update
-///
-/// # Example Usage
-/// ```rust
-/// // Admin releases 1000 XLM to contributor for bounty #42
-/// escrow_client.release_funds(&42, &contributor_address);
-/// // → Transfers tokens
-/// // → Updates state to Released
-/// // → Emits FundsReleased event
-/// ```
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct FundsReleased {
     pub bounty_id: u64,
     pub amount: i128,
     pub recipient: Address,
+    pub token_address: Address, // Token used for this release
     pub timestamp: u64,
+    pub remaining_amount: i128,
 }
 
 /// Emits a FundsReleased event.
@@ -213,55 +87,6 @@ pub fn emit_funds_released(env: &Env, event: FundsReleased) {
 // Funds Refunded Event
 // ============================================================================
 
-/// Event emitted when escrowed funds are refunded to the depositor.
-///
-/// # Fields
-/// * `bounty_id` - The bounty identifier
-/// * `amount` - Amount refunded to depositor
-/// * `refund_to` - Address receiving the refund (original depositor)
-/// * `timestamp` - Unix timestamp of refund
-///
-/// # Event Topic
-/// Symbol: `f_ref`
-/// Indexed: `bounty_id`
-///
-/// # State Transition
-/// ```text
-/// LOCKED → REFUNDED (final state)
-/// ```
-///
-/// # Usage
-/// Emitted when funds are returned to the depositor after the deadline
-/// has passed without the bounty being completed. This mechanism prevents
-/// funds from being locked indefinitely.
-///
-/// # Conditions
-/// - Deadline must have passed (timestamp > deadline)
-/// - Funds must still be in LOCKED state
-/// - Can be triggered by anyone (permissionless but conditional)
-///
-/// # Security Considerations
-/// - Time-based protection ensures funds aren't stuck
-/// - Permissionless refund prevents admin monopoly
-/// - Original depositor always receives refund
-/// - Cannot refund if already released or refunded
-///
-/// # Example Usage
-/// ```rust
-/// // After deadline passes, anyone can trigger refund
-/// // Deadline was January 1, 2025
-/// // Current time: January 15, 2025
-/// escrow_client.refund(&42);
-/// // → Transfers tokens back to depositor
-/// // → Updates state to Refunded
-/// // → Emits FundsRefunded event
-/// ```
-///
-/// # Design Rationale
-/// Permissionless refunds ensure that:
-/// 1. Depositors don't lose funds if they lose their keys
-/// 2. No admin action needed for legitimate refunds
-/// 3. System remains trustless and decentralized
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct FundsRefunded {
@@ -271,6 +96,7 @@ pub struct FundsRefunded {
     pub timestamp: u64,
     pub refund_mode: crate::RefundMode,
     pub remaining_amount: i128,
+    pub token_address: Address, // Token used for this refund
 }
 
 /// Emits a FundsRefunded event.
@@ -347,5 +173,314 @@ pub struct BatchFundsReleased {
 
 pub fn emit_batch_funds_released(env: &Env, event: BatchFundsReleased) {
     let topics = (symbol_short!("b_rel"),);
+    env.events().publish(topics, event.clone());
+}
+
+// ============================================================================
+// Contract Pause Events
+// ============================================================================
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ContractPaused {
+    pub paused_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn emit_contract_paused(env: &Env, event: ContractPaused) {
+    let topics = (symbol_short!("pause"),);
+    env.events().publish(topics, event.clone());
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ContractUnpaused {
+    pub unpaused_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn emit_contract_unpaused(env: &Env, event: ContractUnpaused) {
+    let topics = (symbol_short!("unpause"),);
+    env.events().publish(topics, event.clone());
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct EmergencyWithdrawal {
+    pub withdrawn_by: Address,
+    pub amount: i128,
+    pub recipient: Address,
+    pub timestamp: u64,
+}
+
+pub fn emit_emergency_withdrawal(env: &Env, event: EmergencyWithdrawal) {
+    let topics = (symbol_short!("ewith"),);
+    env.events().publish(topics, event.clone());
+}
+
+// ============================================================================
+// Admin Configuration Events
+// ============================================================================
+
+/// Event emitted when admin is updated.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct AdminUpdated {
+    pub old_admin: Address,
+    pub new_admin: Address,
+    pub updated_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn emit_admin_updated(env: &Env, event: AdminUpdated) {
+    let topics = (symbol_short!("adm_upd"),);
+    env.events().publish(topics, event.clone());
+}
+
+/// Event emitted when authorized payout key is updated.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct PayoutKeyUpdated {
+    pub old_key: Option<Address>,
+    pub new_key: Address,
+    pub updated_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn emit_payout_key_updated(env: &Env, event: PayoutKeyUpdated) {
+    let topics = (symbol_short!("pay_upd"),);
+    env.events().publish(topics, event.clone());
+}
+
+/// Event emitted when configuration limits are updated.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ConfigLimitsUpdated {
+    pub max_bounty_amount: Option<i128>,
+    pub min_bounty_amount: Option<i128>,
+    pub max_deadline_duration: Option<u64>,
+    pub min_deadline_duration: Option<u64>,
+    pub updated_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn emit_config_limits_updated(env: &Env, event: ConfigLimitsUpdated) {
+    let topics = (symbol_short!("cfg_lmt"),);
+    env.events().publish(topics, event.clone());
+}
+
+/// Event emitted when an admin action is proposed (for time-lock).
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct AdminActionProposed {
+    pub action_id: u64,
+    pub action_type: crate::AdminActionType,
+    pub proposed_by: Address,
+    pub execution_time: u64,
+    pub timestamp: u64,
+}
+
+pub fn emit_admin_action_proposed(env: &Env, event: AdminActionProposed) {
+    let topics = (symbol_short!("adm_prop"),);
+    env.events().publish(topics, event.clone());
+}
+
+/// Event emitted when an admin action is executed.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct AdminActionExecuted {
+    pub action_id: u64,
+    pub action_type: crate::AdminActionType,
+    pub executed_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn emit_admin_action_executed(env: &Env, event: AdminActionExecuted) {
+    let topics = (symbol_short!("adm_exec"),);
+    env.events().publish(topics, event.clone());
+}
+
+/// Event emitted when an admin action is cancelled.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct AdminActionCancelled {
+    pub action_id: u64,
+    pub action_type: crate::AdminActionType,
+    pub cancelled_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn emit_admin_action_cancelled(env: &Env, event: AdminActionCancelled) {
+    let topics = (symbol_short!("adm_cncl"),);
+    env.events().publish(topics, event.clone());
+}
+
+// ============================================================================
+// Deadline Extended Event
+// ============================================================================
+
+/// Event emitted when the refund deadline for an escrow is extended.
+///
+/// # Fields
+/// * `bounty_id` - The bounty identifier
+/// * `old_deadline` - The previous deadline timestamp
+/// * `new_deadline` - The new deadline timestamp
+/// * `extended_by` - Address that extended the deadline (admin or depositor)
+/// * `timestamp` - Unix timestamp when the extension occurred
+///
+/// # Event Topic
+/// Symbol: `deadline_ext`
+/// Indexed: `bounty_id`
+///
+/// # Usage
+/// Emitted when an authorized party (admin or depositor) extends the refund
+/// deadline for a bounty. This allows bounties to be extended without
+/// migrating funds to a new escrow.
+///
+/// # Conditions
+/// - New deadline must be strictly greater than old deadline
+/// - Escrow must be in Locked or PartiallyRefunded state
+/// - Only admin or depositor can extend deadline
+///
+/// # Security Considerations
+/// - Deadline can only be extended, never shortened
+/// - Prevents indefinite locking by requiring extension
+/// - Full audit trail of all deadline changes
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct DeadlineExtended {
+    pub bounty_id: u64,
+    pub old_deadline: u64,
+    pub new_deadline: u64,
+    pub extended_by: Address,
+    pub timestamp: u64,
+}
+
+/// Emits a DeadlineExtended event.
+///
+/// # Arguments
+/// * `env` - The contract environment
+/// * `event` - The deadline extended event data
+///
+/// # Event Structure
+/// Topic: `(symbol_short!("dead_ext"), event.bounty_id)`
+/// Data: Complete `DeadlineExtended` struct
+pub fn emit_deadline_extended(env: &Env, event: DeadlineExtended) {
+    let topics = (symbol_short!("dead_ext"), event.bounty_id);
+    env.events().publish(topics, event.clone());
+}
+
+// ============================================================================
+<<<<<<< HEAD
+// Multi-Signature Events
+// ============================================================================
+
+/// Event emitted when multisig configuration is set or updated.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct MultisigConfigured {
+    pub threshold_amount: i128,
+    pub signer_count: u32,
+    pub required_approvals: u32,
+    pub enabled: bool,
+    pub configured_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn emit_multisig_configured(env: &Env, event: MultisigConfigured) {
+    let topics = (symbol_short!("ms_config"),);
+    env.events().publish(topics, event.clone());
+}
+
+/// Event emitted when a large release approval is created.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ReleaseApprovalCreated {
+    pub bounty_id: u64,
+    pub amount: i128,
+    pub contributor: Address,
+    pub threshold_amount: i128,
+    pub required_approvals: u32,
+    pub timestamp: u64,
+}
+
+pub fn emit_release_approval_created(env: &Env, event: ReleaseApprovalCreated) {
+    let topics = (symbol_short!("ms_create"), event.bounty_id);
+    env.events().publish(topics, event.clone());
+}
+
+/// Event emitted when a signer approves a pending release.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ReleaseApprovalSigned {
+    pub bounty_id: u64,
+    pub signer: Address,
+    pub approval_count: u32,
+    pub required_approvals: u32,
+    pub timestamp: u64,
+}
+
+pub fn emit_release_approval_signed(env: &Env, event: ReleaseApprovalSigned) {
+    let topics = (symbol_short!("ms_sign"), event.bounty_id);
+    env.events().publish(topics, event.clone());
+}
+
+/// Event emitted when a multisig release is executed.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ReleaseApprovalExecuted {
+    pub bounty_id: u64,
+    pub amount: i128,
+    pub contributor: Address,
+    pub approval_count: u32,
+    pub timestamp: u64,
+}
+
+pub fn emit_release_approval_executed(env: &Env, event: ReleaseApprovalExecuted) {
+    let topics = (symbol_short!("ms_exec"), event.bounty_id);
+    env.events().publish(topics, event.clone());
+}
+
+/// Event emitted when a pending release approval is cancelled.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct ReleaseApprovalCancelled {
+    pub bounty_id: u64,
+    pub cancelled_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn emit_release_approval_cancelled(env: &Env, event: ReleaseApprovalCancelled) {
+    let topics = (symbol_short!("ms_cancel"), event.bounty_id);
+    env.events().publish((topics, ReleaseApprovalCancelled {
+        bounty_id: event.bounty_id,
+        cancelled_by: event.cancelled_by,
+        timestamp: event.timestamp,
+    }));
+}
+
+// Escrow Expired Event
+// ============================================================================
+
+/// Event emitted when an escrow expires and is automatically refunded.
+///
+/// # Fields
+/// * `bounty_id` - The bounty identifier
+/// * `amount` - Amount refunded
+/// * `refunded_to` - Address receiving the refund (original depositor)
+/// * `triggered_by` - Address that triggered the expiration
+/// * `timestamp` - Unix timestamp of expiration
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct EscrowExpired {
+    pub bounty_id: u64,
+    pub amount: i128,
+    pub refunded_to: Address,
+    pub triggered_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn emit_escrow_expired(env: &Env, event: EscrowExpired) {
+    let topics = (symbol_short!("expired"), event.bounty_id);
     env.events().publish(topics, event.clone());
 }

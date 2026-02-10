@@ -261,6 +261,7 @@ export function DiscoverPage({
         // Try to get issues from projects, moving to next if a project has no issues
         for (const project of projects) {
           if (issues.length >= 6) break; // We only need 6 issues
+
           try {
             const issuesResponse = await getPublicProjectIssues(project.id);
             if (issuesResponse?.issues && Array.isArray(issuesResponse.issues) && issuesResponse.issues.length > 0) {
@@ -486,7 +487,7 @@ export function DiscoverPage({
                     theme === "dark" ? "text-[#d4d4d4]" : "text-[#7a6b5a]"
                   }`}
                 >
-                  {project.description}
+                  {project.description?.trim() || "No description"}
                 </p>
 
                 <div
