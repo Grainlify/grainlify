@@ -180,6 +180,7 @@ interface ModalInputProps {
   rows?: number;
   className?: string;
   error?: string | null;
+  autoFocus?: boolean;
 }
 
 export function ModalInput({
@@ -192,7 +193,8 @@ export function ModalInput({
   required = false,
   rows,
   className = '',
-  error
+  error,
+  autoFocus = false
 }: ModalInputProps) {
   const { theme } = useTheme();
 
@@ -235,6 +237,7 @@ export function ModalInput({
           onBlur={onBlur}
           className={inputClasses}
           placeholder={placeholder}
+          autoFocus={autoFocus}
         />
       )}
       {isError && (

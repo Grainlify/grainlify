@@ -2,15 +2,17 @@
 name = "program-escrow"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-soroban-sdk = "21.0.0"
+soroban-sdk = "22.0.8"
+grainlify-interfaces = { path = "../interfaces" }
 
 [dev-dependencies]
-soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+soroban-sdk = { version = "22.0.8", features = ["testutils"] }
 
 [profile.release]
 opt-level = "z"

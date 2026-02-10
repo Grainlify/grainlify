@@ -8,6 +8,9 @@ contract-issues.md
 !.elasticbeanstalk/*.global.yml
 wasm_hash.txt
 
+# Node modules
+node_modules/
+
 # Deployment Scripts - Sensitive Files
 # Keep templates, ignore local overrides
 contracts/scripts/config/*.env.local
@@ -22,3 +25,4 @@ contracts/deployments/*.json
 .soroban/
 soroban/.soroban/identity/
 soroban/.soroban/network/
+test_snapshots/
